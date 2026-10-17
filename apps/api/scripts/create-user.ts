@@ -1,7 +1,6 @@
 // Cria (ou redefine) o usuario do Pluto. Uso: pnpm --filter @pluto/api user:create
-// Interativo: senha digitada sem eco, autenticador configurado por QR code, codigos de
-// recuperacao mostrados uma unica vez. Nada sensivel e gravado em claro.
-import { createInterface } from 'node:readline/promises';
+// Interativo: senha digitada sem eco (aparece •), autenticador configurado por QR code,
+// codigos de recuperacao mostrados uma unica vez. Nada sensivel e gravado em claro.
 import QRCode from 'qrcode';
 import { EmailSchema } from '@pluto/shared';
 import { loadEnv } from '../src/config/env';
@@ -12,36 +11,7 @@ import { buildUser } from '../src/modules/auth/users';
 import { createFieldCrypto } from '../src/lib/crypto';
 import { passwordProblems, pwnedCount } from '../src/lib/password';
 import { generateTotpSecret, otpauthUri, verifyTotp } from '../src/lib/totp';
-
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-const ask = async (q: string) => (await rl.question(q)).trim();
-
-/** Le sem mostrar o que e digitado. */
-function askHidden(q: string): Promise<string> {
-  return new Promise((resolve) => {
-    const stdin = process.stdin;
-    process.stdout.write(q);
-    rl.pause();
-    stdin.setRawMode?.(true);
-    stdin.resume();
-    let value = '';
-    const onData = (buf: Buffer) => {
-      for (const ch of buf.toString('utf8')) {
-        if (ch === '\r' || ch === '\n') {
-          stdin.setRawMode?.(false);
-          stdin.off('data', onData);
-          process.stdout.write('\n');
-          rl.resume();
-          return resolve(value);
-        }
-        if (ch === '\u0003') process.exit(130); // Ctrl+C
-        if (ch === '\u007f' || ch === '\b') value = value.slice(0, -1);
-        else value += ch;
-      }
-    };
-    stdin.on('data', onData);
-  });
-}
+import { ask } from './prompt';
 
 const env = loadEnv();
 const database = await connectDatabase(env.MONGODB_URI);
@@ -69,9 +39,10 @@ try {
     if (!ok) process.exit(0);
   }
 
+  console.log('\nA senha não aparece na tela: cada tecla vira •.');
   let password = '';
   for (;;) {
-    password = await askHidden(`Senha (mínimo 12 caracteres): `);
+    password = await ask('Senha (mínimo 12 caracteres): ', { hidden: true });
     const problem = passwordProblems(password);
     if (problem) {
       console.log(`  ${problem}`);
@@ -84,8 +55,8 @@ try {
       continue;
     }
     if (pwned === null) console.log('  (Não consegui consultar a base de senhas vazadas; seguindo assim mesmo.)');
-    if ((await askHidden('Repita a senha: ')) !== password) {
-      console.log('  As senhas não conferem.');
+    if ((await ask('Repita a senha: ', { hidden: true })) !== password) {
+      console.log('  As senhas não conferem. Vamos de novo.');
       continue;
     }
     break;
@@ -122,6 +93,6 @@ try {
   recoveryCodes.forEach((c, i) => console.log(`  ${String(i + 1).padStart(2)}. ${c}`));
   console.log('');
 } finally {
-  rl.close();
   await database.close();
 }
+process.exit(0);

@@ -5,7 +5,9 @@ export default defineConfig({
     projects: [
       { test: { name: 'finance-engine', root: 'packages/finance-engine', environment: 'node' } },
       { test: { name: 'shared', root: 'packages/shared', environment: 'node' } },
-      { test: { name: 'api', root: 'apps/api', environment: 'node', testTimeout: 20_000 } },
+      {
+        test: { name: 'api', root: 'apps/api', include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'], environment: 'node', testTimeout: 20_000 },
+      },
     ],
     coverage: {
       provider: 'v8',
