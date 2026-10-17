@@ -1,0 +1,18 @@
+# MongoDB local com autenticacao, escutando so em localhost (secao 6.4).
+# Uso: copie infra/.env.example para infra/.env, depois `pnpm db:up`.
+services:
+  mongo:
+    image: mongo:8
+    container_name: pluto-mongo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    env_file: .env
+    environment:
+      MONGO_INITDB_DATABASE: pluto
+    volumes:
+      - pluto-mongo-data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+volumes:
+  pluto-mongo-data:

@@ -1,0 +1,44 @@
+# dependencias
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+google-services.json
+GoogleService-Info.plist
+*.keystore
+*.jks
+
+# backups do banco
+infra/backups/
+*.archive
+*.gz.enc
+
+# capacitor / nativo
+apps/web/ios/App/Pods/
+apps/web/ios/App/App/public/
+apps/web/android/app/src/main/assets/public/
+apps/web/android/.gradle/
+apps/web/android/build/
+apps/web/android/app/build/
+apps/web/android/local.properties
+
+# sistema / editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/

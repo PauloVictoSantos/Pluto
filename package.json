@@ -1,0 +1,39 @@
+{
+  "name": "pluto",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pluto - aplicativo de financas pessoais (web + iOS + Android)",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @pluto/api --filter @pluto/web dev",
+    "dev:api": "pnpm --filter @pluto/api dev",
+    "dev:web": "pnpm --filter @pluto/web dev",
+    "build": "pnpm -r build",
+    "build:mobile": "pnpm --filter @pluto/web build:mobile",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker-compose.yml down",
+    "audit": "pnpm audit --prod"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,214 @@
+@import 'tailwindcss';
+
+/* Tokens do design "Pluto App". Tema alternado por data-theme no <html>. */
+:root,
+[data-theme='light'] {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --muted: #f4f4f5;
+  --muted-foreground: #6b6b73;
+  --border: #e8e8ec;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  --brand: #7d39eb;
+  --brand-text: #6a2ad6;
+  --brand-soft: rgba(125, 57, 235, 0.1);
+  --accent: #c6ff33;
+  --accent-foreground: #000000;
+  --dark-card: #000000;
+  --danger-soft: #fdecec;
+  --danger-text: #b42318;
+  --ring: #7d39eb;
+  --radius: 1rem;
+  --overlay: rgba(0, 0, 0, 0.35);
+  --chart-1: #7d39eb;
+  --chart-2: #c6ff33;
+}
+
+[data-theme='dark'] {
+  --background: #000000;
+  --foreground: #fafafa;
+  --card: #0f0f11;
+  --muted: #1a1a1e;
+  --muted-foreground: #a1a1aa;
+  --border: #26262c;
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  --brand-text: #b18cf7;
+  --brand-soft: rgba(125, 57, 235, 0.22);
+  --dark-card: #1c1c21;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --danger-text: #fca5a5;
+  --overlay: rgba(0, 0, 0, 0.65);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-dark-card: var(--dark-card);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-text: var(--danger-text);
+  --color-overlay: var(--overlay);
+  --color-lilac: #b18cf7;
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--brand-text);
+}
+a:hover {
+  color: var(--brand);
+}
+
+button {
+  font-family: inherit;
+}
+
+@keyframes plutoDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@layer components {
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: clamp(18px, 4vw, 24px);
+    min-width: 0;
+  }
+  .page-title {
+    margin: 0;
+    font-size: clamp(24px, 5vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+  }
+  .card-title {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+    box-sizing: border-box;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .btn-primary:hover {
+    color: var(--primary-foreground);
+  }
+  .btn-outline {
+    background: var(--card);
+    color: var(--foreground);
+    border-color: var(--border);
+  }
+  .btn-outline:hover {
+    background: var(--muted);
+    color: var(--foreground);
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-accent:hover {
+    filter: brightness(0.95);
+    color: #000;
+  }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted-foreground);
+  }
+  .input {
+    height: 48px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    font-family: inherit;
+    font-size: 16px;
+    outline: none;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .input:focus {
+    border-color: var(--ring);
+  }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

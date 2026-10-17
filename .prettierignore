@@ -1,0 +1,8 @@
+node_modules
+dist
+.next
+out
+coverage
+pnpm-lock.yaml
+apps/web/ios
+apps/web/android

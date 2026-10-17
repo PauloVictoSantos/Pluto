@@ -1,0 +1,29 @@
+{
+  "name": "@pluto/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/server.ts",
+    "build": "tsup",
+    "start": "node --env-file=.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "db:indexes": "tsx --env-file=.env src/db/run-indexes.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.1",
+    "@pluto/finance-engine": "workspace:^",
+    "@pluto/shared": "workspace:^",
+    "fastify": "^5.12.7",
+    "fastify-type-provider-zod": "^7.0.0",
+    "mongodb": "^7.7.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsup": "^8",
+    "tsx": "^4.23.15"
+  }
+}
