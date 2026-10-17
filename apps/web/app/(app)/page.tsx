@@ -132,7 +132,7 @@ export default function OverviewPage() {
               <CountUp
                 key={s.balanceMinor}
                 value={s.balanceMinor / 100}
-                text={undefined}
+                text={hide ? VALUE_MASK : undefined}
                 className="block text-[clamp(34px,8vw,44px)] leading-[1.05] font-bold tracking-[-0.045em] tabular-nums"
               />
             ) : (
