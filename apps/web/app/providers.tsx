@@ -13,6 +13,6 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }),
   );
-  useEffect(hydrate, []);
+  useEffect(() => void hydrate(), []);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

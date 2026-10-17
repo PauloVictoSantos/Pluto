@@ -5,19 +5,25 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { Icon } from '@/components/ui/Icon';
+import { ApiRequestError, api } from '@/lib/api';
 import { animate, reducedMotion, stagger } from '@/lib/motion';
-import { consumeLoginMsg, login, useApp, type LoginMsg } from '@/lib/store';
-import { useMode } from '@/lib/viewport';
+import { isNative } from '@/lib/native/platform';
+import { completeLogin, consumeLoginMsg, useApp, type LoginMsg } from '@/lib/store';
+import { useHydrated, useMode } from '@/lib/viewport';
 
-// MOCK: aceita qualquer credencial. A autenticacao real (senha + TOTP, secao 6.2) entra com o modulo auth da API.
+// Secao 6.2: senha + codigo do autenticador (TOTP) ou codigo de recuperacao.
 export default function LoginPage() {
   const router = useRouter();
   const isMobile = useMode() === 'mobile';
   const hydrated = useApp((s) => s.hydrated);
   const session = useApp((s) => s.session);
+  const native = useHydrated() && isNative();
 
-  const [loginId, setLoginId] = useState('');
+  const [step, setStep] = useState<'password' | 'code'>('password');
+  const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [code, setCode] = useState('');
+  const [mfaToken, setMfaToken] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [pwFocus, setPwFocus] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -26,6 +32,7 @@ export default function LoginPage() {
   const [mood, setMood] = useState<Mood>('');
   const [jumpKey, setJumpKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -39,38 +46,68 @@ export default function LoginPage() {
   useEffect(() => {
     const el = formRef.current;
     if (el && !reducedMotion()) animate(Array.from(el.children), { opacity: [0, 1], y: [14, 0] }, { delay: stagger(0.05), duration: 0.45 });
+    if (step === 'code') codeRef.current?.focus();
+  }, [step]);
+
+  useEffect(() => {
     const t = timers.current;
     return () => t.forEach(clearTimeout);
   }, []);
 
-  const later = (fn: () => void, ms: number) => timers.current.push(setTimeout(fn, ms));
-
   const fail = (text: string) => {
     setMsg({ kind: 'error', text });
     setMood('no');
-    later(() => setMood(''), 1600);
+    timers.current.push(setTimeout(() => setMood(''), 1600));
   };
+  const errorText = (e: unknown) => (e instanceof ApiRequestError ? e.message : 'Não foi possível falar com o servidor. A API está rodando?');
 
-  const doLogin = () => {
+  const submitPassword = async () => {
+    if (!email.trim()) return fail('Informe seu e-mail.');
+    if (!pw) return fail('Informe sua senha.');
     setBusy(true);
     setMsg(null);
-    setMood('happy');
-    setJumpKey((k) => k + 1);
-    later(() => {
-      login(remember);
+    try {
+      const r = await api.login(email.trim(), pw);
+      setMfaToken(r.mfaToken);
+      setPw('');
+      setStep('code');
+      setMood('think');
+    } catch (e) {
+      fail(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (code.replace(/\s/g, '').length < 6) return fail('Digite o código de 6 dígitos do seu app autenticador.');
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.verifyMfa(mfaToken, code, remember);
+      setMood('happy');
+      setJumpKey((k) => k + 1);
+      await completeLogin();
       router.replace('/');
-    }, 900);
+    } catch (e) {
+      setCode('');
+      if (e instanceof ApiRequestError && e.code === 'MFA_EXPIRED') {
+        setStep('password');
+        setMood('');
+      }
+      fail(errorText(e));
+      setBusy(false);
+    }
   };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    if (!loginId.trim()) return fail('Informe seu CPF ou e-mail.');
-    if (pw.length < 4) return fail('A senha precisa ter pelo menos 4 caracteres.');
-    doLogin();
+    void (step === 'password' ? submitPassword() : submitCode());
   };
 
   const err = msg?.kind === 'error';
+  const title = step === 'code' ? 'Confirme que é você' : msg?.kind === 'info' ? 'Volte logo!' : 'Que bom te ver';
 
   return (
     <div className="grid min-h-screen" style={{ gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)' }}>
@@ -85,78 +122,83 @@ export default function LoginPage() {
           <span className="text-[22px] font-extrabold tracking-[-0.04em]">pluto</span>
         </div>
         <div className="mx-auto w-full max-w-[480px] flex-1" style={{ minHeight: isMobile ? 230 : 360 }}>
-          <PlutoMascot scene="wave" cover={pwFocus && !showPw && !busy} mood={mood} jumpKey={jumpKey} />
+          <PlutoMascot scene="wave" cover={step === 'password' && pwFocus && !showPw && !busy} mood={mood} jumpKey={jumpKey} />
         </div>
         {!isMobile && (
           <div className="flex max-w-[440px] flex-col gap-2">
             <div className="text-[34px] leading-[1.1] font-bold tracking-[-0.04em] text-balance">Seu dinheiro organizado por uma gata muito curiosa.</div>
-            <div className="text-[15px] text-pretty opacity-90">
-              Contas, cartões, boletos e investimentos num lugar só. Toque na Pluto para dar um oi.
-            </div>
+            <div className="text-[15px] text-pretty opacity-90">Contas, cartões e investimentos num lugar só. Toque na Pluto para dar um oi.</div>
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-center" style={{ padding: isMobile ? '24px 20px 40px' : 40 }}>
-        <form ref={formRef} onSubmit={submit} className="flex w-full max-w-[400px] flex-col gap-4" noValidate>
+        <form ref={formRef} key={step} onSubmit={submit} className="flex w-full max-w-[400px] flex-col gap-4" noValidate>
           <div>
-            <h1 className="m-0 text-[clamp(26px,6vw,32px)] font-bold tracking-[-0.035em]">{msg?.kind === 'info' ? 'Volte logo!' : 'Que bom te ver'}</h1>
-            <p className="mt-1.5 mb-0 text-[15px] text-muted-foreground">Entre com seu CPF ou e-mail.</p>
+            <h1 className="m-0 text-[clamp(26px,6vw,32px)] font-bold tracking-[-0.035em]">{title}</h1>
+            <p className="mt-1.5 mb-0 text-[15px] text-muted-foreground">
+              {step === 'code' ? 'Digite o código do seu app autenticador.' : 'Entre com seu e-mail e senha.'}
+            </p>
           </div>
-          <label className="flex flex-col gap-1.5 text-[13px] font-medium">
-            CPF ou e-mail
-            <input
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              autoComplete="username"
-              inputMode="email"
-              placeholder="000.000.000-00 ou nome@email.com"
-              className="input h-[52px] rounded-[14px] px-4"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-[13px] font-medium">
-            Senha
-            <span className="flex h-[52px] items-center rounded-[14px] border border-border bg-background pr-1.5 pl-4 focus-within:border-brand">
+
+          {step === 'password' ? (
+            <>
+              <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+                E-mail
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  autoComplete="username"
+                  inputMode="email"
+                  placeholder="nome@email.com"
+                  className="input h-[52px] rounded-[14px] px-4"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+                Senha
+                <span className="flex h-[52px] items-center rounded-[14px] border border-border bg-background pr-1.5 pl-4 focus-within:border-brand">
+                  <input
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                    onFocus={() => setPwFocus(true)}
+                    onBlur={() => setPwFocus(false)}
+                    type={showPw ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Sua senha"
+                    className="h-full min-w-0 flex-1 border-0 bg-transparent text-base text-foreground outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    aria-label={showPw ? 'Esconder senha' : 'Mostrar senha'}
+                    className="grid size-[42px] cursor-pointer place-items-center rounded-full border-0 bg-transparent text-muted-foreground"
+                  >
+                    <Icon icon={showPw ? 'eye-off' : 'eye'} size={18} />
+                  </button>
+                </span>
+              </label>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={remember} onChange={() => setRemember(!remember)} className="m-0 size-[18px] accent-brand" />
+                Lembrar de mim neste dispositivo
+              </label>
+            </>
+          ) : (
+            <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+              Código
               <input
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                onFocus={() => setPwFocus(true)}
-                onBlur={() => setPwFocus(false)}
-                type={showPw ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="Sua senha"
-                className="h-full min-w-0 flex-1 border-0 bg-transparent text-base text-foreground outline-none"
+                ref={codeRef}
+                value={code}
+                onChange={(e) => setCode(e.target.value.slice(0, 12))}
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                placeholder="000000"
+                className="input h-14 rounded-[14px] px-4 text-center text-2xl font-bold tracking-[0.3em]"
               />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                aria-label={showPw ? 'Esconder senha' : 'Mostrar senha'}
-                className="grid size-[42px] cursor-pointer place-items-center rounded-full border-0 bg-transparent text-muted-foreground"
-              >
-                <Icon icon={showPw ? 'eye-off' : 'eye'} size={18} />
-              </button>
-            </span>
-          </label>
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <label className="flex min-h-11 cursor-pointer items-center gap-2">
-              <input type="checkbox" checked={remember} onChange={() => setRemember(!remember)} className="m-0 size-[18px] accent-brand" />
-              Lembrar de mim
+              <span className="font-normal text-muted-foreground">Sem o celular? Use um dos códigos de recuperação (xxxx-xxxx).</span>
             </label>
-            <button
-              type="button"
-              onClick={() =>
-                setMsg({
-                  kind: 'info',
-                  text: loginId.trim()
-                    ? `Enviamos um link para redefinir a senha de ${loginId.trim()}.`
-                    : 'Digite seu CPF ou e-mail acima e toque em “Esqueci a senha” de novo.',
-                })
-              }
-              className="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-brand-text"
-            >
-              Esqueci a senha
-            </button>
-          </div>
+          )}
+
           {msg && (
             <div
               role={err ? 'alert' : 'status'}
@@ -167,30 +209,40 @@ export default function LoginPage() {
               {msg.text}
             </div>
           )}
-          <button type="submit" className="btn btn-primary h-[54px] text-base" style={{ opacity: busy ? 0.7 : 1 }}>
-            {busy ? 'Entrando…' : 'Entrar'}
+
+          <button type="submit" className="btn btn-primary h-[54px] text-base" style={{ opacity: busy ? 0.7 : 1 }} disabled={busy}>
+            {busy ? (step === 'code' ? 'Confirmando…' : 'Entrando…') : step === 'code' ? 'Confirmar' : 'Entrar'}
           </button>
-          <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            ou
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          <button type="button" onClick={() => !busy && doLogin()} className="btn btn-outline h-[52px] gap-2.5 text-[15px]">
-            <Icon icon="smartphone" size={18} />
-            Entrar com biometria
-          </button>
-          <div className="text-center text-sm text-muted-foreground">
-            Não tem conta?{' '}
+
+          {step === 'code' && (
             <button
               type="button"
-              onClick={() =>
-                setMsg({ kind: 'info', text: 'O cadastro abre no próximo passo. Por enquanto, entre com qualquer e-mail e senha para testar.' })
-              }
+              onClick={() => {
+                setStep('password');
+                setCode('');
+                setMsg(null);
+                setMood('');
+              }}
               className="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-brand-text"
             >
-              Criar conta grátis
+              Voltar
             </button>
-          </div>
+          )}
+
+          {/* Biometria so existe no app (secao 8.3): desbloqueia o refresh token guardado no Keychain/Keystore. */}
+          {native && step === 'password' && (
+            <>
+              <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                ou
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <button type="button" disabled className="btn btn-outline h-[52px] gap-2.5 text-[15px] opacity-60">
+                <Icon icon="smartphone" size={18} />
+                Entrar com biometria (em breve)
+              </button>
+            </>
+          )}
         </form>
       </div>
     </div>

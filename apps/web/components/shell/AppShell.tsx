@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     animate(el, { scale: [0.4, 1], opacity: [0, 1] }, { type: 'spring', stiffness: 300, damping: 18, delay: 0.4 });
   }, []);
 
-  if (!hydrated || !session) return null;
+  if (!hydrated || !session || !user) return null;
 
   const dark = theme === 'dark';
   const morePages = MORE.map((m) => m[0]);
@@ -425,7 +425,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => {
                   setLogoutOpen(false);
                   setChatOpen(false);
-                  logout();
+                  void logout();
                 }}
                 className="btn btn-primary h-12 flex-1 text-[15px]"
               >

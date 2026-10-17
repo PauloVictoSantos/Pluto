@@ -1,16 +1,37 @@
 import { buildApp } from './app';
 import { loadEnv } from './config/env';
+import type { AppContext } from './context';
 import { connectDatabase } from './db/client';
+import { collections } from './db/collections';
 import { ensureIndexes } from './db/indexes';
+import { createPluggyGateway } from './integrations/pluggy/sdk-gateway';
+import { startSyncScheduler } from './jobs/sync-scheduler';
+import { createFieldCrypto } from './lib/crypto';
+import { createJwt } from './lib/jwt';
 
 const env = loadEnv();
 const database = await connectDatabase(env.MONGODB_URI);
 await ensureIndexes(database.db);
 
-const app = await buildApp({ env, pingDb: database.ping });
+const ctx: AppContext = {
+  env,
+  col: collections(database.db),
+  crypto: createFieldCrypto(env.FIELD_ENCRYPTION_KEY),
+  jwt: env.JWT_PUBLIC_KEY ? await createJwt({ publicKeyB64: env.JWT_PUBLIC_KEY, privateKeyB64: env.JWT_PRIVATE_KEY }) : null,
+  pluggy:
+    env.PLUGGY_CLIENT_ID && env.PLUGGY_CLIENT_SECRET
+      ? createPluggyGateway({ clientId: env.PLUGGY_CLIENT_ID, clientSecret: env.PLUGGY_CLIENT_SECRET })
+      : null,
+  pingDb: database.ping,
+};
+
+const app = await buildApp(ctx);
+if (!ctx.jwt) app.log.warn('JWT_PUBLIC_KEY ausente: rotas autenticadas vão responder 401');
+const stopScheduler = startSyncScheduler(ctx, app.log);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'encerrando');
+  stopScheduler();
   await app.close();
   await database.close();
   process.exit(0);

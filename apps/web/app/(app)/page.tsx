@@ -6,7 +6,7 @@ import { CategoryChart, PlutoTip } from '@/components/charts/CategoryChart';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { CreditCard } from '@/components/CreditCard';
 import { useShell } from '@/components/shell/ShellContext';
-import { TransactionList } from '@/components/TransactionList';
+import { LiveTransactionList } from '@/components/TransactionList';
 import { CountUp } from '@/components/ui/CountUp';
 import { Icon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
@@ -34,7 +34,7 @@ const MASK = 'R$ ••••••';
 export default function OverviewPage() {
   const { mode, nav, openChat } = useShell();
   const isMobile = mode === 'mobile';
-  const userName = useApp((s) => s.user.name).split(' ')[0];
+  const userName = (useApp((s) => s.user?.name) ?? '').split(' ')[0];
   const hydrated = useHydrated();
   const root = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -338,7 +338,7 @@ export default function OverviewPage() {
         </div>
 
         <div data-anim="" className="min-w-0" style={{ gridColumn: '1 / -1', order: isMobile ? MOBILE_ORDER.indexOf('tx') : 0 }}>
-          <TransactionList mode={mode} limit={6} onShowAll={() => nav('tx')} />
+          <LiveTransactionList mode={mode} limit={6} controls={false} onShowAll={() => nav('tx')} onConnect={() => nav('settings')} />
         </div>
       </div>
 

@@ -1,20 +1,23 @@
 'use client';
 
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ConnectionsCard } from '@/components/ConnectionsCard';
+import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
 import { Sheet } from '@/components/ui/Sheet';
+import { ApiRequestError, api } from '@/lib/api';
 import { initials, maskPhone } from '@/lib/format';
-import { vm } from '@/lib/mock/vm';
 import { useEnter } from '@/lib/motion';
 import { setTheme, setUser, useApp, type Theme } from '@/lib/store';
 
+// Preferencias de notificacao ainda locais: entram na API com o modulo de notificacoes (secao 5.6).
 const TOGGLES: [string, string, string, boolean][] = [
   ['bills', 'Contas a vencer', 'Aviso 3 dias antes e no dia do vencimento', true],
   ['limit', 'Gastos acima do limite', 'Quando uma categoria passar do orçamento', true],
   ['weekly', 'Resumo semanal da Pluto', 'Toda segunda, às 8h', true],
   ['hide', 'Esconder valores ao abrir', 'Mostra R$ •••• até você tocar no olho', false],
-  ['bio', 'Entrar com biometria', 'Face ID ou digital', true],
+  ['bio', 'Entrar com biometria', 'Face ID ou digital (no app)', true],
 ];
 const THEMES: { id: Theme; label: ReactNode }[] = [
   { id: 'light', label: <><Icon icon="sun" size={16} />Claro</> },
@@ -22,12 +25,15 @@ const THEMES: { id: Theme; label: ReactNode }[] = [
 ];
 
 export default function ConfiguracoesPage() {
-  const user = useApp((s) => s.user);
+  const user = useApp((s) => s.user)!;
   const theme = useApp((s) => s.theme);
+  const { run, sheet } = useReauth();
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((t) => [t[0], t[3]])));
   const [draft, setDraft] = useState<{ name: string; email: string; phone: string } | null>(null);
   const [tried, setTried] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [serverErr, setServerErr] = useState('');
   const root = useRef<HTMLDivElement>(null);
   useEnter(root);
 
@@ -39,13 +45,23 @@ export default function ConfiguracoesPage() {
         ? 'Informe um e-mail válido.'
         : '';
 
-  const save = (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!draft) return;
     if (err) return setTried(true);
-    setUser({ name: draft.name.trim(), email: draft.email, phone: draft.phone });
-    setDraft(null);
-    setSaved(true);
+    setSaving(true);
+    setServerErr('');
+    try {
+      // Trocar o e-mail de login pede confirmacao de identidade (secao 6.2).
+      const me = await run(() => api.updateMe({ name: draft.name.trim(), email: draft.email, phone: draft.phone || null }));
+      setUser(me);
+      setDraft(null);
+      setSaved(true);
+    } catch (e2) {
+      if (!(e2 instanceof ApiRequestError && e2.code === 'REAUTH_CANCELLED')) setServerErr(e2 instanceof ApiRequestError ? e2.message : 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -59,15 +75,14 @@ export default function ConfiguracoesPage() {
         <div className="min-w-[200px] flex-1">
           <div className="text-lg font-bold">{user.name}</div>
           <div className="mt-0.5 text-sm text-muted-foreground">{user.email}</div>
-          <div className="mt-0.5 text-[13px] text-muted-foreground">
-            CPF {user.cpf} · {user.phone}
-          </div>
+          {user.phone && <div className="mt-0.5 text-[13px] text-muted-foreground">{user.phone}</div>}
         </div>
         <button
           onClick={() => {
-            setDraft({ name: user.name, email: user.email, phone: user.phone });
+            setDraft({ name: user.name, email: user.email, phone: user.phone ?? '' });
             setTried(false);
             setSaved(false);
+            setServerErr('');
           }}
           className="btn btn-outline shrink-0"
         >
@@ -81,6 +96,8 @@ export default function ConfiguracoesPage() {
           </div>
         )}
       </div>
+
+      <ConnectionsCard />
 
       <div data-anim="" className="card flex flex-col gap-3.5">
         <div className="card-title">Aparência</div>
@@ -115,30 +132,6 @@ export default function ConfiguracoesPage() {
         })}
       </div>
 
-      <div data-anim="" className="card flex flex-col">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="card-title">Contas conectadas</span>
-          <span className="rounded-full border border-border px-[9px] py-[3px] text-xs text-muted-foreground">Open Finance</span>
-        </div>
-        {vm.banks().map((b) => (
-          <div key={b.id} className="flex min-h-16 items-center gap-3 border-t border-border">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: b.color }}>
-              {b.initials}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-semibold">{b.name}</div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="size-[7px] rounded-full" style={{ background: b.dot }} />
-                {b.status} · {b.updated}
-              </div>
-            </div>
-            <button aria-label={`Sincronizar ${b.name}`} className="icon-btn">
-              <Icon icon="refresh-cw" size={16} />
-            </button>
-          </div>
-        ))}
-      </div>
-
       {draft && (
         <Sheet onClose={() => setDraft(null)} onSubmit={save} label="Editar perfil" width={440} top="14vh" gap={14}>
           <div className="flex items-center gap-3">
@@ -150,7 +143,7 @@ export default function ConfiguracoesPage() {
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoComplete="name" className="input" />
           </label>
           <label className="field">
-            E-mail
+            E-mail de login
             <input
               value={draft.email}
               onChange={(e) => setDraft({ ...draft, email: e.target.value.trim() })}
@@ -164,23 +157,23 @@ export default function ConfiguracoesPage() {
             Celular
             <input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: maskPhone(e.target.value) })} inputMode="tel" autoComplete="tel" className="input" />
           </label>
-          <div className="text-xs text-muted-foreground">O CPF não pode ser alterado pelo app.</div>
-          {tried && err && (
+          {((tried && err) || serverErr) && (
             <div role="alert" className="flex items-center gap-2 text-[13px] text-danger-text">
               <Icon icon="circle-alert" size={16} />
-              {err}
+              {err || serverErr}
             </div>
           )}
           <div className="flex gap-2.5">
             <button type="button" onClick={() => setDraft(null)} className="btn btn-outline h-[50px] flex-1 text-[15px]">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary h-[50px] flex-1 text-[15px]">
-              Salvar
+            <button type="submit" disabled={saving} className="btn btn-primary h-[50px] flex-1 text-[15px]" style={{ opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Salvando…' : 'Salvar'}
             </button>
           </div>
         </Sheet>
       )}
+      {sheet}
     </div>
   );
 }

@@ -1,20 +1,39 @@
 import type { Db, IndexDescription } from 'mongodb';
 
 // Secao 4.4. Indices unicos garantem idempotencia da importacao (RN-01).
-const INDEXES: Record<string, IndexDescription[]> = {
+export const INDEXES: Record<string, IndexDescription[]> = {
   users: [{ key: { email: 1 }, unique: true }],
+  connections: [
+    { key: { userId: 1, pluggyItemIdHash: 1 }, unique: true },
+    { key: { active: 1, needsAction: 1 } },
+  ],
+  accounts: [
+    { key: { connectionId: 1, pluggyAccountId: 1 }, unique: true },
+    { key: { userId: 1 } },
+  ],
   transactions: [
     { key: { connectionId: 1, pluggyTransactionId: 1 }, unique: true },
-    { key: { userId: 1, date: -1 } },
+    { key: { userId: 1, date: -1, _id: -1 } },
     { key: { userId: 1, categoryId: 1, date: -1 } },
     { key: { userId: 1, accountId: 1, date: -1 } },
   ],
-  accounts: [{ key: { connectionId: 1, pluggyAccountId: 1 }, unique: true }],
-  connections: [{ key: { userId: 1, pluggyItemId: 1 }, unique: true }],
-  investments: [{ key: { connectionId: 1, pluggyInvestmentId: 1 }, unique: true }],
+  invoices: [
+    { key: { accountId: 1, pluggyBillId: 1 }, unique: true },
+    { key: { userId: 1, dueDate: 1 } },
+  ],
+  investments: [
+    { key: { connectionId: 1, pluggyInvestmentId: 1 }, unique: true },
+    { key: { userId: 1 } },
+  ],
+  investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
   budgets: [{ key: { userId: 1, month: 1, categoryId: 1 }, unique: true }],
   notifications: [{ key: { userId: 1, dedupeKey: 1 }, unique: true }],
-  sessions: [{ key: { expiresAt: 1 }, expireAfterSeconds: 0 }, { key: { familyId: 1 } }],
+  sessions: [
+    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+    { key: { refreshTokenHash: 1 }, unique: true },
+    { key: { familyId: 1 } },
+    { key: { userId: 1 } },
+  ],
   audit_logs: [{ key: { at: 1 }, expireAfterSeconds: 60 * 60 * 24 * 365 }],
   ai_insights: [{ key: { createdAt: 1 }, expireAfterSeconds: 60 * 60 * 24 * 90 }],
   webhook_events: [

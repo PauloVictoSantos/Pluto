@@ -1,5 +1,7 @@
 export * from './constants';
 export * from './money';
 export * from './schemas/transaction';
+export * from './schemas/connection';
 export * from './schemas/settings';
+export * from './schemas/auth';
 export * from './schemas/api';

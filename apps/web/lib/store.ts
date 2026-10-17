@@ -1,39 +1,29 @@
 'use client';
 
+import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
-import { MOCK, applyPlan, type Plan } from './mock/data';
+import { api, refreshSession, setOnSessionLost } from './api';
+import { applyPlan, type Plan } from './mock/data';
 
 export type Theme = 'light' | 'dark';
-export interface User {
-  name: string;
-  email: string;
-  phone: string;
-  cpf: string;
-}
+export type User = Me;
 export interface LoginMsg {
   kind: 'info' | 'error';
   text: string;
 }
 
 interface AppState {
+  /** true depois de tentar restaurar a sessao (refresh pelo cookie). */
   hydrated: boolean;
   theme: Theme;
   session: boolean;
   booting: boolean;
-  user: User;
+  user: User | null;
   loginMsg: LoginMsg | null;
   plan: Plan | null;
 }
 
-const initial: AppState = {
-  hydrated: false,
-  theme: 'light',
-  session: false,
-  booting: false,
-  user: { ...MOCK.user },
-  loginMsg: null,
-  plan: null,
-};
+const initial: AppState = { hydrated: false, theme: 'light', session: false, booting: false, user: null, loginMsg: null, plan: null };
 
 let state = initial;
 const subs = new Set<() => void>();
@@ -51,6 +41,7 @@ export function useApp<T>(sel: (s: AppState) => T): T {
   return useSyncExternalStore(subscribe, () => sel(state), () => sel(initial));
 }
 
+// localStorage so para preferencias sem dados sensiveis (tema, plano mock).
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);
@@ -67,22 +58,31 @@ const write = (k: string, v: string | null) => {
   }
 };
 
+setOnSessionLost(() => {
+  if (state.session) set({ session: false, user: null, loginMsg: { kind: 'info', text: 'Sua sessão expirou. Entre novamente.' } });
+});
+
+let hydrating: Promise<void> | null = null;
+/** Restaura tema e sessao. A sessao vem do cookie HttpOnly: nada de token no navegador. */
 export function hydrate() {
-  if (state.hydrated) return;
-  const theme = read('pluto-theme') === 'dark' ? 'dark' : 'light';
-  let user = state.user;
-  let plan: Plan | null = null;
-  try {
-    user = { ...user, ...JSON.parse(read('pluto-user') || '{}') };
-    plan = JSON.parse(read('pluto-plan') || 'null');
-  } catch {
-    /* dado corrompido: ignora */
-  }
-  applyPlan(plan);
-  document.documentElement.dataset.theme = theme;
-  // MOCK: flag de sessao sem segredo. A autenticacao real usa refresh token em cookie
-  // HttpOnly (web) ou Keychain/Keystore (mobile) - secao 6.2. Nada de token em localStorage.
-  set({ hydrated: true, theme, user, plan, session: read('pluto-session') === '1' });
+  hydrating ??= (async () => {
+    const theme = read('pluto-theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = theme;
+    let plan: Plan | null = null;
+    try {
+      plan = JSON.parse(read('pluto-plan') || 'null');
+    } catch {
+      /* dado corrompido: ignora */
+    }
+    applyPlan(plan);
+    write('pluto-session', null); // flag do mock antigo
+    write('pluto-user', null);
+
+    let user: User | null = null;
+    if (await refreshSession()) user = await api.me().catch(() => null);
+    set({ hydrated: true, theme, plan, session: !!user, user });
+  })();
+  return hydrating;
 }
 
 export function setTheme(theme: Theme) {
@@ -91,16 +91,18 @@ export function setTheme(theme: Theme) {
   set({ theme });
 }
 
-export function login(remember: boolean) {
-  if (remember) write('pluto-session', '1');
-  set({ session: true, booting: true, loginMsg: null });
+/** Depois do 2FA: carrega o perfil e mostra a tela "Organizando suas contas". */
+export async function completeLogin() {
+  const user = await api.me();
+  set({ session: true, booting: true, user, loginMsg: null });
 }
 
 export const finishBoot = () => set({ booting: false });
 
-export function logout() {
-  write('pluto-session', null);
-  set({ session: false, loginMsg: { kind: 'info', text: `Até logo, ${state.user.name.split(' ')[0]}! Você saiu da sua conta.` } });
+export async function logout() {
+  const first = state.user?.name.split(' ')[0];
+  await api.logout().catch(() => {});
+  set({ session: false, user: null, loginMsg: { kind: 'info', text: first ? `Até logo, ${first}! Você saiu da sua conta.` : 'Você saiu da sua conta.' } });
 }
 
 export const consumeLoginMsg = () => {
@@ -109,11 +111,7 @@ export const consumeLoginMsg = () => {
   return m;
 };
 
-export function setUser(patch: Partial<User>) {
-  const user = { ...state.user, ...patch };
-  write('pluto-user', JSON.stringify(user));
-  set({ user });
-}
+export const setUser = (user: User) => set({ user });
 
 export function savePlan(plan: Plan) {
   write('pluto-plan', JSON.stringify(plan));

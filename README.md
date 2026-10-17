@@ -18,7 +18,9 @@ infra/                 docker-compose do MongoDB
 ## Requisitos
 
 - Node.js 22+ e pnpm 9 (`npm i -g pnpm@9`)
-- MongoDB 8 (via Docker com `pnpm db:up`, ou instalado localmente)
+- MongoDB: Atlas (em uso) ou local/Docker (`pnpm db:up`)
+- Conta no Pluggy (Client ID/Secret) e bancos conectados no Meu Pluggy
+- App autenticador no celular (Google Authenticator, Microsoft Authenticator, 1Password...)
 - Mobile: Android Studio (Android) / Mac com Xcode (iOS)
 
 ## Primeira configuracao
@@ -26,20 +28,25 @@ infra/                 docker-compose do MongoDB
 ```bash
 pnpm install
 
-# 1. Banco
-cp infra/.env.example infra/.env          # troque as senhas
-pnpm db:up
-
-# 2. API
+# 1. API: segredos e banco
 cp apps/api/.env.example apps/api/.env
-node apps/api/scripts/gen-secrets.mjs     # cole a saida no apps/api/.env
-#    ajuste MONGODB_URI com a senha de PLUTO_APP_PASSWORD
+node apps/api/scripts/gen-secrets.mjs      # cole a saida no apps/api/.env
+#    preencha MONGODB_URI (.../pluto?...), PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET
+pnpm --filter @pluto/api db:setup          # colecoes, validadores e indices
 
-# 3. Web
-cp apps/web/.env.example apps/web/.env.local
+# 2. Seu usuario (senha + autenticador por QR code + codigos de recuperacao)
+pnpm --filter @pluto/api user:create
 
-pnpm dev                                   # API em :3333, web em :3000
+# 3. Conferir o Pluggy (opcional, nao grava nada)
+pnpm --filter @pluto/api pluggy:check <itemId>
+
+# 4. Rodar
+pnpm dev                                   # API em 127.0.0.1:3333, site em http://localhost:3000
 ```
+
+Depois de entrar no site, va em **Configuracoes > Importar do Meu Pluggy** e cole o Item ID.
+O site chama `/v1` na propria origem e o Next repassa para a API, entao use `http://localhost:3000`
+(e nao `127.0.0.1:3000`), que e a origem liberada em `ALLOWED_ORIGINS`.
 
 ## Comandos
 

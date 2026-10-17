@@ -7,14 +7,50 @@ export const TransactionSchema = z.object({
   accountId: z.string(),
   date: z.coerce.date(),
   description: z.string(),
+  merchant: z.string().nullable(),
   amountMinor: z.number().int(),
   currency: z.literal('BRL'),
   type: z.enum(TRANSACTION_TYPES),
+  status: z.enum(TRANSACTION_STATUSES),
   categoryId: z.string().nullable(),
   categorySource: z.enum(CATEGORY_SOURCES).nullable(),
-  status: z.enum(TRANSACTION_STATUSES),
+  /** Categoria informada pelo Pluggy (em ingles), exibida ate o pipeline de categorizacao (RN-10). */
+  providerCategory: z.string().nullable(),
   installment: z
     .object({ n: z.number().int().positive(), total: z.number().int().positive(), groupId: z.string() })
     .nullable(),
+  tags: z.array(z.string()),
+  hidden: z.boolean(),
+  notes: z.string().nullable(),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
+
+export const TransactionPageSchema = z.object({
+  items: z.array(TransactionSchema),
+  nextCursor: z.string().nullable(),
+});
+export type TransactionPage = z.infer<typeof TransactionPageSchema>;
+
+export const TransactionSummaryQuerySchema = z.object({
+  from: z.coerce.date(),
+  to: z.coerce.date().optional(),
+});
+
+/** Totais do periodo. TRANSFER e CARD_PAYMENT ficam de fora (RN-13, RN-14). */
+export const TransactionSummarySchema = z.object({
+  incomeMinor: z.number().int(),
+  expensesMinor: z.number().int(),
+  count: z.number().int(),
+});
+export type TransactionSummary = z.infer<typeof TransactionSummarySchema>;
+
+export const TransactionQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  accountId: z.string().regex(/^[a-f0-9]{24}$/).optional(),
+  categoryId: z.string().regex(/^[a-f0-9]{24}$/).optional(),
+  q: z.string().trim().min(1).max(80).optional(),
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type TransactionQuery = z.infer<typeof TransactionQuerySchema>;

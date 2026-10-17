@@ -12,6 +12,10 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
 ];
 
+// Web: o navegador chama /v1 no proprio site e o Next repassa para a API. Mesma origem,
+// entao o cookie do refresh (SameSite=Strict) funciona sem CORS. O app mobile chama a API direto.
+const API_TARGET = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:3333';
+
 const config: NextConfig = {
   output: isMobile ? 'export' : undefined,
   images: { unoptimized: isMobile },
@@ -22,7 +26,10 @@ const config: NextConfig = {
   // headers() nao se aplica ao export estatico.
   ...(isMobile
     ? {}
-    : { headers: async () => [{ source: '/:path*', headers: securityHeaders }] }),
+    : {
+        headers: async () => [{ source: '/:path*', headers: securityHeaders }],
+        rewrites: async () => [{ source: '/v1/:path*', destination: `${API_TARGET}/v1/:path*` }],
+      }),
 };
 
 export default config;

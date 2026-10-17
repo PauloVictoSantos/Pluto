@@ -14,17 +14,18 @@ export async function registerSecurity(app: FastifyInstance, env: Env) {
   });
 
   await app.register(cors, {
-    origin: (origin, cb) => {
-      // Requisicoes sem Origin (curl, apps nativos sem WebView) passam; o resto precisa estar na lista.
-      if (!origin || env.ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      cb(new Error('Origin nao permitida'), false);
-    },
+    // Origens fora da lista nao recebem cabecalhos CORS: o navegador bloqueia a resposta.
+    // Rotas que usam cookie tambem verificam Origin explicitamente (CSRF, modulo auth).
+    origin: (origin, cb) => cb(null, !origin || env.ALLOWED_ORIGINS.includes(origin)),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['content-type', 'authorization', 'x-pluto-client'],
   });
 
   await app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
+    // Os testes fazem dezenas de logins seguidos do mesmo IP.
+    allowList: () => env.NODE_ENV === 'test',
   });
 }

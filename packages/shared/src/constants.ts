@@ -18,15 +18,20 @@ export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 export const CATEGORY_SOURCES = ['RULE', 'PLUGGY', 'AI', 'MANUAL'] as const;
 export type CategorySource = (typeof CATEGORY_SOURCES)[number];
 
-// Espelha o Pluggy; confirmar valores na documentacao vigente.
+// Espelha ItemStatus do pluggy-sdk 0.92.
 export const CONNECTION_STATUSES = [
   'UPDATED',
   'UPDATING',
+  'MERGING',
   'OUTDATED',
   'LOGIN_ERROR',
   'WAITING_USER_INPUT',
+  'WAITING_USER_ACTION',
 ] as const;
 export type ConnectionStatus = (typeof CONNECTION_STATUSES)[number];
+
+// RN-03: status que exigem acao do usuario; o job nao tenta de novo ate reconectar.
+export const NEEDS_USER_ACTION: readonly ConnectionStatus[] = ['LOGIN_ERROR', 'WAITING_USER_INPUT', 'WAITING_USER_ACTION'];
 
 export const INVOICE_STATUSES = ['OPEN', 'CLOSED', 'PAID', 'OVERDUE'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];

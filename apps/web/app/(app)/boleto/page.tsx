@@ -19,7 +19,7 @@ export default function BoletoPage() {
   const { mode } = useShell();
   const isMobile = mode === 'mobile';
   const theme = useApp((s) => s.theme);
-  const userName = useApp((s) => s.user.name);
+  const userName = useApp((s) => s.user?.name) ?? '';
 
   const [valor, setValor] = useState({ text: '', value: 0 });
   const [parcelas, setParcelas] = useState(1);
