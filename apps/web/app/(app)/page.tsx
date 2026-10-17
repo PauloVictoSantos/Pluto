@@ -12,11 +12,11 @@ import { CountUp } from '@/components/ui/CountUp';
 import { Icon } from '@/components/ui/Icon';
 import { bankBrand } from '@/lib/banks';
 import { fmtDateTimeIn, ymdIn } from '@/lib/datetime';
-import { fmtDay } from '@/lib/format';
+import { VALUE_MASK, fmtDay } from '@/lib/format';
 import { nextDue, spendingTip } from '@/lib/insights';
 import { useEnter } from '@/lib/motion';
 import { change, monthLower, money, useBudget, useCards, useCurrentMonth, useInvestments, useSpending, useSummary, useTz } from '@/lib/queries';
-import { useApp } from '@/lib/store';
+import { setHideValues, useApp } from '@/lib/store';
 import { useHydrated, type Mode } from '@/lib/viewport';
 
 type Block = 'saldo' | 'kpis' | 'chart' | 'pie' | 'limit' | 'cards' | 'due' | 'invest' | 'tx';
@@ -26,7 +26,6 @@ const LAYOUT: Record<Mode, Partial<Record<Block, string>>> = {
   mobile: {},
 };
 const MOBILE_ORDER: Block[] = ['saldo', 'kpis', 'limit', 'cards', 'due', 'pie', 'chart', 'tx', 'invest'];
-const MASK = 'R$ ••••••';
 const pctText = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`);
 
 export default function OverviewPage() {
@@ -46,7 +45,7 @@ export default function OverviewPage() {
   const cards = useCards();
   const invest = useInvestments();
 
-  const [hide, setHide] = useState(false);
+  const hide = useApp((st) => st.hideValues);
   const [cardIdx, setCardIdx] = useState(0);
 
   const L = (k: Block): CSSProperties => ({ gridColumn: LAYOUT[mode][k] ?? '1 / -1', order: isMobile ? MOBILE_ORDER.indexOf(k) : 0 });
@@ -124,7 +123,7 @@ export default function OverviewPage() {
         <div data-anim="" className="card flex flex-col gap-5" style={L('saldo')}>
           <div className="flex items-center justify-between gap-3">
             <span className="text-[15px] font-medium text-muted-foreground">Saldo em conta</span>
-            <button onClick={() => setHide(!hide)} aria-label={hide ? 'Mostrar valores' : 'Esconder valores'} className="icon-btn">
+            <button onClick={() => setHideValues(!hide)} aria-label={hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={hide} className="icon-btn">
               <Icon icon={hide ? 'eye-off' : 'eye'} size={17} />
             </button>
           </div>
@@ -133,7 +132,7 @@ export default function OverviewPage() {
               <CountUp
                 key={s.balanceMinor}
                 value={s.balanceMinor / 100}
-                text={hide ? MASK : undefined}
+                text={undefined}
                 className="block text-[clamp(34px,8vw,44px)] leading-[1.05] font-bold tracking-[-0.045em] tabular-nums"
               />
             ) : (
@@ -168,7 +167,7 @@ export default function OverviewPage() {
                     <BankLogo name={b.institutionName} color={b.primaryColor} />
                     <span className="truncate text-sm font-semibold">{bankBrand(b.institutionName).label}</span>
                   </div>
-                  <div className="text-[17px] font-bold tracking-[-0.02em] whitespace-nowrap tabular-nums">{hide ? MASK : money(b.balanceMinor)}</div>
+                  <div className="text-[17px] font-bold tracking-[-0.02em] whitespace-nowrap tabular-nums">{money(b.balanceMinor)}</div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="size-[7px] rounded-full" style={{ background: b.needsAction ? '#EF4444' : '#22C55E' }} />
                     {b.needsAction ? 'Reconectar' : 'Conectada'}
@@ -215,7 +214,7 @@ export default function OverviewPage() {
                 <div className="min-w-0">
                   <div className="text-sm font-medium">{k.label}</div>
                   <div className="mt-1 truncate leading-[1.15] font-bold tracking-[-0.04em] tabular-nums" style={{ fontSize: isMobile ? 19 : 26 }}>
-                    {k.v === undefined ? '—' : hide ? MASK : money(k.v)}
+                    {k.v === undefined ? '—' : money(k.v)}
                   </div>
                   <div className="mt-1 text-xs" style={{ color: k.featured ? 'rgba(255,255,255,.85)' : 'var(--muted-foreground)' }}>
                     {cur && prev ? `${monthLower(cur.month)} vs. ${monthLower(prev.month)}` : ''}
@@ -242,7 +241,7 @@ export default function OverviewPage() {
             </button>
           </div>
           <div className="flex flex-wrap items-baseline gap-1.5">
-            <span className="text-[28px] font-bold tracking-[-0.04em] tabular-nums">{hide ? MASK : money(spent)}</span>
+            <span className="text-[28px] font-bold tracking-[-0.04em] tabular-nums">{money(spent)}</span>
             <span className="text-sm text-muted-foreground">{limitTotal ? `de ${money(limitTotal)}` : `gastos em ${monthLower(month)}`}</span>
           </div>
           {limitTotal ? (
@@ -289,7 +288,7 @@ export default function OverviewPage() {
                 </div>
                 <div className="flex justify-between gap-2 text-[13px]">
                   <span className="text-muted-foreground">{c.dueDay ? `Fatura atual · vence ${fmtDay(nextDue(c.dueDay, today))}` : 'Fatura atual'}</span>
-                  <strong className="tabular-nums">{hide ? MASK : money(c.currentBillMinor)}</strong>
+                  <strong className="tabular-nums">{money(c.currentBillMinor)}</strong>
                 </div>
               </div>
             ))}
@@ -333,7 +332,7 @@ export default function OverviewPage() {
                 <div className="truncate text-sm font-semibold">{d.name}</div>
                 <div className="text-xs text-muted-foreground">Vence {fmtDay(d.date)}</div>
               </div>
-              <span className="text-sm font-semibold whitespace-nowrap tabular-nums">{hide ? MASK : money(d.amount)}</span>
+              <span className="text-sm font-semibold whitespace-nowrap tabular-nums">{money(d.amount)}</span>
             </div>
           ))}
           <PlutoTip text="Pagar as faturas até o vencimento evita os juros do rotativo, que estão entre os mais altos do mercado." />
@@ -347,7 +346,7 @@ export default function OverviewPage() {
               <div className="mt-1 text-[13px] text-muted-foreground">Posições informadas pelo Open Finance</div>
             </div>
             {invest.data && invest.data.items.length > 0 && (
-              <div className="text-xl font-bold tracking-[-0.035em] tabular-nums">{hide ? MASK : money(invest.data.totalMinor)}</div>
+              <div className="text-xl font-bold tracking-[-0.035em] tabular-nums">{money(invest.data.totalMinor)}</div>
             )}
           </div>
           {invest.data && invest.data.items.length === 0 && (
@@ -364,7 +363,7 @@ export default function OverviewPage() {
                   <div className="truncate text-xs text-muted-foreground">{[i.institutionName, i.rateInfo].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="flex flex-col items-end gap-[3px]">
-                  <div className="text-sm font-semibold tabular-nums">{hide ? MASK : money(i.currentValueMinor)}</div>
+                  <div className="text-sm font-semibold tabular-nums">{money(i.currentValueMinor)}</div>
                   {gain !== null && (
                     <span className="badge" style={{ background: gain >= 0 ? '#C6FF33' : 'var(--danger-soft)', color: gain >= 0 ? '#000' : 'var(--danger-text)' }}>
                       {pctText(gain)}

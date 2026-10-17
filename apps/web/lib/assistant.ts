@@ -1,8 +1,11 @@
 import { CATEGORIES, categoryOf } from '@pluto/shared';
 import { api } from './api';
-import { fmtDay } from './format';
+import { fmtDay, fmtRaw } from './format';
 import { nextDue } from './insights';
-import { monthLower, money } from './queries';
+import { monthLower } from './queries';
+
+// O chat mostra o valor que a pessoa perguntou, mesmo com valores ocultos na tela.
+const money = (minor: number) => fmtRaw(minor / 100);
 
 // Respostas da Pluto. Com LLM configurado na API (secao 5.7), a API calcula os numeros e o
 // modelo so os explica. Sem LLM (ou se ele falhar), respostas por regras sobre os dados reais.

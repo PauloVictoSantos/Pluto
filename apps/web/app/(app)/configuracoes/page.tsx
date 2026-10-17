@@ -10,14 +10,14 @@ import { Sheet } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { initials, maskPhone } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
-import { setTheme, setUser, useApp, type Theme } from '@/lib/store';
+import { setHideValues, setTheme, setUser, useApp, type Theme } from '@/lib/store';
 
 // Preferencias de notificacao ainda locais: entram na API com o modulo de notificacoes (secao 5.6).
 const TOGGLES: [string, string, string, boolean][] = [
   ['bills', 'Contas a vencer', 'Aviso 3 dias antes e no dia do vencimento', true],
   ['limit', 'Gastos acima do limite', 'Quando uma categoria passar do orçamento', true],
   ['weekly', 'Resumo semanal da Pluto', 'Toda segunda, às 8h', true],
-  ['hide', 'Esconder valores ao abrir', 'Mostra R$ •••• até você tocar no olho', false],
+  ['hide', 'Ocultar valores', 'Mostra R$ •••• em todas as telas até você tocar no olho de novo', false],
   ['bio', 'Entrar com biometria', 'Face ID ou digital (no app)', true],
 ];
 const THEMES: { id: Theme; label: ReactNode }[] = [
@@ -28,6 +28,7 @@ const THEMES: { id: Theme; label: ReactNode }[] = [
 export default function ConfiguracoesPage() {
   const user = useApp((s) => s.user)!;
   const theme = useApp((s) => s.theme);
+  const hideValues = useApp((s) => s.hideValues);
   const { run, sheet } = useReauth();
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((t) => [t[0], t[3]])));
   const [draft, setDraft] = useState<{ name: string; email: string; phone: string } | null>(null);
@@ -109,7 +110,7 @@ export default function ConfiguracoesPage() {
       <div data-anim="" className="card flex flex-col">
         <div className="card-title mb-2">Notificações e privacidade</div>
         {TOGGLES.map(([id, label, desc]) => {
-          const v = on[id]!;
+          const v = id === 'hide' ? hideValues : on[id]!;
           return (
             <div key={id} className="flex min-h-16 items-center gap-3.5 border-t border-border">
               <div className="min-w-0 flex-1">
@@ -120,7 +121,7 @@ export default function ConfiguracoesPage() {
                 role="switch"
                 aria-checked={v}
                 aria-label={label}
-                onClick={() => setOn((p) => ({ ...p, [id]: !p[id] }))}
+                onClick={() => (id === 'hide' ? setHideValues(!hideValues) : setOn((p) => ({ ...p, [id]: !p[id] })))}
                 className="flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-0 p-[3px] transition-colors"
                 style={{ background: v ? '#7D39EB' : 'var(--border)' }}
               >

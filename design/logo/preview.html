@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Pluto · Logo</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:Geist,system-ui,sans-serif;background:#F4F2F8;color:#14101F;padding:28px;width:1240px}
+  h2{margin:0 0 4px;font-size:20px} p{margin:0 0 14px;color:#5B5670;font-size:14px}
+  .row{display:flex;gap:16px;align-items:stretch;margin-bottom:30px}
+  .tile{background:#fff;border-radius:18px;padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;min-width:150px}
+  .dark{background:#0E0B16;color:#fff}
+  .lock{display:flex;align-items:center;gap:12px}
+  .word{font-weight:800;letter-spacing:-.04em;font-size:44px;line-height:1}
+  .app{width:96px;height:96px;border-radius:24px;background:#7D39EB;display:grid;place-items:center}
+  .sizes{display:flex;align-items:end;gap:14px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute">
+  <!-- A. Escudo felino -->
+  <symbol id="escudo" viewBox="0 0 120 120">
+    <path d="M22 36 L28 13 Q29.5 9 33 11.5 L50 27 H70 L87 11.5 Q90.5 9 92 13 L98 36 V62 C98 86 81 101 60 111 C39 101 22 86 22 62 Z" fill="var(--a,#7D39EB)"/>
+    <path d="M60 27 H70 L87 11.5 Q90.5 9 92 13 L98 36 V62 C98 86 81 101 60 111 Z" fill="var(--c,#6A2AD6)"/>
+    <rect x="38" y="74" width="10" height="18" rx="3" fill="var(--b,#C6FF33)"/>
+    <rect x="55" y="63" width="10" height="29" rx="3" fill="var(--b,#C6FF33)"/>
+    <rect x="72" y="50" width="10" height="42" rx="3" fill="var(--b,#C6FF33)"/>
+  </symbol>
+  <!-- B. Monograma P -->
+  <symbol id="mono" viewBox="0 0 120 120">
+    <path d="M26 30 L30 10 Q31.5 6 35 9 L50 24 H64 L80 10 Q84 7 85.5 12 L88 28 C97 34 102 44 102 56 C102 74 88 88 68 88 H52 V104 Q52 110 46 110 H32 Q26 110 26 104 Z" fill="var(--a,#7D39EB)"/>
+    <circle cx="68" cy="56" r="17" fill="var(--b,#C6FF33)"/>
+    <path d="M59 61 L66 53 L71 58 L78 50" fill="none" stroke="var(--a,#7D39EB)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- C. Selo cofre -->
+  <symbol id="selo" viewBox="0 0 120 120">
+    <path d="M20 44 L24 16 Q25.5 11 30 14 L48 28 Q60 25 72 28 L90 14 Q94.5 11 96 16 L100 44 Q104 56 104 66 C104 92 84 108 60 108 C36 108 16 92 16 66 Q16 56 20 44 Z" fill="var(--a,#7D39EB)"/>
+    <circle cx="60" cy="68" r="27" fill="none" stroke="var(--b,#C6FF33)" stroke-width="7"/>
+    <path d="M47 76 L56 66 L63 72 L74 59" fill="none" stroke="var(--b,#C6FF33)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M67 58 H75 V66" fill="none" stroke="var(--b,#C6FF33)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+<div id="out"></div>
+<script>
+const C=[['escudo','A · Escudo felino','A cabeça da Pluto vira um escudo: proteção e confiança. As barras crescentes são as suas receitas.'],
+['mono','B · Monograma P','Um “P” sólido e pesado (força) com as orelhas da Pluto; a moeda com seta mostra receita crescendo.'],
+['selo','C · Selo cofre','A cabeça da gata como um cofre: o anel é o disco de segredo e a seta mostra crescimento protegido.']];
+const u=(id,s,a,b,c)=>`<svg width="${s}" height="${s}" style="${a?`--a:${a};`:''}${b?`--b:${b};`:''}${c?`--c:${c}`:''}"><use href="#${id}"/></svg>`;
+out.innerHTML=C.map(([id,t,d])=>`<h2>${t}</h2><p>${d}</p><div class="row">
+<div class="tile">${u(id,150)}</div>
+<div class="tile"><div class="lock">${u(id,64)}<span class="word">pluto</span></div></div>
+<div class="tile dark"><div class="lock">${u(id,64)}<span class="word">pluto</span></div></div>
+<div class="tile"><div class="app">${u(id,72,'#fff','#7D39EB','#EDE4FD')}</div></div>
+<div class="tile"><div class="sizes">${u(id,48)}${u(id,32)}${u(id,20)}${u(id,16)}</div></div></div>`).join('');
+</script></body></html>

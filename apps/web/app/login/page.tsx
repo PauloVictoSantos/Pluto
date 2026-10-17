@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { PlutoLogo } from '@/components/brand/PlutoLogo';
+import { PlutoMark } from '@/components/brand/PlutoMark';
 import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { Icon } from '@/components/ui/Icon';
 import { ApiRequestError, api } from '@/lib/api';
@@ -117,7 +117,7 @@ export default function LoginPage() {
       >
         <div className="flex items-center gap-2">
           <span className="grid size-10 place-items-center rounded-xl bg-white">
-            <PlutoLogo size={32} />
+            <PlutoMark size={28} />
           </span>
           <span className="text-[22px] font-extrabold tracking-[-0.04em]">pluto</span>
         </div>

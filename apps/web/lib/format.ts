@@ -2,7 +2,15 @@
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export const fmt = (v: number) => BRL.format(v);
+/** Mascara de 'ocultar valores' (estado global em lib/store, salvo no aparelho). */
+export const VALUE_MASK = 'R$ ••••';
+let valuesHidden = false;
+export const setValuesHidden = (h: boolean) => void (valuesHidden = h);
+
+/** Todo dinheiro da interface passa por aqui: com valores ocultos, vira R$ ••••. */
+export const fmt = (v: number) => (valuesHidden ? VALUE_MASK : BRL.format(v));
+/** Sem mascara: so para respostas que o usuario pediu explicitamente (chat) e exportacoes. */
+export const fmtRaw = (v: number) => BRL.format(v);
 export const pct = (v: number) => (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
 export const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'maio', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];

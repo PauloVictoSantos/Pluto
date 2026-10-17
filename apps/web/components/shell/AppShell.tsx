@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ymdIn } from '@/lib/datetime';
@@ -10,9 +10,10 @@ import { nextDue } from '@/lib/insights';
 import { useCards, useTz } from '@/lib/queries';
 import { animate, reducedMotion, stagger } from '@/lib/motion';
 import { BOTTOM, MORE, ROUTES, SIDE_BOTTOM, SIDE_TOP, TABS, pageFromPath, type NavId, type PageId } from '@/lib/nav';
-import { finishBoot, logout, setTheme, useApp } from '@/lib/store';
+import { finishBoot, logout, setHideValues, setTheme, useApp } from '@/lib/store';
 import { modeOf, useWidth } from '@/lib/viewport';
 import { PlutoLogo } from '../brand/PlutoLogo';
+import { PlutoMark } from '../brand/PlutoMark';
 import { PlutoMascot } from '../brand/PlutoMascot';
 import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
@@ -79,6 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const session = useApp((s) => s.session);
   const booting = useApp((s) => s.booting);
   const theme = useApp((s) => s.theme);
+  const hideValues = useApp((s) => s.hideValues);
   const user = useApp((s) => s.user);
 
   const notices = useNotices(hydrated && session);
@@ -202,7 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 border-b border-border bg-background">
           <div className="flex h-16 items-center gap-3" style={{ padding: `0 ${isMobile ? 16 : 20}px` }}>
             <button onClick={() => nav('overview')} className="flex shrink-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-foreground">
-              <PlutoLogo size={34} />
+              <PlutoMark size={32} />
               <span className="text-[22px] font-extrabold tracking-[-0.04em]">pluto</span>
             </button>
             <div className="flex min-w-0 flex-1 justify-center">{isDesktop && tabs}</div>
@@ -218,6 +220,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                   />
                 </label>
               )}
+              <div className="group relative">
+                <button
+                  onClick={() => setHideValues(!hideValues)}
+                  aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+                  aria-pressed={hideValues}
+                  className="icon-btn size-11"
+                >
+                  <Icon icon={hideValues ? 'eye-off' : 'eye'} size={18} />
+                </button>
+                {!isMobile && <Tooltip label={hideValues ? 'Mostrar valores' : 'Ocultar valores'} />}
+              </div>
               <div className="group relative">
                 <button onClick={() => setTheme(dark ? 'light' : 'dark')} aria-label={dark ? 'Modo claro' : 'Modo escuro'} className="icon-btn size-11">
                   <Icon icon={dark ? 'sun' : 'moon'} size={18} />
@@ -339,7 +352,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
             ) : (
-              children
+              // Remonta a pagina ao ocultar/mostrar: todo valor e formatado de novo (lib/format fmt).
+              <Fragment key={hideValues ? 'hidden' : 'shown'}>{children}</Fragment>
             )}
           </main>
         </div>
@@ -443,7 +457,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {logoutOpen && (
           <Sheet onClose={() => setLogoutOpen(false)} role="alertdialog" label="Sair da conta" width={380} top="30vh">
             <div className="flex items-center gap-3.5">
-              <PlutoLogo size={48} />
+              <PlutoMark size={44} />
               <div>
                 <div className="text-[19px] font-bold tracking-[-0.02em]">Sair da conta?</div>
                 <div className="mt-1 text-sm text-muted-foreground">Você vai precisar entrar de novo para ver seus dados.</div>

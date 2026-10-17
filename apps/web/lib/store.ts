@@ -3,6 +3,7 @@
 import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
 import { api, refreshSession, setOnSessionLost } from './api';
+import { setValuesHidden } from './format';
 
 export type Theme = 'light' | 'dark';
 export type User = Me;
@@ -15,13 +16,15 @@ interface AppState {
   /** true depois de tentar restaurar a sessao (refresh pelo cookie). */
   hydrated: boolean;
   theme: Theme;
+  /** Ocultar valores em todas as telas ate o usuario clicar no olho de novo. */
+  hideValues: boolean;
   session: boolean;
   booting: boolean;
   user: User | null;
   loginMsg: LoginMsg | null;
 }
 
-const initial: AppState = { hydrated: false, theme: 'light', session: false, booting: false, user: null, loginMsg: null };
+const initial: AppState = { hydrated: false, theme: 'light', hideValues: false, session: false, booting: false, user: null, loginMsg: null };
 
 let state = initial;
 const subs = new Set<() => void>();
@@ -66,14 +69,23 @@ export function hydrate() {
   hydrating ??= (async () => {
     const theme = read('pluto-theme') === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
+    const hideValues = read('pluto-hide-values') === '1';
+    setValuesHidden(hideValues);
     // Chaves do prototipo antigo (dados mock): nao sao mais usadas.
     for (const k of ['pluto-session', 'pluto-user', 'pluto-plan', 'pluto-page']) write(k, null);
 
     let user: User | null = null;
     if (await refreshSession()) user = await api.me().catch(() => null);
-    set({ hydrated: true, theme, session: !!user, user });
+    set({ hydrated: true, theme, hideValues, session: !!user, user });
   })();
   return hydrating;
+}
+
+/** Fica salvo no aparelho: continua oculto ao trocar de pagina, recarregar ou entrar de novo. */
+export function setHideValues(hideValues: boolean) {
+  write('pluto-hide-values', hideValues ? '1' : null);
+  setValuesHidden(hideValues);
+  set({ hideValues });
 }
 
 export function setTheme(theme: Theme) {
