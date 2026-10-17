@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CATEGORY_BY_KEY } from '../categories';
 import { CATEGORY_SOURCES, TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../constants';
 
 // Secao 4.5 - schema compartilhado entre API e cliente.
@@ -14,8 +15,10 @@ export const TransactionSchema = z.object({
   status: z.enum(TRANSACTION_STATUSES),
   categoryId: z.string().nullable(),
   categorySource: z.enum(CATEGORY_SOURCES).nullable(),
-  /** Categoria informada pelo Pluggy (em ingles), exibida ate o pipeline de categorizacao (RN-10). */
+  /** Categoria informada pelo Pluggy (em ingles). */
   providerCategory: z.string().nullable(),
+  /** Categoria do Pluto (ver CATEGORIES), derivada da do Pluggy ate o pipeline RN-10. */
+  categoryKey: z.string(),
   installment: z
     .object({ n: z.number().int().positive(), total: z.number().int().positive(), groupId: z.string() })
     .nullable(),
@@ -54,3 +57,30 @@ export const TransactionQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 export type TransactionQuery = z.infer<typeof TransactionQuerySchema>;
+
+const CategoryKey = z.string().refine((k) => k in CATEGORY_BY_KEY, 'Categoria inválida');
+
+/**
+ * Categoria escolhida pelo usuario (RN-12). Com applyToSimilar, vira regra: as transacoes do
+ * mesmo destinatario/descricao, no mesmo sentido (entrada ou saida), passam a usar a categoria,
+ * inclusive as que chegarem nas proximas sincronizacoes.
+ */
+export const SetCategorySchema = z.object({
+  categoryKey: CategoryKey,
+  applyToSimilar: z.boolean().default(false),
+});
+export type SetCategory = z.infer<typeof SetCategorySchema>;
+
+export const SetCategoryResultSchema = z.object({ updated: z.number().int(), ruleId: z.string().nullable() });
+
+/** Quantas transacoes seriam afetadas por uma regra a partir desta transacao. */
+export const SimilarSchema = z.object({ matchKey: z.string(), count: z.number().int() });
+
+export const CategoryRuleSchema = z.object({
+  id: z.string(),
+  matchKey: z.string(),
+  direction: z.enum(['in', 'out']),
+  categoryKey: z.string(),
+  createdAt: z.coerce.date(),
+});
+export type CategoryRule = z.infer<typeof CategoryRuleSchema>;

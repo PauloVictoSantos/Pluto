@@ -1,5 +1,6 @@
 'use client';
 
+import { categoryOf } from '@pluto/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useShell } from '@/components/shell/ShellContext';
@@ -7,7 +8,6 @@ import { StatTiles, tileBrand, tilePlain } from '@/components/StatTiles';
 import { LiveTransactionList } from '@/components/TransactionList';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/lib/api';
-import { categoryOf } from '@/lib/categories';
 import { fmtDateTimeIn, monthLabelIn, startOfMonthIn } from '@/lib/datetime';
 import { downloadCsv, fmt } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
@@ -32,7 +32,7 @@ export default function TransacoesPage() {
     do {
       const page = await api.transactions({ from, limit: 200, cursor });
       page.items.forEach((t) =>
-        rows.push([fmtDateTimeIn(t.date, tz), t.description, categoryOf(t.providerCategory).label, (t.amountMinor / 100).toFixed(2).replace('.', ','), t.status === 'PENDING' ? 'Pendente' : 'Concluída']),
+        rows.push([fmtDateTimeIn(t.date, tz), t.description, categoryOf(t.categoryKey).label, (t.amountMinor / 100).toFixed(2).replace('.', ','), t.status === 'PENDING' ? 'Pendente' : 'Concluída']),
       );
       cursor = page.nextCursor ?? undefined;
     } while (cursor);

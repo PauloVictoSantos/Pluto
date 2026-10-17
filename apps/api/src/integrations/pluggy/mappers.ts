@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { NEEDS_USER_ACTION, toMinor, type AccountType, type InvestmentType, type InvoiceStatus, type TransactionType } from '@pluto/shared';
-import { normalizeDescription } from '../../lib/text';
+import { NEEDS_USER_ACTION, categoryKeyFor, toMinor, type AccountType, type InvestmentType, type InvoiceStatus, type TransactionType } from '@pluto/shared';
+import { matchKeyOf, normalizeDescription } from '../../lib/text';
 import type { PluggyAccount, PluggyBill, PluggyInvestment, PluggyItem, PluggyTransaction } from './gateway';
 
 // Funcoes puras: Pluggy -> modelo do Pluto. Dinheiro em centavos inteiros (secao 3.9).
@@ -62,6 +62,7 @@ export function mapAccount(a: PluggyAccount) {
     availableCreditMinor: minorOrNull(cd?.availableCreditLimit),
     closingDay: day(cd?.balanceCloseDate),
     dueDay: day(cd?.balanceDueDate),
+    brand: cd?.brand?.trim() || null,
   };
 }
 
@@ -100,21 +101,33 @@ export function mapTransaction(t: PluggyTransaction, accountType: AccountType) {
     m?.installmentNumber && m.totalInstallments && m.totalInstallments > 1
       ? { n: m.installmentNumber, total: m.totalInstallments, groupId: installmentGroupId(t.accountId, t) }
       : null;
+  const amountMinor = t.type === 'DEBIT' ? -abs : abs;
+  const type = deriveType(t, accountType);
   return {
     pluggyTransactionId: t.id,
     date: new Date(t.date),
     description: t.description,
     descriptionNorm: normalizeDescription(t.description),
+    matchKey: matchKeyOf(t.description),
     merchant: t.merchant?.name?.trim() || t.merchant?.businessName?.trim() || null,
-    amountMinor: t.type === 'DEBIT' ? -abs : abs,
+    amountMinor,
     currency: t.currencyCode,
     status: t.status === 'PENDING' ? ('PENDING' as const) : ('POSTED' as const),
     pluggyCategory: t.category ?? null,
     pluggyCategoryId: t.categoryId ?? null,
     pluggyBillId: m?.billId ?? null,
     installment,
-    type: deriveType(t, accountType),
+    type,
+    categoryKey: categoryKeyForType(type, t.category, amountMinor),
   };
+}
+
+/** Categoria coerente com o tipo: fatura, transferencia propria e investimento nunca viram gasto. */
+export function categoryKeyForType(type: TransactionType, providerCategory: string | null | undefined, amountMinor: number): string {
+  if (type === 'CARD_PAYMENT') return 'fatura';
+  if (type === 'TRANSFER') return 'entre-contas';
+  if (type === 'INVESTMENT') return 'investimentos';
+  return categoryKeyFor(providerCategory, amountMinor);
 }
 
 export function mapInvestmentType(i: Pick<PluggyInvestment, 'type' | 'subtype'>): InvestmentType {
@@ -155,9 +168,12 @@ export function mapInvestment(i: PluggyInvestment) {
   };
 }
 
+/** Faturas vencidas ha mais que isso sem pagamento informado: o Pluggy nao traz o pagamento de faturas antigas. */
+const OVERDUE_WINDOW_MS = 40 * 86_400_000;
+
 export function billStatus(totalMinor: number, paidMinor: number, closingDate: Date | null, dueDate: Date, now: Date): InvoiceStatus {
   if (totalMinor <= 0 || paidMinor >= totalMinor) return 'PAID';
-  if (dueDate < now) return 'OVERDUE';
+  if (dueDate < now) return now.getTime() - dueDate.getTime() <= OVERDUE_WINDOW_MS ? 'OVERDUE' : 'CLOSED';
   if (closingDate && closingDate <= now) return 'CLOSED';
   return 'OPEN';
 }

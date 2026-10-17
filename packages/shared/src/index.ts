@@ -5,3 +5,5 @@ export * from './schemas/connection';
 export * from './schemas/settings';
 export * from './schemas/auth';
 export * from './schemas/api';
+export * from './categories';
+export * from './schemas/dashboard';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { CategoryRulesCard } from '@/components/CategoryRulesCard';
 import { ConnectionsCard } from '@/components/ConnectionsCard';
 import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
@@ -98,6 +99,7 @@ export default function ConfiguracoesPage() {
       </div>
 
       <ConnectionsCard />
+      <CategoryRulesCard />
 
       <div data-anim="" className="card flex flex-col gap-3.5">
         <div className="card-title">Aparência</div>

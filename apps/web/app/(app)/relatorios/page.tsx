@@ -5,9 +5,11 @@ import { CategoryChart } from '@/components/charts/CategoryChart';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
-import { MESES_LONGOS, downloadCsv, fmt } from '@/lib/format';
-import { MOCK } from '@/lib/mock/data';
+import { MESES_LONGOS, downloadCsv } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
+import { monthLong, money, useSpending, useSummary } from '@/lib/queries';
+
+const brl = (minor: number) => (minor / 100).toFixed(2).replace('.', ',');
 
 export default function RelatoriosPage() {
   const { mode } = useShell();
@@ -15,28 +17,24 @@ export default function RelatoriosPage() {
   const root = useRef<HTMLDivElement>(null);
   useEnter(root);
 
-  const m = MOCK.insights.monthly;
-  const rowCols = isMobile ? '52px repeat(3,minmax(0,1fr))' : '1.2fr repeat(3,minmax(0,1fr))';
-  const short = (v: number) => (isMobile ? fmt(v).replace(/,\d\d$/, '') : fmt(v));
+  const summary = useSummary();
+  const spending = useSpending();
+  const m = summary.data?.monthly ?? [];
+  const rowCols = isMobile ? '52px repeat(3,minmax(0,1fr))' : '1.2fr repeat(4,minmax(0,1fr))';
+  const short = (v: number) => (isMobile ? money(v).replace(/,\d\d$/, '') : money(v));
   const rows = m
     .slice()
     .reverse()
     .map((x) => {
-      const mi = +x.month.slice(5) - 1, rate = ((x.income - x.expenses) / x.income) * 100;
-      return {
-        key: x.month,
-        month: isMobile ? MESES_LONGOS[mi]!.slice(0, 3) : MESES_LONGOS[mi],
-        income: short(x.income),
-        expenses: short(x.expenses),
-        rate: rate.toFixed(0) + '%',
-        good: rate >= 30,
-      };
+      const mi = +x.month.slice(5) - 1, saved = x.incomeMinor - x.expensesMinor;
+      const rate = x.incomeMinor ? (saved / x.incomeMinor) * 100 : null;
+      return { ...x, label: isMobile ? MESES_LONGOS[mi]!.slice(0, 3) : `${MESES_LONGOS[mi]} ${x.month.slice(0, 4)}`, saved, rate };
     });
 
   const exportCsv = () =>
-    downloadCsv('relatorio-mai-out-2026.csv', [
-      ['Mês', 'Receitas', 'Despesas', 'Saldo'],
-      ...m.map((x) => [x.month, x.income.toFixed(2).replace('.', ','), x.expenses.toFixed(2).replace('.', ','), (x.income - x.expenses).toFixed(2).replace('.', ',')]),
+    downloadCsv(`relatorio-${m[0]?.month ?? ''}-${m[m.length - 1]?.month ?? ''}.csv`, [
+      ['Mês', 'Receitas', 'Despesas', 'Investido', 'Saldo'],
+      ...m.map((x) => [x.month, brl(x.incomeMinor), brl(x.expensesMinor), brl(x.investedMinor), brl(x.incomeMinor - x.expensesMinor)]),
     ]);
 
   return (
@@ -44,10 +42,10 @@ export default function RelatoriosPage() {
       <div data-anim="" className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="page-title">Relatórios</h1>
-          <p className="mt-1 mb-0 text-sm text-muted-foreground">Maio a outubro de 2026</p>
+          <p className="mt-1 mb-0 text-sm text-muted-foreground">{m.length ? `${monthLong(m[0]!.month)} a ${monthLong(m[m.length - 1]!.month)}` : 'Carregando…'}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={exportCsv} className="btn btn-outline px-4">
+          <button onClick={exportCsv} disabled={!m.length} className="btn btn-outline px-4">
             <Icon icon="download" size={16} />
             CSV
           </button>
@@ -60,10 +58,10 @@ export default function RelatoriosPage() {
 
       <div className="grid items-stretch gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'minmax(0,7fr) minmax(0,5fr)' : 'minmax(0,1fr)' }}>
         <div data-anim="" className="min-w-0">
-          <RevenueChart />
+          <RevenueChart data={m} loading={summary.isPending} />
         </div>
         <div data-anim="" className="min-w-0">
-          <CategoryChart />
+          <CategoryChart spending={spending.data} loading={spending.isPending} />
         </div>
       </div>
 
@@ -73,23 +71,35 @@ export default function RelatoriosPage() {
           <span>Mês</span>
           <span className="text-right">Receitas</span>
           <span className="text-right">Despesas</span>
+          {!isMobile && <span className="text-right">Investido</span>}
           <span className="text-right">Poupado</span>
         </div>
-        {rows.map((r) => (
-          <div key={r.key} className="grid min-h-[52px] items-center gap-2 border-t border-border text-sm tabular-nums" style={{ gridTemplateColumns: rowCols }}>
-            <span className="font-semibold">{r.month}</span>
-            <span className="text-right">{r.income}</span>
-            <span className="text-right">{r.expenses}</span>
-            <span className="flex justify-end">
-              <span
-                className="rounded-full px-[9px] py-[3px] text-xs font-semibold"
-                style={{ background: r.good ? '#C6FF33' : 'var(--muted)', color: r.good ? '#000' : 'var(--foreground)' }}
-              >
-                {r.rate}
+        {rows.map((r) => {
+          const good = r.rate !== null && r.rate >= 30;
+          return (
+            <div key={r.month} className="grid min-h-[52px] items-center gap-2 border-t border-border text-sm tabular-nums" style={{ gridTemplateColumns: rowCols }}>
+              <span className="font-semibold">{r.label}</span>
+              <span className="text-right">{short(r.incomeMinor)}</span>
+              <span className="text-right">{short(r.expensesMinor)}</span>
+              {!isMobile && <span className="text-right">{short(r.investedMinor)}</span>}
+              <span className="flex justify-end">
+                <span
+                  className="rounded-full px-[9px] py-[3px] text-xs font-semibold"
+                  style={{
+                    background: r.saved < 0 ? 'var(--danger-soft)' : good ? '#C6FF33' : 'var(--muted)',
+                    color: r.saved < 0 ? 'var(--danger-text)' : good ? '#000' : 'var(--foreground)',
+                  }}
+                  title={money(r.saved)}
+                >
+                  {r.rate === null ? '—' : `${r.rate.toFixed(0)}%`}
+                </span>
               </span>
-            </span>
-          </div>
-        ))}
+            </div>
+          );
+        })}
+        <p className="mt-2 mb-0 text-xs text-muted-foreground">
+          Poupado = (receitas − despesas) ÷ receitas. Transferências entre suas contas, pagamentos de fatura e aplicações não contam como despesa.
+        </p>
       </div>
     </div>
   );

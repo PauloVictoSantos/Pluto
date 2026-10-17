@@ -98,6 +98,7 @@ export interface AccountDoc {
   availableCreditMinor: number | null;
   closingDay: number | null;
   dueDay: number | null;
+  brand: string | null;
   syncError: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -112,6 +113,8 @@ export interface TransactionDoc {
   date: Date;
   description: string;
   descriptionNorm: string;
+  /** Descricao sem o envelope do banco (lib/text matchKeyOf): base das regras de categoria. */
+  matchKey: string;
   merchant: string | null;
   amountMinor: number;
   currency: string;
@@ -120,6 +123,8 @@ export interface TransactionDoc {
   pluggyCategory: string | null;
   pluggyCategoryId: string | null;
   pluggyBillId: string | null;
+  /** Categoria do Pluto (shared/categories). */
+  categoryKey: string;
   installment: { n: number; total: number; groupId: string } | null;
   categoryId: ObjectId | null;
   categorySource: CategorySource | null;
@@ -174,6 +179,44 @@ export interface InvestmentSnapshotDoc {
   updatedAt: Date;
 }
 
+/** Regra de categoria criada pelo usuario (RN-10/RN-12). */
+export interface CategoryRuleDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  matchKey: string;
+  /** Sentido da transacao: Pix recebido e enviado para a mesma pessoa sao coisas diferentes. */
+  direction: 'in' | 'out';
+  categoryKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BudgetDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** "YYYY-MM" */
+  month: string;
+  categoryKey: string;
+  limitMinor: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GoalDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  icon: string;
+  targetMinor: number;
+  savedMinor: number;
+  /** "YYYY-MM-DD" */
+  deadline: string;
+  /** Aporte mensal planejado (Planejamento). */
+  monthlyContributionMinor: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AuditLogDoc {
   _id: ObjectId;
   userId: ObjectId | null;
@@ -192,6 +235,9 @@ export interface Collections {
   invoices: Collection<InvoiceDoc>;
   investments: Collection<InvestmentDoc>;
   investmentSnapshots: Collection<InvestmentSnapshotDoc>;
+  categoryRules: Collection<CategoryRuleDoc>;
+  budgets: Collection<BudgetDoc>;
+  goals: Collection<GoalDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -204,5 +250,8 @@ export const collections = (db: Db): Collections => ({
   invoices: db.collection<InvoiceDoc>('invoices'),
   investments: db.collection<InvestmentDoc>('investments'),
   investmentSnapshots: db.collection<InvestmentSnapshotDoc>('investment_snapshots'),
+  categoryRules: db.collection<CategoryRuleDoc>('category_rules'),
+  budgets: db.collection<BudgetDoc>('budgets'),
+  goals: db.collection<GoalDoc>('goals'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

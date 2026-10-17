@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { askPluto } from '@/lib/mock/chat';
+import { askPluto } from '@/lib/assistant';
+import { ymdIn } from '@/lib/datetime';
+import { useTz } from '@/lib/queries';
 import { animate, reducedMotion } from '@/lib/motion';
 import { PlutoLogo } from '../brand/PlutoLogo';
 import { PlutoMascot } from '../brand/PlutoMascot';
 import { Icon } from '../ui/Icon';
 
-const SUGGESTIONS = ['Quanto gastei com delivery este mês?', 'Onde eu mais gastei?', 'Quais contas vencem?', 'Como está meu score?'];
+const SUGGESTIONS = ['Onde eu mais gastei?', 'Como estou comparado ao mês passado?', 'Quais faturas vencem?', 'Qual meu saldo?', 'Quanto sobrou este mês?'];
 
 interface Msg {
   role: 'pluto' | 'user';
@@ -17,8 +19,9 @@ interface Msg {
 /** Gaveta lateral do chat. Fica montada para manter o historico entre aberturas. */
 export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose: () => void; fullWidth: boolean }) {
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'pluto', text: 'Oi! Posso responder sobre seus gastos, contas, cartões, boletos e investimentos. O que você quer saber?' },
+    { role: 'pluto', text: 'Oi! Pergunte sobre seu saldo, gastos do mês, categorias, faturas, orçamento e metas. Eu respondo com base nos dados do seu Open Finance.' },
   ]);
+  const tz = useTz();
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const panel = useRef<HTMLElement>(null);
@@ -50,7 +53,8 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
     setMessages((m) => [...m, { role: 'user', text: q }]);
     setInput('');
     setThinking(true);
-    const answer = await askPluto(q);
+    // Historico sem a saudacao inicial.
+    const answer = await askPluto(q, ymdIn(new Date(), tz), messages.slice(1));
     setMessages((m) => [...m, { role: 'pluto', text: answer }]);
     setThinking(false);
   };
@@ -82,7 +86,7 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
           {messages.map((m, i) => (
             <div key={i} data-msg="" className="flex" style={{ justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div
-                className="max-w-[84%] px-3.5 py-[11px] text-[15px] leading-normal text-pretty"
+                className="max-w-[84%] px-3.5 py-[11px] text-[15px] leading-normal whitespace-pre-line text-pretty"
                 style={
                   m.role === 'user'
                     ? { background: 'var(--primary)', color: 'var(--primary-foreground)', borderRadius: '18px 18px 4px 18px' }

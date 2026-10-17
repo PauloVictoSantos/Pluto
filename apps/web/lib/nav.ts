@@ -26,7 +26,7 @@ export function pageFromPath(path: string): PageId {
 }
 
 export const TABS: [PageId, string][] = [
-  ['overview', 'Visão geral'], ['tx', 'Transações'], ['boleto', 'Boleto'], ['plan', 'Planejamento'],
+  ['overview', 'Visão geral'], ['tx', 'Transações'], ['bills', 'Contas'], ['plan', 'Planejamento'],
   ['budget', 'Orçamento'], ['invest', 'Investimentos'], ['reports', 'Relatórios'],
 ];
 export const SIDE_TOP: [PageId, string, string][] = [
@@ -35,11 +35,11 @@ export const SIDE_TOP: [PageId, string, string][] = [
 ];
 export const SIDE_BOTTOM: [NavId, string, string][] = [['help', 'Ajuda', 'circle-help'], ['logout', 'Sair', 'log-out']];
 export const BOTTOM: [NavId, string, string][] = [
-  ['overview', 'Início', 'layout-dashboard'], ['tx', 'Extrato', 'arrow-left-right'], ['boleto', 'Boleto', 'barcode'],
+  ['overview', 'Início', 'layout-dashboard'], ['tx', 'Extrato', 'arrow-left-right'], ['bills', 'Contas', 'calendar-days'],
   ['cards', 'Cartões', 'credit-card'], ['more', 'Mais', 'layout-grid'],
 ];
 export const MORE: [NavId, string, string][] = [
   ['plan', 'Planeja­mento', 'target'], ['budget', 'Orçamento', 'pie-chart'], ['invest', 'Investi­mentos', 'trending-up'],
-  ['reports', 'Relatórios', 'bar-chart'], ['bills', 'Contas a pagar', 'calendar-days'], ['goals', 'Metas', 'target'],
+  ['reports', 'Relatórios', 'bar-chart'], ['goals', 'Metas', 'target'],
   ['settings', 'Ajustes', 'settings'], ['help', 'Ajuda', 'circle-help'], ['logout', 'Sair', 'log-out'],
 ];

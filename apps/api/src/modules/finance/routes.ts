@@ -1,5 +1,9 @@
 import {
   AccountSchema,
+  CategoryRuleSchema,
+  SetCategoryResultSchema,
+  SetCategorySchema,
+  SimilarSchema,
   TransactionPageSchema,
   TransactionQuerySchema,
   TransactionSummaryQuerySchema,
@@ -11,10 +15,13 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { ObjectId, type Filter } from 'mongodb';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
-import type { AccountDoc, TransactionDoc } from '../../db/collections';
-import { AppError } from '../../lib/errors';
+import type { AccountDoc, CategoryRuleDoc, TransactionDoc } from '../../db/collections';
+import { categoryKeyForType, deriveType } from '../../integrations/pluggy/mappers';
+import { audit } from '../../lib/audit';
+import { AppError, notFound } from '../../lib/errors';
 import { escapeRegex, normalizeDescription } from '../../lib/text';
 import { requireAuth, userOf } from '../../plugins/auth';
+import { applyRule, directionOf, typeFor } from '../categories/rules';
 
 const toAccountDTO = (a: AccountDoc): Account => ({
   id: a._id.toHexString(),
@@ -43,6 +50,7 @@ const toTransactionDTO = (t: TransactionDoc): Transaction => ({
   categoryId: t.categoryId?.toHexString() ?? null,
   categorySource: t.categorySource,
   providerCategory: t.pluggyCategory,
+  categoryKey: t.categoryKey ?? 'outros',
   installment: t.installment,
   tags: t.tags,
   hidden: t.hidden,
@@ -110,5 +118,99 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const docs = await ctx.col.transactions.find(filter).sort({ date: -1, _id: -1 }).limit(q.limit + 1).toArray();
     const page = docs.slice(0, q.limit);
     return { items: page.map(toTransactionDTO), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
+  });
+
+  // Categoria escolhida pelo usuario (RN-12) e regras por destinatario/descricao (RN-10).
+  const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
+  const ownTx = async (userId: ObjectId, id: string) => {
+    const t = await ctx.col.transactions.findOne({ _id: new ObjectId(id), userId, deletedAt: null });
+    if (!t) throw notFound('Transação');
+    return t;
+  };
+  const matchKeyOfTx = (t: TransactionDoc) => t.matchKey ?? t.descriptionNorm;
+
+  app.get('/transactions/:id/similar', { schema: { params: IdParam, response: { 200: SimilarSchema } } }, async (req) => {
+    const userId = userOf(req).id, t = await ownTx(userId, req.params.id);
+    const matchKey = matchKeyOfTx(t);
+    const count = await ctx.col.transactions.countDocuments({
+      userId,
+      matchKey,
+      deletedAt: null,
+      amountMinor: t.amountMinor > 0 ? { $gt: 0 } : { $lte: 0 },
+    });
+    return { matchKey, count };
+  });
+
+  app.patch(
+    '/transactions/:id/category',
+    { schema: { params: IdParam, body: SetCategorySchema, response: { 200: SetCategoryResultSchema } } },
+    async (req) => {
+      const userId = userOf(req).id, t = await ownTx(userId, req.params.id);
+      const { categoryKey, applyToSimilar } = req.body;
+      const now = new Date();
+      await ctx.col.transactions.updateOne(
+        { _id: t._id, userId },
+        { $set: { categoryKey, categorySource: 'MANUAL', type: typeFor(categoryKey, t.amountMinor), updatedAt: now } },
+      );
+      let updated = 1, ruleId: string | null = null;
+      if (applyToSimilar) {
+        const matchKey = matchKeyOfTx(t), direction = directionOf(t.amountMinor);
+        const rule = await ctx.col.categoryRules.findOneAndUpdate(
+          { userId, matchKey, direction },
+          { $set: { categoryKey, updatedAt: now }, $setOnInsert: { createdAt: now } },
+          { upsert: true, returnDocument: 'after' },
+        );
+        ruleId = rule!._id.toHexString();
+        // Ao trocar a regra, as transacoes que ela ja tinha categorizado passam a seguir a nova.
+        await ctx.col.transactions.updateMany(
+          { userId, matchKey, categorySource: 'RULE' },
+          { $set: { categorySource: null } },
+        );
+        updated += await applyRule(ctx.col, { userId, matchKey, direction, categoryKey }, { _id: { $ne: t._id } });
+      }
+      await audit(ctx.col, 'transaction.category_set', userId, { transactionId: t._id.toHexString(), categoryKey, applyToSimilar }, req.ip);
+      return { updated, ruleId };
+    },
+  );
+
+  const toRuleDTO = (r: CategoryRuleDoc) => ({
+    id: r._id.toHexString(),
+    matchKey: r.matchKey,
+    direction: r.direction,
+    categoryKey: r.categoryKey,
+    createdAt: r.createdAt,
+  });
+
+  app.get('/category-rules', { schema: { response: { 200: z.array(CategoryRuleSchema) } } }, async (req) =>
+    (await ctx.col.categoryRules.find({ userId: userOf(req).id }).sort({ matchKey: 1 }).toArray()).map(toRuleDTO),
+  );
+
+  /** Remove a regra; as transacoes que ela categorizou voltam para a categoria do Pluggy. */
+  app.delete('/category-rules/:id', { schema: { params: IdParam } }, async (req, reply) => {
+    const userId = userOf(req).id;
+    const rule = await ctx.col.categoryRules.findOneAndDelete({ _id: new ObjectId(req.params.id), userId });
+    if (!rule) throw notFound('Regra');
+    const affected = await ctx.col.transactions
+      .find({ userId, matchKey: rule.matchKey, categorySource: 'RULE' }, { projection: { accountId: 1, pluggyCategory: 1, amountMinor: 1, description: 1 } })
+      .toArray();
+    if (affected.length) {
+      const accType = new Map((await ctx.col.accounts.find({ userId }, { projection: { type: 1 } }).toArray()).map((a) => [a._id.toHexString(), a.type]));
+      await ctx.col.transactions.bulkWrite(
+        affected.map((d) => {
+          const type = deriveType(
+            { type: d.amountMinor < 0 ? 'DEBIT' : 'CREDIT', category: d.pluggyCategory, description: d.description },
+            accType.get(d.accountId.toHexString()) ?? 'CHECKING',
+          );
+          return {
+            updateOne: {
+              filter: { _id: d._id },
+              update: { $set: { categorySource: null, type, categoryKey: categoryKeyForType(type, d.pluggyCategory, d.amountMinor) } },
+            },
+          };
+        }),
+      );
+    }
+    await audit(ctx.col, 'category_rule.deleted', userId, { ruleId: req.params.id }, req.ip);
+    return reply.code(204).send();
   });
 };

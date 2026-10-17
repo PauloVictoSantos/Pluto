@@ -1,6 +1,17 @@
 import {
   AccountSchema,
+  AnswerSchema,
+  CategoryRuleSchema,
+  SetCategoryResultSchema,
+  SimilarSchema,
+  BudgetSchema,
+  CardSchema,
   ConnectionSchema,
+  DashboardSummarySchema,
+  GoalSchema,
+  InvestmentsSchema,
+  InvoiceSchema,
+  SpendingSchema,
   HealthSchema,
   MeSchema,
   MfaChallengeSchema,
@@ -116,9 +127,35 @@ export const api = {
     request<void>(`/connections/${id}?keepHistory=${keepHistory}`, { method: 'DELETE' }),
 
   accounts: () => request('/accounts', {}, z.array(AccountSchema)),
+  summary: () => request('/dashboard/summary', {}, DashboardSummarySchema),
+  spending: (month?: string) => request(`/dashboard/spending${month ? `?month=${month}` : ''}`, {}, SpendingSchema),
+  investments: () => request('/dashboard/investments', {}, InvestmentsSchema),
+  cards: () => request('/cards', {}, z.array(CardSchema)),
+  invoices: (from?: Date, to?: Date) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from.toISOString());
+    if (to) p.set('to', to.toISOString());
+    return request(`/invoices?${p}`, {}, z.array(InvoiceSchema));
+  },
+  budget: (month: string) => request(`/budgets?month=${month}`, {}, BudgetSchema),
+  putBudget: (month: string, items: { categoryKey: string; limitMinor: number }[]) =>
+    request('/budgets', { method: 'PUT', body: JSON.stringify({ month, items }) }, BudgetSchema),
+  goals: () => request('/goals', {}, z.array(GoalSchema)),
+  createGoal: (g: { name: string; targetMinor: number; deadline: string; icon?: string; savedMinor?: number }) =>
+    request('/goals', post(g), GoalSchema),
+  updateGoal: (id: string, patch: { addMinor?: number; monthlyContributionMinor?: number; name?: string; targetMinor?: number; deadline?: string }) =>
+    request(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, GoalSchema),
+  deleteGoal: (id: string) => request<void>(`/goals/${id}`, { method: 'DELETE' }),
+  similar: (id: string) => request(`/transactions/${id}/similar`, {}, SimilarSchema),
+  setCategory: (id: string, categoryKey: string, applyToSimilar: boolean) =>
+    request(`/transactions/${id}/category`, { method: 'PATCH', body: JSON.stringify({ categoryKey, applyToSimilar }) }, SetCategoryResultSchema),
+  categoryRules: () => request('/category-rules', {}, z.array(CategoryRuleSchema)),
+  deleteCategoryRule: (id: string) => request<void>(`/category-rules/${id}`, { method: 'DELETE' }),
+  ask: (question: string, history: { role: 'user' | 'pluto'; text: string }[]) =>
+    request('/assistant/ask', post({ question, history }), AnswerSchema),
   transactionSummary: (from: Date, to?: Date) =>
     request(`/transactions/summary?from=${from.toISOString()}${to ? `&to=${to.toISOString()}` : ''}`, {}, TransactionSummarySchema),
-  transactions: (q: Partial<Omit<TransactionQuery, 'from' | 'to'>> & { from?: Date; to?: Date } = {}) => {
+  transactions: (q: Partial<Omit<TransactionQuery, 'from' | 'to' | 'limit'>> & { from?: Date; to?: Date; limit?: number } = {}) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '') params.set(k, v instanceof Date ? v.toISOString() : String(v));
     return request(`/transactions?${params}`, {}, TransactionPageSchema);

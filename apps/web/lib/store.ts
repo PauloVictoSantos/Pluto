@@ -3,7 +3,6 @@
 import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
 import { api, refreshSession, setOnSessionLost } from './api';
-import { applyPlan, type Plan } from './mock/data';
 
 export type Theme = 'light' | 'dark';
 export type User = Me;
@@ -20,10 +19,9 @@ interface AppState {
   booting: boolean;
   user: User | null;
   loginMsg: LoginMsg | null;
-  plan: Plan | null;
 }
 
-const initial: AppState = { hydrated: false, theme: 'light', session: false, booting: false, user: null, loginMsg: null, plan: null };
+const initial: AppState = { hydrated: false, theme: 'light', session: false, booting: false, user: null, loginMsg: null };
 
 let state = initial;
 const subs = new Set<() => void>();
@@ -41,7 +39,7 @@ export function useApp<T>(sel: (s: AppState) => T): T {
   return useSyncExternalStore(subscribe, () => sel(state), () => sel(initial));
 }
 
-// localStorage so para preferencias sem dados sensiveis (tema, plano mock).
+// localStorage so para preferencias sem dados sensiveis (tema).
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);
@@ -68,19 +66,12 @@ export function hydrate() {
   hydrating ??= (async () => {
     const theme = read('pluto-theme') === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
-    let plan: Plan | null = null;
-    try {
-      plan = JSON.parse(read('pluto-plan') || 'null');
-    } catch {
-      /* dado corrompido: ignora */
-    }
-    applyPlan(plan);
-    write('pluto-session', null); // flag do mock antigo
-    write('pluto-user', null);
+    // Chaves do prototipo antigo (dados mock): nao sao mais usadas.
+    for (const k of ['pluto-session', 'pluto-user', 'pluto-plan', 'pluto-page']) write(k, null);
 
     let user: User | null = null;
     if (await refreshSession()) user = await api.me().catch(() => null);
-    set({ hydrated: true, theme, plan, session: !!user, user });
+    set({ hydrated: true, theme, session: !!user, user });
   })();
   return hydrating;
 }
@@ -112,9 +103,3 @@ export const consumeLoginMsg = () => {
 };
 
 export const setUser = (user: User) => set({ user });
-
-export function savePlan(plan: Plan) {
-  write('pluto-plan', JSON.stringify(plan));
-  applyPlan(plan);
-  set({ plan });
-}

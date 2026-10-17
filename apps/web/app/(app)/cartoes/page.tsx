@@ -2,59 +2,45 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
-import { CreditCard } from '@/components/CreditCard';
+import { CreditCard, cardLook } from '@/components/CreditCard';
 import { useShell } from '@/components/shell/ShellContext';
-import { TransactionList } from '@/components/TransactionList';
+import { LiveTransactionList } from '@/components/TransactionList';
 import { Icon } from '@/components/ui/Icon';
-import { Sheet } from '@/components/ui/Sheet';
-import { fmt } from '@/lib/format';
-import { vm } from '@/lib/mock/vm';
-import { animate, pop, reducedMotion, useEnter } from '@/lib/motion';
+import { ymdIn } from '@/lib/datetime';
+import { fmtDay, fmtDayFull } from '@/lib/format';
+import { nextDue } from '@/lib/insights';
+import { animate, reducedMotion, useEnter } from '@/lib/motion';
+import { money, useCards, useInvoices, useTz } from '@/lib/queries';
 
-const BANKS: [string, string][] = [
-  ['Bradesco', 'CC092D'], ['Santander', 'EC0000'], ['C6 Bank', '242424'],
-  ['Banco do Brasil', '0038A8'], ['Caixa', '005CA9'], ['BTG Pactual', '0B2A4A'],
-];
+const INVOICE_LABEL = { PAID: 'Paga', OPEN: 'Aberta', CLOSED: 'Fechada', OVERDUE: 'Não paga' } as const;
 
 export default function CartoesPage() {
   const { mode, nav } = useShell();
   const isMobile = mode === 'mobile';
+  const tz = useTz();
+  const today = ymdIn(new Date(), tz);
+  const cards = useCards();
+  const invoices = useInvoices();
   const [sel, setSel] = useState(0);
-  const [blocked, setBlocked] = useState<Record<string, boolean>>({});
-  const [virtual, setVirtual] = useState(false);
-  const [add, setAdd] = useState<'pick' | 'busy' | 'done' | null>(null);
-  const [addBank, setAddBank] = useState('');
   const root = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  const virtualRef = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const prevSel = useRef(0);
-  const addTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEnter(root);
 
-  useEffect(() => () => clearTimeout(addTimer.current), []);
   useEffect(() => {
     if (sel !== prevSel.current && detailRef.current && !reducedMotion()) animate(detailRef.current, { opacity: [0.4, 1], y: [8, 0] }, { duration: 0.3 });
     prevSel.current = sel;
   }, [sel]);
-  useEffect(() => {
-    if (virtual) pop(virtualRef.current, { opacity: [0, 1], y: [-8, 0] });
-  }, [virtual]);
 
+  const list = cards.data ?? [];
+  const c = list[Math.min(sel, Math.max(list.length - 1, 0))];
   const scrollTo = (i: number) => {
-    const el = scroller.current, c = el?.children[i] as HTMLElement | undefined, first = el?.children[0] as HTMLElement | undefined;
-    if (el && c && first) el.scrollTo({ left: c.offsetLeft - first.offsetLeft - (el.clientWidth - c.offsetWidth) / 2 + 6, behavior: 'smooth' });
+    const el = scroller.current, ch = el?.children[i] as HTMLElement | undefined, first = el?.children[0] as HTMLElement | undefined;
+    if (el && ch && first) el.scrollTo({ left: ch.offsetLeft - first.offsetLeft - (el.clientWidth - ch.offsetWidth) / 2 + 6, behavior: 'smooth' });
   };
-  const select = (i: number) => {
-    setSel(i);
-    setVirtual(false);
-  };
-
-  const cards = vm.cards().map((c) => {
-    const isBlocked = blocked[c.id] ?? !c.active;
-    return { ...c, isBlocked, status: isBlocked ? 'Bloqueado' : 'Ativo', statusBg: isBlocked ? 'rgba(255,255,255,.2)' : '#C6FF33', statusFg: isBlocked ? '#fff' : '#000' };
-  });
-  const c = cards[sel]!;
+  const history = (invoices.data ?? []).filter((i) => c && i.accountId === c.id).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime()).slice(0, 6);
+  const usedPct = c?.creditLimitMinor && c.usedMinor != null ? (c.usedMinor / c.creditLimitMinor) * 100 : null;
 
   return (
     <div ref={root} className="flex flex-col gap-4">
@@ -62,177 +48,138 @@ export default function CartoesPage() {
         <div>
           <h1 className="page-title">Cartões</h1>
           <p className="mt-1 mb-0 text-sm text-muted-foreground">
-            {cards.length} cartões · faturas somam {fmt(cards.reduce((t, x) => t + x.billNum, 0))}
+            {cards.isPending ? 'Carregando…' : `${list.length} cart${list.length === 1 ? 'ão' : 'ões'} · faturas atuais somam ${money(list.reduce((t, x) => t + x.currentBillMinor, 0))}`}
           </p>
         </div>
-        <button onClick={() => setAdd('pick')} className="btn btn-outline shrink-0">
+        <button onClick={() => nav('settings')} className="btn btn-outline shrink-0">
           <Icon icon="plus" size={16} />
-          Adicionar cartão
+          Conectar banco
         </button>
       </div>
 
-      <div data-anim="" className="flex flex-col gap-3">
-        <div
-          ref={scroller}
-          onScroll={(e) => {
-            if (!isMobile) return;
-            const el = e.currentTarget, first = el.children[0] as HTMLElement | undefined, w = first ? first.offsetWidth + 14 : 1;
-            const i = Math.max(0, Math.min(el.children.length - 1, Math.round(el.scrollLeft / w)));
-            if (i !== sel) select(i);
-          }}
-          className="no-scrollbar flex snap-x snap-mandatory gap-3.5 overflow-x-auto overscroll-x-contain p-1.5"
-        >
-          {cards.map((x, i) => (
+      {cards.isSuccess && list.length === 0 && (
+        <div data-anim="" className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card px-6 py-10 text-center">
+          <PlutoLogo size={72} />
+          <div className="text-[17px] font-semibold">Nenhum cartão de crédito</div>
+          <div className="max-w-[360px] text-sm text-muted-foreground">As contas conectadas não têm cartão de crédito. Conecte o banco do seu cartão no Meu Pluggy.</div>
+        </div>
+      )}
+
+      {list.length > 0 && c && (
+        <>
+          <div data-anim="" className="flex flex-col gap-3">
             <div
-              key={x.id}
-              onClick={() => {
-                select(i);
-                if (isMobile) scrollTo(i);
+              ref={scroller}
+              onScroll={(e) => {
+                if (!isMobile) return;
+                const el = e.currentTarget, first = el.children[0] as HTMLElement | undefined, w = first ? first.offsetWidth + 14 : 1;
+                const i = Math.max(0, Math.min(el.children.length - 1, Math.round(el.scrollLeft / w)));
+                if (i !== sel) setSel(i);
               }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && select(i)}
-              aria-pressed={i === sel}
-              aria-label={`${x.bank} final ${x.last4}`}
-              className="min-w-0 max-w-[360px] cursor-pointer snap-center transition-opacity"
-              style={{ flex: `0 0 ${isMobile ? '84%' : '320px'}`, opacity: i === sel ? 1 : 0.6 }}
+              className="no-scrollbar flex snap-x snap-mandatory gap-3.5 overflow-x-auto overscroll-x-contain p-1.5"
             >
-              <CreditCard card={x} selected={i === sel} />
+              {list.map((x, i) => (
+                <div
+                  key={x.id}
+                  onClick={() => {
+                    setSel(i);
+                    if (isMobile) scrollTo(i);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSel(i)}
+                  aria-pressed={i === sel}
+                  aria-label={`${x.name} final ${x.numberMasked ?? ''}`}
+                  className="min-w-0 max-w-[360px] cursor-pointer snap-center transition-opacity"
+                  style={{ flex: `0 0 ${isMobile ? '84%' : '320px'}`, opacity: i === sel ? 1 : 0.6 }}
+                >
+                  <CreditCard card={cardLook(x, i)} selected={i === sel} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {isMobile && (
-          <div className="flex justify-center gap-1.5">
-            {cards.map((x, i) => (
-              <button
-                key={x.id}
-                onClick={() => {
-                  select(i);
-                  scrollTo(i);
-                }}
-                aria-label={`Ver ${x.bank}`}
-                className="h-2 cursor-pointer rounded-full border-0 p-0 transition-all"
-                style={{ width: i === sel ? 22 : 8, background: i === sel ? '#7D39EB' : 'var(--border)' }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid items-start gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'minmax(0,5fr) minmax(0,7fr)' : 'minmax(0,1fr)' }}>
-        <div ref={detailRef} className="card flex flex-col gap-[18px]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm text-muted-foreground">Fatura atual · {c.bank}</div>
-              <div className="mt-1 text-[clamp(28px,7vw,36px)] font-bold tracking-[-0.04em] tabular-nums">{c.bill}</div>
-              <div className="mt-0.5 text-[13px] text-muted-foreground">
-                Vence em {c.due} · {c.level}
-              </div>
-            </div>
-            <span
-              className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
-              style={{ background: c.isBlocked ? 'var(--danger-soft)' : '#C6FF33', color: c.isBlocked ? 'var(--danger-text)' : '#000' }}
-            >
-              {c.status}
-            </span>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-[13px]">
-              <span className="text-muted-foreground">Limite usado</span>
-              <span>
-                <strong>{c.used}</strong> de {c.limit}
-              </span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${c.usedPct.toFixed(1)}%` }} />
-            </div>
-            <div className="text-[13px] text-muted-foreground">
-              Disponível: <strong className="text-foreground">{c.available}</strong>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: c.isBlocked ? 'Desbloquear' : 'Bloquear', icon: c.isBlocked ? 'lock-open' : 'lock', go: () => setBlocked((p) => ({ ...p, [c.id]: !c.isBlocked })), primary: false },
-              { label: 'Pagar fatura', icon: 'receipt', go: () => nav('bills'), primary: true },
-              { label: 'Cartão virtual', icon: 'smartphone', go: () => setVirtual(!virtual), primary: false },
-            ].map((a) => (
-              <button
-                key={a.icon}
-                onClick={a.go}
-                className={`flex cursor-pointer flex-col items-center gap-2 rounded-[14px] px-1 py-3 text-[13px] font-semibold ${a.primary ? 'border-0 bg-primary text-primary-foreground' : 'border border-border bg-card text-foreground hover:bg-muted'}`}
-              >
-                <Icon icon={a.icon} size={20} />
-                {a.label}
-              </button>
-            ))}
-          </div>
-          {virtual && (
-            <div ref={virtualRef} className="flex flex-col gap-2 rounded-[14px] bg-brand-soft px-4 py-3.5 text-sm">
-              <div className="font-semibold text-brand-text">Cartão virtual · válido por 24h</div>
-              <div className="font-mono text-base tracking-[0.08em]">5162 9031 7745 {String(7000 + +c.last4).slice(-4)}</div>
-              <div className="flex gap-[18px] text-[13px] text-muted-foreground">
-                <span>Validade 10/31</span>
-                <span>CVV 482</span>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="min-w-0">
-          <TransactionList key={c.id} mode={mode} accountId={c.id} title="Compras no cartão" controls={false} />
-        </div>
-      </div>
-
-      {add && (
-        <Sheet onClose={() => setAdd(null)} label="Conectar cartão" width={440} top="18vh" gap={14}>
-          {add === 'pick' && (
-            <>
-              <div>
-                <div className="text-xl font-bold tracking-[-0.02em]">Conectar cartão</div>
-                <div className="mt-1 text-sm text-muted-foreground">Escolha o banco. A conexão é feita pelo Open Finance, com seu consentimento.</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {BANKS.map(([name, color]) => (
+            {isMobile && list.length > 1 && (
+              <div className="flex justify-center gap-1.5">
+                {list.map((x, i) => (
                   <button
-                    key={name}
+                    key={x.id}
                     onClick={() => {
-                      setAdd('busy');
-                      setAddBank(name);
-                      addTimer.current = setTimeout(() => setAdd('done'), 1400);
+                      setSel(i);
+                      scrollTo(i);
                     }}
-                    className="flex h-14 cursor-pointer items-center gap-2.5 rounded-[14px] border border-border bg-card px-3 text-left text-sm font-semibold text-foreground hover:bg-muted"
-                  >
-                    <span className="grid size-[30px] shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: '#' + color }}>
-                      {name.slice(0, 2).toUpperCase()}
-                    </span>
-                    {name}
-                  </button>
+                    aria-label={`Ver ${x.name}`}
+                    className="h-2 cursor-pointer rounded-full border-0 p-0 transition-all"
+                    style={{ width: i === sel ? 22 : 8, background: i === sel ? '#7D39EB' : 'var(--border)' }}
+                  />
                 ))}
               </div>
-              <button onClick={() => setAdd(null)} className="btn btn-outline h-12 text-[15px]">
-                Cancelar
-              </button>
-            </>
-          )}
-          {add === 'busy' && (
-            <div className="flex flex-col items-center gap-3 py-5 text-center">
-              <PlutoLogo size={64} />
-              <div className="text-[17px] font-semibold">Conectando com {addBank}…</div>
-              <div className="text-sm text-muted-foreground">Você vai autorizar no app do banco.</div>
+            )}
+          </div>
+
+          <div className="grid items-start gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'minmax(0,5fr) minmax(0,7fr)' : 'minmax(0,1fr)' }}>
+            <div className="flex min-w-0 flex-col gap-4">
+              <div ref={detailRef} className="card flex flex-col gap-[18px]">
+                <div>
+                  <div className="text-sm text-muted-foreground">Fatura atual · {c.name}</div>
+                  <div className="mt-1 text-[clamp(28px,7vw,36px)] font-bold tracking-[-0.04em] tabular-nums">{money(c.currentBillMinor)}</div>
+                  <div className="mt-0.5 text-[13px] text-muted-foreground">
+                    {c.dueDay ? `Vence ${fmtDay(nextDue(c.dueDay, today))}` : 'Vencimento não informado'}
+                    {c.closingDay ? ` · fecha dia ${c.closingDay}` : ''}
+                  </div>
+                </div>
+                {c.creditLimitMinor != null && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between text-[13px]">
+                      <span className="text-muted-foreground">Limite usado</span>
+                      <span>
+                        <strong>{money(c.usedMinor ?? 0)}</strong> de {money(c.creditLimitMinor)}
+                      </span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${Math.min(usedPct ?? 0, 100).toFixed(1)}%` }} />
+                    </div>
+                    {c.availableCreditMinor != null && (
+                      <div className="text-[13px] text-muted-foreground">
+                        Disponível: <strong className="text-foreground">{money(c.availableCreditMinor)}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button onClick={() => nav('bills')} className="btn btn-outline">
+                  <Icon icon="calendar-days" size={16} />
+                  Ver no calendário de contas
+                </button>
+              </div>
+
+              <div className="card flex flex-col gap-1">
+                <div className="card-title mb-1.5">Últimas faturas</div>
+                {invoices.isSuccess && history.length === 0 && <div className="py-3 text-sm text-muted-foreground">O banco ainda não informou faturas fechadas deste cartão.</div>}
+                {history.map((i) => (
+                  <div key={i.id} className="flex min-h-14 items-center justify-between gap-3 border-t border-border text-sm">
+                    <span>Venceu {fmtDayFull(i.dueDate.toISOString())}</span>
+                    <span className="flex items-center gap-2">
+                      <strong className="tabular-nums">{money(i.totalMinor)}</strong>
+                      <span
+                        className="badge"
+                        style={
+                          i.status === 'PAID'
+                            ? { background: '#C6FF33', color: '#000' }
+                            : i.status === 'OVERDUE'
+                              ? { background: 'var(--danger-soft)', color: 'var(--danger-text)' }
+                              : { background: 'var(--muted)', color: 'var(--muted-foreground)' }
+                        }
+                      >
+                        {INVOICE_LABEL[i.status]}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-          {add === 'done' && (
-            <div className="flex flex-col items-center gap-3 py-3 text-center">
-              <span className="grid size-14 place-items-center rounded-full bg-accent text-black">
-                <Icon icon="check" size={26} />
-              </span>
-              <div className="text-[19px] font-bold">Pedido enviado ao {addBank}</div>
-              <div className="text-sm text-muted-foreground">Assim que você autorizar, o cartão aparece aqui.</div>
-              <button onClick={() => setAdd(null)} className="btn btn-primary mt-1 h-12 px-6 text-[15px]">
-                Fechar
-              </button>
+            <div className="min-w-0">
+              <LiveTransactionList key={c.id} mode={mode} accountId={c.id} title="Compras no cartão" controls={false} />
             </div>
-          )}
-        </Sheet>
+          </div>
+        </>
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import { z } from 'zod';
 const optional = z
   .string()
   .optional()
-  .transform((v) => (v ? v : undefined));
+  .transform((v) => v?.trim() || undefined);
 
 const base64Key32 = z
   .string()
@@ -37,6 +37,8 @@ export const EnvSchema = z
     PLUGGY_WEBHOOK_SECRET: optional,
 
     LLM_API_KEY: optional,
+    /** Alias de LLM_API_KEY para o Gemini. */
+    GEMINI_API_KEY: optional,
     LLM_MODEL: optional,
 
     FCM_SERVICE_ACCOUNT_JSON: optional,

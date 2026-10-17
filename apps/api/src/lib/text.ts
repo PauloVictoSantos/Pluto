@@ -16,3 +16,20 @@ export function normalizeDescription(s: string): string {
 
 /** Escapa texto do usuario para uso literal em $regex (sem operadores do usuario). */
 export const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Palavras de "envelope" do banco: nao identificam quem recebeu ou pagou.
+const ENVELOPE = new Set(['pix', 'enviado', 'enviada', 'recebido', 'recebida', 'transf', 'transferencia', 'ted', 'doc', 'qr', 'code', 'dinamico', 'estatico', 'com', 'saldo', 'des', 'docto', 'agendado', 'agendada']);
+
+/**
+ * Chave de agrupamento para regras de categoria: a descricao sem o envelope do banco.
+ * "PIX ENVIADO - DES Fulano de Tal 30/09 - DOCTO: 123" e "PIX ENVIADO FULANO DE TAL COM SALDO"
+ * viram "fulano de tal".
+ */
+export function matchKeyOf(description: string): string {
+  const norm = normalizeDescription(description);
+  const key = norm
+    .split(' ')
+    .filter((w) => !ENVELOPE.has(w))
+    .join(' ');
+  return key || norm;
+}

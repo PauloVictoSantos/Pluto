@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiRequestError, api } from '@/lib/api';
 import { fmtDateTimeIn } from '@/lib/datetime';
-import { initials } from '@/lib/format';
+import { BankLogo } from './BankLogo';
 import { useApp } from '@/lib/store';
 import { useReauth } from './Reauth';
 import { Icon } from './ui/Icon';
@@ -109,12 +109,7 @@ export function ConnectionsCard() {
         const st = statusOf(c);
         return (
           <div key={c.id} className="flex min-h-16 items-center gap-3 border-t border-border py-2">
-            <span
-              className="grid size-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-              style={{ background: c.primaryColor ?? '#7D39EB' }}
-            >
-              {initials(c.institutionName.replace(/^banco\s+/i, ''))}
-            </span>
+            <BankLogo name={c.institutionName} color={c.primaryColor} size={36} />
             <div className="min-w-0 flex-1">
               <div className="text-[15px] font-semibold">{c.institutionName}</div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">

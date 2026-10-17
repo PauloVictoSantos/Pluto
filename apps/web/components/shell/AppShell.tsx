@@ -2,7 +2,12 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { initials } from '@/lib/format';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { ymdIn } from '@/lib/datetime';
+import { daysBetween, fmtDay, initials } from '@/lib/format';
+import { nextDue } from '@/lib/insights';
+import { useCards, useTz } from '@/lib/queries';
 import { animate, reducedMotion, stagger } from '@/lib/motion';
 import { BOTTOM, MORE, ROUTES, SIDE_BOTTOM, SIDE_TOP, TABS, pageFromPath, type NavId, type PageId } from '@/lib/nav';
 import { finishBoot, logout, setTheme, useApp } from '@/lib/store';
@@ -14,11 +19,36 @@ import { Sheet } from '../ui/Sheet';
 import { ChatPanel } from './ChatPanel';
 import { ShellContext } from './ShellContext';
 
-const NOTIFICATIONS: { icon: string; title: string; time: string; go: PageId }[] = [
-  { icon: 'circle-alert', title: 'Seguro do carro está atrasado', time: 'Venceu em 12 out.', go: 'bills' },
-  { icon: 'calendar-days', title: 'Fatura Nubank vence em 25 out.', time: 'Hoje, 08:00', go: 'cards' },
-  { icon: 'arrow-down-left', title: 'Pix de R$ 350,00 recebido de João', time: '10 out. 2026, 12:04', go: 'tx' },
-];
+interface Notice {
+  key: string;
+  icon: string;
+  title: string;
+  time: string;
+  go: PageId;
+}
+
+/** Alertas derivados dos dados reais (RN-40 faturas, RN-43 conexao). Sem valores na mensagem. */
+function useNotices(enabled: boolean): Notice[] {
+  const tz = useTz();
+  const conns = useQuery({ queryKey: ['connections'], queryFn: api.connections, enabled });
+  const cards = useCards(enabled);
+  const today = ymdIn(new Date(), tz);
+  const out: Notice[] = [];
+  for (const c of conns.data ?? []) {
+    if (c.needsAction) out.push({ key: `c-${c.id}`, icon: 'circle-alert', title: `Reconecte ${c.institutionName}`, time: c.source === 'MEU_PLUGGY' ? 'Pelo Meu Pluggy' : 'Em Configurações', go: 'settings' });
+    else if (!c.active) out.push({ key: `a-${c.id}`, icon: 'circle-alert', title: `Consentimento de ${c.institutionName} venceu`, time: 'Renove no Meu Pluggy', go: 'settings' });
+  }
+  for (const c of cards.data ?? []) {
+    if (c.invoice?.status === 'OVERDUE')
+      out.push({ key: `o-${c.id}`, icon: 'circle-alert', title: `Fatura do ${c.name} consta como não paga`, time: `Venceu ${fmtDay(c.invoice.dueDate.toISOString())}`, go: 'bills' });
+    if (c.dueDay && c.currentBillMinor > 0) {
+      const due = nextDue(c.dueDay, today), d = daysBetween(today, due);
+      if (d <= 7) out.push({ key: `d-${c.id}`, icon: 'calendar-days', title: `Fatura do ${c.name} ${d === 0 ? 'vence hoje' : `vence em ${d} dia${d > 1 ? 's' : ''}`}`, time: fmtDay(due), go: 'bills' });
+    }
+  }
+  return out;
+}
+
 const USER_MENU: [NavId, string, string][] = [
   ['settings', 'user', 'Meu perfil'],
   ['settings', 'landmark', 'Contas conectadas'],
@@ -51,6 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const theme = useApp((s) => s.theme);
   const user = useApp((s) => s.user);
 
+  const notices = useNotices(hydrated && session);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -128,7 +159,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const dark = theme === 'dark';
   const morePages = MORE.map((m) => m[0]);
   const asideTop = isDesktop ? 65 : 113;
-  const showFab = !booting && !chatOpen && !(isMobile && page === 'boleto');
+  const showFab = !booting && !chatOpen;
   const pill = (on: boolean) => ({ background: on ? 'var(--primary)' : 'transparent', color: on ? 'var(--primary-foreground)' : 'var(--muted-foreground)' });
 
   const tabs = (
@@ -204,7 +235,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   className="icon-btn relative size-11"
                 >
                   <Icon icon="bell" size={18} />
-                  <span className="absolute top-[9px] right-2.5 size-2 rounded-full border-2 border-card bg-brand" />
+                  {notices.length > 0 && <span className="absolute top-[9px] right-2.5 size-2 rounded-full border-2 border-card bg-brand" />}
                 </button>
                 {!isMobile && !notifOpen && <Tooltip label="Notificações" />}
                 {notifOpen && (
@@ -216,9 +247,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                       style={isMobile ? { position: 'fixed', right: 12, top: 70 } : { position: 'absolute', right: 0, top: 52 }}
                     >
                       <div className="px-2.5 py-2 text-[13px] font-semibold text-muted-foreground">Notificações</div>
-                      {NOTIFICATIONS.map((n) => (
+                      {notices.length === 0 && <div className="px-2.5 pb-3 text-sm text-muted-foreground">Tudo em dia. Nada para avisar agora.</div>}
+                      {notices.map((n) => (
                         <button
-                          key={n.title}
+                          key={n.key}
                           onClick={() => nav(n.go)}
                           className="flex w-full cursor-pointer gap-3 rounded-xl border-0 bg-transparent p-2.5 text-left text-foreground hover:bg-muted"
                         >
@@ -337,7 +369,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {BOTTOM.map(([id, label, icon]) => {
               const on = id === 'more' ? moreOpen || morePages.includes(page) : page === id && !moreOpen;
-              const center = id === 'boleto';
+              const center = id === 'bills';
               return (
                 <button
                   key={id}

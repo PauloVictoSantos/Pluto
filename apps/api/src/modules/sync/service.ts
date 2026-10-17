@@ -3,6 +3,7 @@ import type { AnyBulkWriteOperation, ObjectId } from 'mongodb';
 import type { AccountDoc, Collections, ConnectionDoc, TransactionDoc } from '../../db/collections';
 import type { FieldCrypto } from '../../lib/crypto';
 import type { PluggyGateway } from '../../integrations/pluggy/gateway';
+import { USER_SOURCES, applyUserRules } from '../categories/rules';
 import { institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
 
 export interface SyncDeps {
@@ -130,25 +131,32 @@ async function syncTransactions(deps: SyncDeps, conn: ConnectionDoc, acc: Accoun
   const { col, pluggy } = deps;
   const txs = await pluggy.fetchTransactions(pluggyAccountId, dateFrom ? ymd(dateFrom) : undefined);
   if (txs.length) {
-    const ops: AnyBulkWriteOperation<TransactionDoc>[] = txs.map((t) => {
-      const { type, ...owned } = mapTransaction(t, acc.type);
-      return {
-        updateOne: {
-          filter: { connectionId: conn._id, pluggyTransactionId: t.id },
-          update: {
-            // Campos do Pluggy: sempre atualizados (RN-02).
-            $set: { ...owned, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
-            // Campos derivados ou editaveis pelo usuario: so na criacao. Regras manuais nunca sao sobrescritas (RN-12).
-            $setOnInsert: {
-              type, categoryId: null, categorySource: null, categoryConfidence: null, invoiceId: null,
-              tags: [], notes: null, hidden: false, createdAt: now,
+    const ops: AnyBulkWriteOperation<TransactionDoc>[] = txs.flatMap((t) => {
+      const { type, categoryKey, ...owned } = mapTransaction(t, acc.type);
+      const filter = { connectionId: conn._id, pluggyTransactionId: t.id };
+      return [
+        {
+          updateOne: {
+            filter,
+            update: {
+              // Campos do Pluggy: sempre atualizados (RN-02).
+              $set: { ...owned, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
+              // Campos derivados ou editaveis pelo usuario: so na criacao.
+              $setOnInsert: {
+                type, categoryKey, categoryId: null, categorySource: null, categoryConfidence: null, invoiceId: null,
+                tags: [], notes: null, hidden: false, createdAt: now,
+              },
             },
+            upsert: true,
           },
-          upsert: true,
         },
-      };
+        // Categoria derivada do Pluggy acompanha mudancas do provedor; a escolhida pelo usuario nunca (RN-12).
+        { updateOne: { filter: { ...filter, categorySource: { $nin: [...USER_SOURCES] } }, update: { $set: { categoryKey } } } },
+      ];
     });
+    // Sem ordem: se a 2a operacao rodar antes do insert, o $setOnInsert ja grava a categoria.
     await col.transactions.bulkWrite(ops, { ordered: false });
+    await applyUserRules(col, conn.userId, { accountId: acc._id });
   }
 
   // Pendentes que sumiram da janela foram substituidas pela versao liquidada com outro id.

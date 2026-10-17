@@ -4,6 +4,8 @@ import type { AppContext } from './context';
 import { connectDatabase } from './db/client';
 import { collections } from './db/collections';
 import { ensureIndexes } from './db/indexes';
+import { runMigrations } from './db/migrations';
+import { createGemini } from './integrations/llm/gemini';
 import { createPluggyGateway } from './integrations/pluggy/sdk-gateway';
 import { startSyncScheduler } from './jobs/sync-scheduler';
 import { createFieldCrypto } from './lib/crypto';
@@ -12,7 +14,9 @@ import { createJwt } from './lib/jwt';
 const env = loadEnv();
 const database = await connectDatabase(env.MONGODB_URI);
 await ensureIndexes(database.db);
+await runMigrations(database.db, (m) => console.log(m));
 
+const llmKey = env.LLM_API_KEY ?? env.GEMINI_API_KEY;
 const ctx: AppContext = {
   env,
   col: collections(database.db),
@@ -23,6 +27,7 @@ const ctx: AppContext = {
       ? createPluggyGateway({ clientId: env.PLUGGY_CLIENT_ID, clientSecret: env.PLUGGY_CLIENT_SECRET })
       : null,
   pingDb: database.ping,
+  llm: llmKey ? createGemini({ apiKey: llmKey, model: env.LLM_MODEL ?? 'gemini-2.5-flash', fallbackModel: 'gemini-2.5-flash' }) : null,
 };
 
 const app = await buildApp(ctx);

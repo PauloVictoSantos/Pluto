@@ -70,7 +70,8 @@ export interface Harness {
 }
 
 export async function startHarness(): Promise<Harness> {
-  const mongo = await MongoMemoryServer.create();
+  // Varios arquivos de teste sobem bancos em paralelo: no Windows isso pode passar de 10 s.
+  const mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60_000 } });
   const client = await MongoClient.connect(mongo.getUri());
   const db = client.db('pluto_test');
   await ensureSchemas(db);

@@ -16,7 +16,9 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1, date: -1, _id: -1 } },
     { key: { userId: 1, categoryId: 1, date: -1 } },
     { key: { userId: 1, accountId: 1, date: -1 } },
+    { key: { userId: 1, matchKey: 1 } },
   ],
+  category_rules: [{ key: { userId: 1, matchKey: 1, direction: 1 }, unique: true }],
   invoices: [
     { key: { accountId: 1, pluggyBillId: 1 }, unique: true },
     { key: { userId: 1, dueDate: 1 } },
@@ -26,7 +28,8 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1 } },
   ],
   investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
-  budgets: [{ key: { userId: 1, month: 1, categoryId: 1 }, unique: true }],
+  budgets: [{ key: { userId: 1, month: 1, categoryKey: 1 }, unique: true }],
+  goals: [{ key: { userId: 1, deadline: 1 } }],
   notifications: [{ key: { userId: 1, dedupeKey: 1 }, unique: true }],
   sessions: [
     { key: { expiresAt: 1 }, expireAfterSeconds: 0 },

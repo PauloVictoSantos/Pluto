@@ -1,20 +1,34 @@
 'use client';
 
-import type { Transaction } from '@pluto/shared';
+import { categoryOf, type Transaction } from '@pluto/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
-import { categoryOf } from '@/lib/categories';
 import { fmtDateTimeIn, fmtTimeIn, ymdIn } from '@/lib/datetime';
-import { daysBetween, fmt, fmtDate, fmtDay } from '@/lib/format';
-import { MOCK, TODAY } from '@/lib/mock/data';
-import { CAT_ICON, STATUS, type StatusStyle } from '@/lib/mock/vm';
+import { daysBetween, fmt, fmtDay } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { useApp } from '@/lib/store';
 import type { Mode } from '@/lib/viewport';
 import { PlutoLogo } from './brand/PlutoLogo';
+import { CategorySheet } from './CategorySheet';
 import { Icon } from './ui/Icon';
 import { Segmented } from './ui/Segmented';
+
+interface StatusStyle {
+  label: string;
+  bg: string;
+  fg: string;
+  border: string;
+}
+const STATUS: Record<string, StatusStyle> = {
+  POSTED: { label: 'Concluída', bg: '#C6FF33', fg: '#000', border: 'transparent' },
+  PENDING: {
+    label: 'Pendente',
+    bg: 'transparent',
+    fg: 'var(--muted-foreground)',
+    border: 'var(--border)',
+  },
+};
 
 type StatusFilter = 'ALL' | 'POSTED' | 'PENDING';
 const FILTERS: { id: StatusFilter; label: string }[] = [
@@ -60,10 +74,26 @@ interface ViewProps {
   onStatus: (s: StatusFilter) => void;
   empty: ReactNode;
   footer?: ReactNode;
+  /** Abre a transacao para trocar a categoria. */
+  onOpen: (id: string) => void;
 }
 
 /** Visual da lista (design "Lista Transacoes"): tabela no desktop, grupos por dia no celular. */
-function TransactionListView({ mode, title, summary, rows, onShowAll, controls, query, onQuery, status, onStatus, empty, footer }: ViewProps) {
+function TransactionListView({
+  mode,
+  title,
+  summary,
+  rows,
+  onShowAll,
+  controls,
+  query,
+  onQuery,
+  status,
+  onStatus,
+  empty,
+  footer,
+  onOpen,
+}: ViewProps) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const root = useRef<HTMLDivElement>(null);
   useEnter(root);
@@ -71,10 +101,12 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
 
   const groups: { key: string; label: string; rows: Row[] }[] = [];
   rows.forEach((r) => {
-    if (!groups.length || groups[groups.length - 1]!.key !== r.dayKey) groups.push({ key: r.dayKey, label: r.dayLabel, rows: [] });
+    if (!groups.length || groups[groups.length - 1]!.key !== r.dayKey)
+      groups.push({ key: r.dayKey, label: r.dayLabel, rows: [] });
     groups[groups.length - 1]!.rows.push(r);
   });
-  const nSel = rows.filter((r) => selected[r.id]).length, allChecked = rows.length > 0 && nSel === rows.length;
+  const nSel = rows.filter((r) => selected[r.id]).length,
+    allChecked = rows.length > 0 && nSel === rows.length;
   const badge = (st: StatusStyle) => ({ background: st.bg, color: st.fg, borderColor: st.border });
 
   return (
@@ -82,7 +114,9 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="card-title">{title}</div>
-          <div className="mt-1 text-[13px] text-muted-foreground">{nSel ? `${nSel} selecionada${nSel > 1 ? 's' : ''}` : summary}</div>
+          <div className="mt-1 text-[13px] text-muted-foreground">
+            {nSel ? `${nSel} selecionada${nSel > 1 ? 's' : ''}` : summary}
+          </div>
         </div>
         {onShowAll && (
           <button onClick={onShowAll} className="btn btn-outline h-10 gap-1 pr-3 pl-4 text-[13px]">
@@ -107,7 +141,12 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
               className="w-full min-w-0 border-0 bg-transparent text-base text-foreground outline-none"
             />
           </label>
-          <Segmented items={FILTERS} value={status} onChange={onStatus} itemClassName="px-3.5 text-[13px] font-medium" />
+          <Segmented
+            items={FILTERS}
+            value={status}
+            onChange={onStatus}
+            itemClassName="px-3.5 text-[13px] font-medium"
+          />
         </div>
       )}
 
@@ -116,9 +155,18 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
           <div className="flex flex-col gap-1.5">
             {groups.map((g) => (
               <div key={g.key} className="flex flex-col">
-                <div className="pt-2 pb-1 text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">{g.label}</div>
+                <div className="pt-2 pb-1 text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+                  {g.label}
+                </div>
                 {g.rows.map((t) => (
-                  <div key={t.id} data-anim="" className="flex min-h-16 items-center gap-3 border-b border-border">
+                  <button
+                    key={t.id}
+                    type="button"
+                    data-anim=""
+                    onClick={() => onOpen(t.id)}
+                    aria-label={`${t.name}, ${t.category}. Trocar categoria`}
+                    className="flex min-h-16 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border bg-transparent p-0 text-left text-foreground"
+                  >
                     <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-muted">
                       <Icon icon={t.icon} size={18} />
                     </span>
@@ -129,14 +177,17 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-[15px] font-semibold tabular-nums" style={{ color: t.amountFg }}>
+                      <span
+                        className="text-[15px] font-semibold tabular-nums"
+                        style={{ color: t.amountFg }}
+                      >
                         {t.amountText}
                       </span>
                       <span className="badge" style={badge(t.st)}>
                         {t.st.label}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ))}
@@ -150,22 +201,36 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
                     <input
                       type="checkbox"
                       checked={allChecked}
-                      onChange={() => setSelected(Object.fromEntries(rows.map((r) => [r.id, !allChecked])))}
+                      onChange={() =>
+                        setSelected(Object.fromEntries(rows.map((r) => [r.id, !allChecked])))
+                      }
                       aria-label="Selecionar todas"
                       className="m-0 size-4 cursor-pointer accent-brand"
                     />
                   </th>
-                  <th className="border-b border-border px-2 py-2.5 font-medium">Estabelecimento</th>
+                  <th className="border-b border-border px-2 py-2.5 font-medium">
+                    Estabelecimento
+                  </th>
                   <th className="border-b border-border px-2 py-2.5 font-medium">Categoria</th>
-                  <th className="border-b border-border px-2 py-2.5 text-right font-medium">Valor</th>
+                  <th className="border-b border-border px-2 py-2.5 text-right font-medium">
+                    Valor
+                  </th>
                   <th className="border-b border-border px-2 py-2.5 font-medium">Status</th>
                   <th className="border-b border-border px-2 py-2.5 font-medium">Data</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((t) => (
-                  <tr key={t.id} className="hover:bg-muted" style={{ background: selected[t.id] ? 'var(--brand-soft)' : undefined }}>
-                    <td className="border-b border-border px-2 py-3">
+                  <tr
+                    key={t.id}
+                    onClick={() => onOpen(t.id)}
+                    className="cursor-pointer hover:bg-muted"
+                    style={{ background: selected[t.id] ? 'var(--brand-soft)' : undefined }}
+                  >
+                    <td
+                      className="border-b border-border px-2 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={!!selected[t.id]}
@@ -186,9 +251,23 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
                       </div>
                     </td>
                     <td className="border-b border-border px-2 py-3">
-                      <span className="rounded-full border border-border px-2.5 py-1 text-xs font-medium whitespace-nowrap">{t.category}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpen(t.id);
+                        }}
+                        aria-label={`Trocar categoria de ${t.name}`}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap text-foreground hover:border-brand"
+                      >
+                        {t.category}
+                        <Icon icon="chevron-down" size={12} />
+                      </button>
                     </td>
-                    <td className="border-b border-border px-2 py-3 text-right font-semibold whitespace-nowrap tabular-nums" style={{ color: t.amountFg }}>
+                    <td
+                      className="border-b border-border px-2 py-3 text-right font-semibold whitespace-nowrap tabular-nums"
+                      style={{ color: t.amountFg }}
+                    >
                       {t.amountText}
                     </td>
                     <td className="border-b border-border px-2 py-3">
@@ -196,7 +275,9 @@ function TransactionListView({ mode, title, summary, rows, onShowAll, controls, 
                         {t.st.label}
                       </span>
                     </td>
-                    <td className="border-b border-border px-2 py-3 whitespace-nowrap text-muted-foreground">{t.dateText}</td>
+                    <td className="border-b border-border px-2 py-3 whitespace-nowrap text-muted-foreground">
+                      {t.dateText}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -238,6 +319,7 @@ export function LiveTransactionList({
   controls = true,
   onShowAll,
   onConnect,
+  accountId,
 }: {
   mode: Mode;
   limit?: number;
@@ -245,31 +327,42 @@ export function LiveTransactionList({
   controls?: boolean;
   onShowAll?: () => void;
   onConnect?: () => void;
+  accountId?: string;
 }) {
   const tz = useApp((s) => s.user?.settings.timezone) ?? 'America/Manaus';
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('ALL');
   const q = useDebounced(query.trim());
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: api.accounts });
   const tx = useInfiniteQuery({
-    queryKey: ['transactions', { q, limit }],
-    queryFn: ({ pageParam }) => api.transactions({ q: q || undefined, cursor: pageParam, limit: limit || 50 }),
+    queryKey: ['transactions', { q, limit, accountId }],
+    queryFn: ({ pageParam }) =>
+      api.transactions({ q: q || undefined, cursor: pageParam, limit: limit || 50, accountId }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => (limit ? undefined : (last.nextCursor ?? undefined)),
   });
 
-  const accName = Object.fromEntries((accounts.data ?? []).map((a) => [a.id, a.numberMasked ? `${a.name} ·${a.numberMasked}` : a.name]));
+  const accName = Object.fromEntries(
+    (accounts.data ?? []).map((a) => [
+      a.id,
+      a.numberMasked ? `${a.name} ·${a.numberMasked}` : a.name,
+    ]),
+  );
   const today = ymdIn(new Date(), tz);
-  const items: Transaction[] = (tx.data?.pages ?? []).flatMap((p) => p.items).filter((t) => status === 'ALL' || t.status === status);
+  const items: Transaction[] = (tx.data?.pages ?? [])
+    .flatMap((p) => p.items)
+    .filter((t) => status === 'ALL' || t.status === status);
   const rows: Row[] = items.map((t) => {
-    const cat = categoryOf(t.providerCategory), day = ymdIn(t.date, tz);
+    const cat = categoryOf(t.categoryKey),
+      day = ymdIn(t.date, tz);
     return {
       id: t.id,
       name: t.merchant ?? t.description,
       account: accName[t.accountId] ?? '',
       icon: cat.icon,
-      category: t.type === 'CARD_PAYMENT' ? 'Pagamento de fatura' : t.type === 'TRANSFER' ? 'Entre minhas contas' : cat.label,
+      category: cat.label,
       ...amount(t.amountMinor / 100, t.amountMinor > 0),
       st: STATUS[t.status]!,
       dateText: fmtDateTimeIn(t.date, tz),
@@ -290,92 +383,74 @@ export function LiveTransactionList({
   const empty = tx.isPending ? (
     <div className="py-8 text-center text-sm text-muted-foreground">Carregando transações…</div>
   ) : tx.isError ? (
-    <Empty title="Não consegui buscar suas transações" text="Verifique se a API está rodando e tente de novo." action={<button onClick={() => tx.refetch()} className="btn btn-outline mt-1">Tentar de novo</button>} />
+    <Empty
+      title="Não consegui buscar suas transações"
+      text="Verifique se a API está rodando e tente de novo."
+      action={
+        <button onClick={() => tx.refetch()} className="btn btn-outline mt-1">
+          Tentar de novo
+        </button>
+      }
+    />
   ) : q || status !== 'ALL' ? (
-    <Empty title="Não achei nada por aqui" text="Tente outro nome ou limpe os filtros." action={<button onClick={() => { setQuery(''); setStatus('ALL'); }} className="btn btn-outline mt-1">Limpar filtros</button>} />
+    <Empty
+      title="Não achei nada por aqui"
+      text="Tente outro nome ou limpe os filtros."
+      action={
+        <button
+          onClick={() => {
+            setQuery('');
+            setStatus('ALL');
+          }}
+          className="btn btn-outline mt-1"
+        >
+          Limpar filtros
+        </button>
+      }
+    />
   ) : (
     <Empty
       title="Nenhuma transação ainda"
       text="Conecte um banco em Configurações. A Pluto importa o histórico na hora."
-      action={onConnect && <button onClick={onConnect} className="btn btn-primary mt-1">Conectar banco</button>}
-    />
-  );
-
-  return (
-    <TransactionListView
-      mode={mode}
-      title={title}
-      summary={summary}
-      rows={rows}
-      onShowAll={onShowAll}
-      controls={controls}
-      query={query}
-      onQuery={setQuery}
-      status={status}
-      onStatus={setStatus}
-      empty={empty}
-      footer={
-        tx.hasNextPage && (
-          <button onClick={() => tx.fetchNextPage()} disabled={tx.isFetchingNextPage} className="btn btn-outline self-center">
-            {tx.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+      action={
+        onConnect && (
+          <button onClick={onConnect} className="btn btn-primary mt-1">
+            Conectar banco
           </button>
         )
       }
     />
   );
-}
 
-/** Lista com dados de exemplo do design (usada onde a API ainda nao tem endpoint, como Cartoes). */
-export function TransactionList({
-  mode,
-  limit = 0,
-  title = 'Transações recentes',
-  controls = true,
-  onShowAll,
-  accountId,
-}: {
-  mode: Mode;
-  limit?: number;
-  title?: string;
-  controls?: boolean;
-  onShowAll?: () => void;
-  accountId?: string;
-}) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('ALL');
-  const accName = Object.fromEntries(MOCK.pluggy.accounts.map((a) => [a.id, a.name]));
-  const q = query.trim().toLowerCase();
-  let list = MOCK.pluggy.transactions
-    .filter((t) => (!accountId || t.accountId === accountId) && (status === 'ALL' || t.status === status) && (!q || (t.description + ' ' + t.category).toLowerCase().includes(q)))
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const all = list.length;
-  if (limit) list = list.slice(0, limit);
-  const rows: Row[] = list.map((t) => ({
-    id: t.id,
-    name: t.description,
-    account: accName[t.accountId] ?? '',
-    icon: CAT_ICON[t.category] ?? 'receipt',
-    category: t.category,
-    ...amount(t.amount, t.amount > 0),
-    st: STATUS[t.status]!,
-    dateText: fmtDate(t.date),
-    timeText: t.date.slice(11, 16),
-    dayKey: t.date.slice(0, 10),
-    dayLabel: dayLabelOf(t.date.slice(0, 10), TODAY),
-  }));
+  const open = openId ? items.find((t) => t.id === openId) : undefined;
   return (
-    <TransactionListView
-      mode={mode}
-      title={title}
-      summary={limit ? `Últimas ${rows.length} de ${all} em outubro` : `${all} transações em outubro`}
-      rows={rows}
-      onShowAll={onShowAll}
-      controls={controls}
-      query={query}
-      onQuery={setQuery}
-      status={status}
-      onStatus={setStatus}
-      empty={<Empty title="Não achei nada por aqui" text="Tente outro nome ou limpe os filtros." />}
-    />
+    <>
+      <TransactionListView
+        mode={mode}
+        onOpen={setOpenId}
+        title={title}
+        summary={summary}
+        rows={rows}
+        onShowAll={onShowAll}
+        controls={controls}
+        query={query}
+        onQuery={setQuery}
+        status={status}
+        onStatus={setStatus}
+        empty={empty}
+        footer={
+          tx.hasNextPage && (
+            <button
+              onClick={() => tx.fetchNextPage()}
+              disabled={tx.isFetchingNextPage}
+              className="btn btn-outline self-center"
+            >
+              {tx.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+            </button>
+          )
+        }
+      />
+      {open && <CategorySheet key={open.id} tx={open} tz={tz} onClose={() => setOpenId(null)} />}
+    </>
   );
 }

@@ -8,10 +8,13 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import type { AppContext } from './context';
+import { assistantRoutes } from './modules/assistant/routes';
 import { authRoutes } from './modules/auth/routes';
 import { connectionRoutes } from './modules/connections/routes';
+import { dashboardRoutes } from './modules/dashboard/routes';
 import { financeRoutes } from './modules/finance/routes';
 import { healthRoutes } from './modules/health/routes';
+import { planningRoutes } from './modules/planning/routes';
 import { registerErrorHandler } from './plugins/errors';
 import { registerSecurity } from './plugins/security';
 
@@ -45,6 +48,9 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(authRoutes, { ctx });
       await v1.register(connectionRoutes, { prefix: '/connections', ctx });
       await v1.register(financeRoutes, { ctx });
+      await v1.register(dashboardRoutes, { ctx });
+      await v1.register(planningRoutes, { ctx });
+      await v1.register(assistantRoutes, { ctx });
     },
     { prefix: API_PREFIX },
   );
