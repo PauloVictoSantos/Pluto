@@ -6,7 +6,7 @@ import { PlutoMark } from '@/components/brand/PlutoMark';
 import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { Icon } from '@/components/ui/Icon';
 import { ApiRequestError, api } from '@/lib/api';
-import { animate, reducedMotion, stagger } from '@/lib/motion';
+import { play } from '@/lib/motion';
 import { isNative } from '@/lib/native/platform';
 import { completeLogin, consumeLoginMsg, useApp, type LoginMsg } from '@/lib/store';
 import { useHydrated, useMode } from '@/lib/viewport';
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const el = formRef.current;
-    if (el && !reducedMotion()) animate(Array.from(el.children), { opacity: [0, 1], y: [14, 0] }, { delay: stagger(0.05), duration: 0.45 });
+    Array.from(el?.children ?? []).forEach((c, i) => play(c, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 300, delay: i * 50 }));
     if (step === 'code') codeRef.current?.focus();
   }, [step]);
 

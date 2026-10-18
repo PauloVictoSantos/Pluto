@@ -9,6 +9,7 @@ import {
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { pluggyOf, type AppContext } from '../../context';
+import { perUser } from '../../plugins/security';
 import { requireAuth, requireRecentAuth, userOf } from '../../plugins/auth';
 import { syncConnection } from '../sync/service';
 import { createConnectToken, findOwnConnection, listConnections, registerConnection, removeConnection, toConnectionDTO } from './service';
@@ -22,7 +23,7 @@ export const connectionRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = asyn
   app.post(
     '/token',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { rateLimit: perUser(10) },
       schema: { body: z.object({ connectionId: z.string().regex(/^[a-f0-9]{24}$/).optional() }).nullish(), response: { 200: ConnectTokenSchema } },
     },
     async (req) => ({ accessToken: await createConnectToken(ctx, userOf(req).id, req.body?.connectionId) }),
@@ -30,7 +31,7 @@ export const connectionRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = asyn
 
   app.post(
     '/',
-    { preHandler: requireRecentAuth(), schema: { body: CreateConnectionSchema, response: { 201: ConnectionSchema } } },
+    { preHandler: requireRecentAuth(), config: { rateLimit: perUser(10) }, schema: { body: CreateConnectionSchema, response: { 201: ConnectionSchema } } },
     async (req, reply) => {
       const conn = await registerConnection(ctx, userOf(req).id, req.body.itemId, req.ip);
       // Sincronizacao inicial em segundo plano (secao 3.7, passo 4).
@@ -43,7 +44,7 @@ export const connectionRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = asyn
     '/import',
     {
       preHandler: requireRecentAuth(),
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { rateLimit: perUser(10) },
       schema: { body: ImportConnectionSchema, response: { 201: ConnectionSchema } },
     },
     async (req, reply) => {
@@ -59,7 +60,7 @@ export const connectionRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = asyn
 
   app.post(
     '/:id/sync',
-    { config: { rateLimit: { max: 6, timeWindow: '1 minute' } }, schema: { params: IdParams, response: { 200: SyncResultSchema } } },
+    { config: { rateLimit: perUser(6) }, schema: { params: IdParams, response: { 200: SyncResultSchema } } },
     async (req) => {
       const conn = await findOwnConnection(ctx, userOf(req).id, req.params.id);
       return syncConnection(syncDeps(), conn._id, { force: true });

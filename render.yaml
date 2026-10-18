@@ -1,0 +1,46 @@
+# Blueprint do Render: um servico web com a API e o site (ver DEPLOY-RENDER.md).
+services:
+  - type: web
+    name: pluto
+    runtime: node
+    # free dorme apos 15 min sem uso (a sincronizacao automatica do Pluggy para junto).
+    plan: starter
+    region: virginia
+    # Dependencias de desenvolvimento sao necessarias no build (tsup, typescript), por isso
+    # NODE_ENV=development so no install. MONGOMS_DISABLE_POSTINSTALL evita baixar o mongod de testes.
+    buildCommand: corepack enable && MONGOMS_DISABLE_POSTINSTALL=1 NODE_ENV=development pnpm install --frozen-lockfile && pnpm build
+    startCommand: node scripts/start-render.mjs
+    # Passa pelo site e chega na API: prova que os dois estao de pe.
+    healthCheckPath: /v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.1
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: SYNC_INTERVAL_HOURS
+        value: "6"
+      # Endereco publico do site, ex.: https://pluto.onrender.com (sem barra no fim).
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_PRIVATE_KEY
+        sync: false
+      - key: JWT_PUBLIC_KEY
+        sync: false
+      # Tem de ser a MESMA do ambiente atual: ela decifra os Item IDs ja salvos no Atlas.
+      - key: FIELD_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_PASSPHRASE
+        sync: false
+      - key: PLUGGY_CLIENT_ID
+        sync: false
+      - key: PLUGGY_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-3.8-flash

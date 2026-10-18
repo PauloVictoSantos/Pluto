@@ -4,7 +4,9 @@ import type { Db, IndexDescription } from 'mongodb';
 export const INDEXES: Record<string, IndexDescription[]> = {
   users: [{ key: { email: 1 }, unique: true }],
   connections: [
-    { key: { userId: 1, pluggyItemIdHash: 1 }, unique: true },
+    // Global: um item do Pluggy pertence a um unico usuario do Pluto (inclusive conexoes removidas com historico).
+    { key: { pluggyItemIdHash: 1 }, unique: true },
+    { key: { userId: 1 } },
     { key: { active: 1, needsAction: 1 } },
   ],
   accounts: [

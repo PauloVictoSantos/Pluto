@@ -1,5 +1,5 @@
 import type { Connection, ConnectionSource } from '@pluto/shared';
-import { ObjectId } from 'mongodb';
+import { MongoServerError, ObjectId } from 'mongodb';
 import { pluggyOf, type AppContext } from '../../context';
 import type { ConnectionDoc } from '../../db/collections';
 import { mapItem } from '../../integrations/pluggy/mappers';
@@ -57,11 +57,13 @@ const reconnectInMeuPluggy = () =>
 export async function registerConnection(
   ctx: AppContext,
   userId: ObjectId,
-  itemId: string,
+  rawItemId: string,
   ip: string | null,
   source: ConnectionSource = 'WIDGET',
 ) {
   const pluggy = pluggyOf(ctx);
+  // Forma canonica antes de buscar, cifrar e gerar o hash: maiusculas nao criam outra chave.
+  const itemId = rawItemId.trim().toLowerCase();
   let item;
   try {
     item = await pluggy.fetchItem(itemId);
@@ -69,8 +71,12 @@ export async function registerConnection(
     throw new AppError(400, 'INVALID_ITEM', 'Conexão não encontrada no Pluggy. Confira o Item ID.');
   }
   const forbidden = () => new AppError(403, 'FORBIDDEN_ITEM', 'Esta conexão não pertence a você');
-  if (source === 'WIDGET' && item.clientUserId !== userId.toHexString()) throw forbidden();
+  // WIDGET: o item tem de ter sido criado com o token deste usuario. MEU_PLUGGY: itens de la vem
+  // sem clientUserId; se vier um, tem de ser o deste usuario (item criado pelo widget de outra conta).
+  const owner = item.clientUserId ?? null, me = userId.toHexString();
+  if (source === 'WIDGET' ? owner !== me : owner !== null && owner !== me) throw forbidden();
   const hash = ctx.crypto.hash(itemId);
+  // Checagem com mensagem clara; a garantia de verdade e o indice unico global em pluggyItemIdHash.
   if (await ctx.col.connections.findOne({ pluggyItemIdHash: hash, userId: { $ne: userId } }, { projection: { _id: 1 } })) throw forbidden();
 
   const now = new Date();
@@ -91,7 +97,11 @@ export async function registerConnection(
       },
     },
     { upsert: true, returnDocument: 'after' },
-  );
+  ).catch((e: unknown) => {
+    // Duas contas importando o mesmo item ao mesmo tempo: o indice unico barra a segunda.
+    if (e instanceof MongoServerError && e.code === 11000) throw forbidden();
+    throw e;
+  });
   await audit(ctx.col, 'connection.created', userId, { connectionId: doc!._id.toHexString(), connectorId: meta.connectorId, source }, ip);
   return doc!;
 }

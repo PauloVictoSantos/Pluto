@@ -4,6 +4,8 @@ import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
 import { api, refreshSession, setOnSessionLost } from './api';
 import { setValuesHidden } from './format';
+import { quietEnter } from './motion';
+import { queryClient } from './query-client';
 
 export type Theme = 'light' | 'dark';
 export type User = Me;
@@ -59,7 +61,11 @@ const write = (k: string, v: string | null) => {
   }
 };
 
+// Dados em cache pertencem a quem estava logado: somem em toda troca de sessao.
+const clearData = () => queryClient.clear();
+
 setOnSessionLost(() => {
+  clearData();
   if (state.session) set({ session: false, user: null, loginMsg: { kind: 'info', text: 'Sua sessão expirou. Entre novamente.' } });
 });
 
@@ -84,6 +90,7 @@ export function hydrate() {
 /** Fica salvo no aparelho: continua oculto ao trocar de pagina, recarregar ou entrar de novo. */
 export function setHideValues(hideValues: boolean) {
   write('pluto-hide-values', hideValues ? '1' : null);
+  quietEnter();
   setValuesHidden(hideValues);
   set({ hideValues });
 }
@@ -97,6 +104,7 @@ export function setTheme(theme: Theme) {
 /** Depois do 2FA: carrega o perfil e mostra a tela "Organizando suas contas". */
 export async function completeLogin() {
   const user = await api.me();
+  clearData();
   set({ session: true, booting: true, user, loginMsg: null });
 }
 
@@ -105,6 +113,7 @@ export const finishBoot = () => set({ booting: false });
 export async function logout() {
   const first = state.user?.name.split(' ')[0];
   await api.logout().catch(() => {});
+  clearData();
   set({ session: false, user: null, loginMsg: { kind: 'info', text: first ? `Até logo, ${first}! Você saiu da sua conta.` : 'Você saiu da sua conta.' } });
 }
 

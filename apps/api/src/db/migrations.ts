@@ -19,6 +19,13 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
     log('índice antigo de orçamentos removido');
   }
 
+  // 0b. Unicidade do item do Pluggy passou de por usuario para global (um item, um dono).
+  const connIdx = await db.collection('connections').indexes().catch(() => []);
+  if (connIdx.some((i) => i.name === 'userId_1_pluggyItemIdHash_1')) {
+    await db.collection('connections').dropIndex('userId_1_pluggyItemIdHash_1');
+    log('índice antigo de conexões por usuário removido');
+  }
+
   // 1. categoryKey derivado da categoria do Pluggy: preenche os que faltam e recalcula quando as
   //    regras mudam. Categoria definida pelo usuario (categorySource MANUAL/RULE) nunca e tocada (RN-12).
   const groups = await tx

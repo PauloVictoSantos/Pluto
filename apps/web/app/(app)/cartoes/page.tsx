@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { ymdIn } from '@/lib/datetime';
 import { fmtDay, fmtDayFull } from '@/lib/format';
 import { nextDue } from '@/lib/insights';
-import { animate, reducedMotion, useEnter } from '@/lib/motion';
+import { play, useEnter } from '@/lib/motion';
 import { money, useCards, useInvoices, useTz } from '@/lib/queries';
 
 const INVOICE_LABEL = { PAID: 'Paga', OPEN: 'Aberta', CLOSED: 'Fechada', OVERDUE: 'Não paga' } as const;
@@ -29,7 +29,8 @@ export default function CartoesPage() {
   useEnter(root);
 
   useEffect(() => {
-    if (sel !== prevSel.current && detailRef.current && !reducedMotion()) animate(detailRef.current, { opacity: [0.4, 1], y: [8, 0] }, { duration: 0.3 });
+    // Troca de cartao: o detalhe acompanha, sem teletransportar os numeros.
+    if (sel !== prevSel.current) play(detailRef.current, [{ opacity: 0.4, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200 });
     prevSel.current = sel;
   }, [sel]);
 

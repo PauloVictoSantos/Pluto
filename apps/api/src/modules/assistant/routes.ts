@@ -2,6 +2,7 @@ import { AnswerSchema, AskSchema } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import type { AppContext } from '../../context';
 import { AppError } from '../../lib/errors';
+import { perUser } from '../../plugins/security';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { buildFacts } from './facts';
 
@@ -22,7 +23,7 @@ export const assistantRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async
     {
       schema: { body: AskSchema, response: { 200: AnswerSchema } },
       // Cada pergunta custa uma chamada ao provedor.
-      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      config: { rateLimit: perUser(20) },
     },
     async (req) => {
       if (!ctx.llm) throw new AppError(503, 'LLM_NOT_CONFIGURED', 'Assistente com IA não configurado');

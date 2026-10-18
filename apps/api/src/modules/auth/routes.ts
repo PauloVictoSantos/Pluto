@@ -14,6 +14,7 @@ import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provid
 import type { AppContext } from '../../context';
 import { audit } from '../../lib/audit';
 import { AppError } from '../../lib/errors';
+import { perUser } from '../../plugins/security';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { login, logout, reauth, refresh, toMe, verifyMfa, type RequestMeta } from './service';
 
@@ -107,7 +108,7 @@ export const authRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
 
     authed.post(
       '/auth/reauth',
-      { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: { body: ReauthSchema, response: { 200: TokensSchema } } },
+      { config: { rateLimit: perUser(5) }, schema: { body: ReauthSchema, response: { 200: TokensSchema } } },
       async (req) => {
         const u = userOf(req);
         return reauth(ctx, u.id, u.sessionId, req.body.password, req.body.code, req.ip);

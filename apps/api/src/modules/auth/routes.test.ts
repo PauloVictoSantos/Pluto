@@ -152,7 +152,8 @@ describe('reautenticacao e perfil', () => {
     const { accessToken } = await loginWeb(u);
     // Envelhece a sessao: simula login ha mais de 10 minutos.
     const oldAuth = await h.token(u.id, { authAgeSec: 3600 });
-    h.pluggy.items.set(ITEM_ID, fakeItem({ clientUserId: 'meu-pluggy' }));
+    // Itens do Meu Pluggy vem sem clientUserId.
+    h.pluggy.items.set(ITEM_ID, fakeItem({ clientUserId: null }));
     h.pluggy.accounts.set(ITEM_ID, [fakeAccount()]);
     const imp = () => h.app.inject({ method: 'POST', url: '/v1/connections/import', headers: { authorization: `Bearer ${oldAuth}` }, payload: { itemId: ITEM_ID } });
     expect((await imp()).json().error.code).toBe('REAUTH_REQUIRED');

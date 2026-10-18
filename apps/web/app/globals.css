@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* Curvas de animacao (iguais as de lib/motion.ts). */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Tokens do design "Pluto App". Tema alternado por data-theme no <html>. */
 :root,
 [data-theme='light'] {
@@ -138,6 +145,15 @@ button {
     text-decoration: none;
     box-sizing: border-box;
   }
+  /* Pressionar: resposta imediata de que o toque foi recebido. */
+  .btn,
+  .icon-btn {
+    transition: transform 160ms var(--ease-out);
+  }
+  .btn:active:not(:disabled),
+  .icon-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
   .btn-primary {
     background: var(--primary);
     color: var(--primary-foreground);
@@ -210,5 +226,12 @@ button {
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled),
+  .icon-btn:active:not(:disabled) {
+    transform: none;
   }
 }

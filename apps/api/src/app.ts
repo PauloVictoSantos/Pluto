@@ -31,7 +31,9 @@ export async function buildApp(ctx: AppContext) {
     },
     genReqId: () => randomUUID(),
     requestIdHeader: false,
-    trustProxy: false,
+    // So o proxy do Next na mesma maquina e confiavel: req.ip vira o cliente real (X-Forwarded-For),
+    // e um cliente remoto falando direto com a API nao consegue forjar o IP.
+    trustProxy: 'loopback',
     bodyLimit: 1_048_576,
   }).withTypeProvider<ZodTypeProvider>();
 

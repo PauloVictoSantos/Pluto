@@ -31,12 +31,13 @@ export type Connection = z.infer<typeof ConnectionSchema>;
 export const ConnectTokenSchema = z.object({ accessToken: z.string() });
 
 export const CreateConnectionSchema = z.object({
-  itemId: z.string().uuid(),
+  // UUID em minusculas: a mesma conexao nunca vira duas chaves diferentes.
+  itemId: z.string().trim().uuid().transform((v) => v.toLowerCase()),
 });
 
 /** Importacao de item criado no Meu Pluggy (o usuario copia o Item ID no Dashboard). */
 export const ImportConnectionSchema = z.object({
-  itemId: z.string().trim().uuid('Item ID inválido'),
+  itemId: z.string().trim().uuid('Item ID inválido').transform((v) => v.toLowerCase()),
 });
 
 export const DeleteConnectionQuerySchema = z.object({

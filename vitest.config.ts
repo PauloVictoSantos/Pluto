@@ -8,6 +8,7 @@ export default defineConfig({
       {
         test: { name: 'api', root: 'apps/api', include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'], environment: 'node', testTimeout: 20_000 },
       },
+      { test: { name: 'web', root: 'apps/web', include: ['lib/**/*.test.ts'], environment: 'node' } },
     ],
     coverage: {
       provider: 'v8',

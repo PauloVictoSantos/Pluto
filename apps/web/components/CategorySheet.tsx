@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { fmtDateTimeIn } from '@/lib/datetime';
 import { money } from '@/lib/queries';
 import { Icon } from './ui/Icon';
-import { Sheet } from './ui/Sheet';
+import { CloseWhen, Sheet, SheetCloseButton } from './ui/Sheet';
 
 // Saida: categorias de gasto + internas. Entrada: categorias de receita + internas.
 const groupsFor = (amountMinor: number) =>
@@ -27,6 +27,7 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
   const qc = useQueryClient();
   const [key, setKey] = useState(tx.categoryKey);
   const [similarToo, setSimilarToo] = useState(true);
+  const [done, setDone] = useState(false);
   const similar = useQuery({ queryKey: ['similar', tx.id], queryFn: () => api.similar(tx.id) });
   const others = Math.max(0, (similar.data?.count ?? 1) - 1);
 
@@ -35,13 +36,13 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
     onSuccess: async () => {
       // Categoria muda graficos, orcamento, planejamento e a propria lista.
       await Promise.all(['transactions', 'dashboard', 'budgets', 'category-rules'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
-      onClose();
+      setDone(true);
     },
   });
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (key === tx.categoryKey && !(similarToo && others > 0)) return onClose();
+    if (key === tx.categoryKey && !(similarToo && others > 0)) return setDone(true);
     save.mutate();
   };
 
@@ -58,9 +59,9 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
             {money(Math.abs(tx.amountMinor))}
           </div>
         </div>
-        <button type="button" onClick={onClose} aria-label="Fechar" className="icon-btn size-10">
+        <SheetCloseButton>
           <Icon icon="x" size={18} />
-        </button>
+        </SheetCloseButton>
       </div>
 
       <div className="-mx-1 flex max-h-[46vh] flex-col gap-3 overflow-y-auto px-1">
@@ -104,6 +105,7 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
         </label>
       )}
 
+      <CloseWhen when={done} />
       {save.isError && <div className="text-sm text-danger-text">Não consegui salvar. Tente de novo.</div>}
       <button type="submit" disabled={save.isPending} className="btn btn-primary h-12">
         {save.isPending ? 'Salvando…' : 'Salvar categoria'}

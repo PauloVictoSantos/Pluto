@@ -16,8 +16,8 @@ const waitFor = async (fn: () => Promise<boolean>) => {
   for (let i = 0; i < 50 && !(await fn()); i++) await new Promise((r) => setTimeout(r, 20));
 };
 
-function seedItem(owner = alice) {
-  h.pluggy.items.set(ITEM_ID, fakeItem({ clientUserId: owner.toHexString() }));
+function seedItem(owner: ObjectId | null = alice) {
+  h.pluggy.items.set(ITEM_ID, fakeItem({ clientUserId: owner ? owner.toHexString() : null }));
   h.pluggy.accounts.set(ITEM_ID, [fakeAccount()]);
   h.pluggy.transactions.set('acc-checking', [fakeTx({ id: 't1' }), fakeTx({ id: 't2', description: 'PADARIA SOL', amount: -9.5 })]);
 }
@@ -109,8 +109,8 @@ describe('/v1/connections', () => {
 });
 
 describe('/v1/connections/import (Meu Pluggy)', () => {
-  // Itens do Meu Pluggy nao tem o nosso clientUserId.
-  const seedMeuPluggy = () => seedItem(new ObjectId());
+  // Itens criados em meu.pluggy.ai vem sem clientUserId.
+  const seedMeuPluggy = () => seedItem(null);
   const importItem = async (u = alice, itemId = ITEM_ID) =>
     h.app.inject({ method: 'POST', url: '/v1/connections/import', headers: await auth(u), payload: { itemId } });
 
@@ -138,6 +138,30 @@ describe('/v1/connections/import (Meu Pluggy)', () => {
     seedMeuPluggy();
     expect((await importItem(alice)).statusCode).toBe(201);
     expect((await importItem(bob)).json().error.code).toBe('FORBIDDEN_ITEM');
+  });
+
+  it('o mesmo item em maiusculas e o mesmo item (nao vira outra chave)', async () => {
+    seedMeuPluggy();
+    expect((await importItem(alice)).statusCode).toBe(201);
+    // Simula um provedor que resolve o UUID sem diferenciar maiusculas.
+    h.pluggy.items.set(ITEM_ID.toUpperCase(), h.pluggy.items.get(ITEM_ID)!);
+    expect((await importItem(bob, ITEM_ID.toUpperCase())).json().error.code).toBe('FORBIDDEN_ITEM');
+    // O dono importando em maiusculas reaproveita a mesma conexao.
+    expect((await importItem(alice, ITEM_ID.toUpperCase())).statusCode).toBe(201);
+    expect(await h.ctx.col.connections.countDocuments({})).toBe(1);
+  });
+
+  it('importacoes simultaneas de duas contas: so uma fica com o item', async () => {
+    seedMeuPluggy();
+    const codes = (await Promise.all([importItem(alice), importItem(bob)])).map((r) => r.statusCode).sort();
+    expect(codes).toEqual([201, 403]);
+    expect(await h.ctx.col.connections.countDocuments({})).toBe(1);
+  });
+
+  it('item do widget de outra conta nao pode ser importado pelo Meu Pluggy', async () => {
+    seedItem(alice); // criado com o connect token de alice, ainda nao registrado
+    expect((await importItem(bob)).json().error.code).toBe('FORBIDDEN_ITEM');
+    expect(await h.ctx.col.connections.countDocuments({})).toBe(0);
   });
 
   it('reconexao, sincronizacao e remocao respeitam o Meu Pluggy', async () => {

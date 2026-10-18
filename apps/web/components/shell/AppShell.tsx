@@ -8,7 +8,7 @@ import { ymdIn } from '@/lib/datetime';
 import { daysBetween, fmtDay, initials } from '@/lib/format';
 import { nextDue } from '@/lib/insights';
 import { useCards, useTz } from '@/lib/queries';
-import { animate, reducedMotion, stagger } from '@/lib/motion';
+import { EASE_DRAWER, play, reducedMotion } from '@/lib/motion';
 import { BOTTOM, MORE, ROUTES, SIDE_BOTTOM, SIDE_TOP, TABS, pageFromPath, type NavId, type PageId } from '@/lib/nav';
 import { finishBoot, logout, setHideValues, setTheme, useApp } from '@/lib/store';
 import { modeOf, useWidth } from '@/lib/viewport';
@@ -58,6 +58,9 @@ const USER_MENU: [NavId, string, string][] = [
 ];
 const BOOT_MS = 2600;
 
+// Menus saem do botao que os abriu (canto superior direito), sem surgir do nada.
+const POPOVER: Keyframe[] = [{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }];
+
 function Tooltip({ label, side = 'bottom' }: { label: string; side?: 'bottom' | 'right' }) {
   const pos = side === 'right' ? 'left-[calc(100%+12px)] top-1/2 -translate-y-1/2' : 'top-[calc(100%+8px)] left-1/2 -translate-x-1/2';
   return (
@@ -93,6 +96,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const prevHide = useRef(hideValues);
+
+  // Ocultar/mostrar remonta a pagina: um desfoque curto une os dois estados em vez de trocar os numeros de uma vez.
+  useEffect(() => {
+    if (prevHide.current === hideValues) return;
+    prevHide.current = hideValues;
+    const frames = reducedMotion() ? [{ opacity: 0.7 }, { opacity: 1 }] : [{ filter: 'blur(2px)', opacity: 0.7 }, { filter: 'blur(0)', opacity: 1 }];
+    mainRef.current?.animate(frames, { duration: 200, easing: 'ease' });
+  }, [hideValues]);
   const fabAnimated = useRef(false);
 
   useEffect(() => {
@@ -106,18 +119,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [booting]);
 
   useEffect(() => {
-    if (reducedMotion()) return;
-    if (notifOpen && notifRef.current) animate(notifRef.current, { opacity: [0, 1], y: [-6, 0] }, { duration: 0.2 });
+    if (notifOpen) play(notifRef.current, POPOVER, { duration: 200, origin: 'top right' });
   }, [notifOpen]);
   useEffect(() => {
-    if (reducedMotion()) return;
-    if (userOpen && userRef.current) animate(userRef.current, { opacity: [0, 1], y: [-6, 0] }, { duration: 0.2 });
+    if (userOpen) play(userRef.current, POPOVER, { duration: 200, origin: 'top right' });
   }, [userOpen]);
   useEffect(() => {
-    const el = moreRef.current;
-    if (!moreOpen || !el || reducedMotion()) return;
-    animate(el, { y: ['100%', '0%'] }, { type: 'spring', stiffness: 380, damping: 34 });
-    animate(Array.from(el.querySelectorAll('button')), { opacity: [0, 1], y: [10, 0] }, { delay: stagger(0.025, { startDelay: 0.08 }), duration: 0.3 });
+    if (moreOpen) play(moreRef.current, [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }], { duration: 500, easing: EASE_DRAWER });
   }, [moreOpen]);
 
   const closeMenus = () => {
@@ -153,7 +161,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const fabRef = useCallback((el: HTMLButtonElement | null) => {
     if (!el || fabAnimated.current || reducedMotion()) return;
     fabAnimated.current = true;
-    animate(el, { scale: [0.4, 1], opacity: [0, 1] }, { type: 'spring', stiffness: 300, damping: 18, delay: 0.4 });
+    play(el, [{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 250, delay: 200 });
   }, []);
 
   if (!hydrated || !session || !user) return null;
@@ -338,6 +346,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
 
           <main
+            ref={mainRef}
             className="box-border min-w-0 max-w-[1480px] flex-1"
             style={{ padding: isMobile ? '16px 16px calc(120px + env(safe-area-inset-bottom))' : '28px 28px 120px' }}
           >

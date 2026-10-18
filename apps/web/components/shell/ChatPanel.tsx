@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { askPluto } from '@/lib/assistant';
 import { ymdIn } from '@/lib/datetime';
 import { useTz } from '@/lib/queries';
-import { animate, reducedMotion } from '@/lib/motion';
+import { EASE_DRAWER, play } from '@/lib/motion';
 import { PlutoLogo } from '../brand/PlutoLogo';
 import { PlutoMascot } from '../brand/PlutoMascot';
 import { Icon } from '../ui/Icon';
@@ -28,7 +28,7 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
   const list = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open && panel.current && !reducedMotion()) animate(panel.current, { x: ['100%', '0%'] }, { type: 'spring', stiffness: 380, damping: 34 });
+    if (open) play(panel.current, [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], { duration: 500, easing: EASE_DRAWER });
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -40,7 +40,8 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     const msgs = el.querySelectorAll('[data-msg]'), last = msgs[msgs.length - 1];
-    if (last && !reducedMotion()) animate(last, { opacity: [0, 1], y: [10, 0] }, { type: 'spring', stiffness: 380, damping: 34 });
+    // Feedback de que a mensagem chegou.
+    play(last, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200 });
   }, [messages, open]);
 
   useEffect(() => {
