@@ -7,13 +7,14 @@ export interface Database {
   close(): Promise<void>;
 }
 
-export async function connectDatabase(uri: string): Promise<Database> {
+/** O banco vem de MONGODB_DB, nao da URI: sem /pluto na URI o driver usaria "test" e gravaria num banco vazio. */
+export async function connectDatabase(uri: string, dbName: string): Promise<Database> {
   const client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 5_000,
     appName: 'pluto-api',
   });
   await client.connect();
-  const db = client.db();
+  const db = client.db(dbName);
 
   return {
     client,

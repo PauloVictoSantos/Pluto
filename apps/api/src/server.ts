@@ -12,9 +12,12 @@ import { createFieldCrypto } from './lib/crypto';
 import { createJwt } from './lib/jwt';
 
 const env = loadEnv();
-const database = await connectDatabase(env.MONGODB_URI);
+const database = await connectDatabase(env.MONGODB_URI, env.MONGODB_DB);
 await ensureIndexes(database.db);
-await runMigrations(database.db, (m) => console.log(m));
+// Migracao que falha nao derruba a API: os dados continuam utilizaveis e o erro fica no log.
+await runMigrations(database.db, (m) => console.log(m)).catch((e: unknown) =>
+  console.error('migracoes nao concluidas:', e instanceof Error ? e.message : String(e)),
+);
 
 const llmKey = env.LLM_API_KEY ?? env.GEMINI_API_KEY;
 const ctx: AppContext = {

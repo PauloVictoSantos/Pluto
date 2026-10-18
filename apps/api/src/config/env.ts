@@ -17,6 +17,7 @@ export const EnvSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
     MONGODB_URI: z.string().startsWith('mongodb'),
+    MONGODB_DB: z.string().regex(/^[A-Za-z0-9_-]{1,38}$/, 'nome de banco invalido').default('pluto'),
 
     JWT_PRIVATE_KEY: optional,
     JWT_PUBLIC_KEY: optional,

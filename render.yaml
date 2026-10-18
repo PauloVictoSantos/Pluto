@@ -8,7 +8,9 @@ services:
     region: virginia
     # Dependencias de desenvolvimento sao necessarias no build (tsup, typescript), por isso
     # NODE_ENV=development so no install. MONGOMS_DISABLE_POSTINSTALL evita baixar o mongod de testes.
-    buildCommand: corepack enable && MONGOMS_DISABLE_POSTINSTALL=1 NODE_ENV=development pnpm install --frozen-lockfile && pnpm build
+    # O next build roda direto (a saida do pnpm -r esconde os erros) e sempre com NODE_ENV=production:
+    # com outro valor o React fica em modo dev e o prerender de /_global-error quebra.
+    buildCommand: corepack enable && MONGOMS_DISABLE_POSTINSTALL=1 NODE_ENV=development pnpm install --frozen-lockfile && pnpm --filter @pluto/api build && cd apps/web && NODE_ENV=production npx next build
     startCommand: node scripts/start-render.mjs
     # Passa pelo site e chega na API: prova que os dois estao de pe.
     healthCheckPath: /v1/health

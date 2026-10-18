@@ -14,7 +14,7 @@ import { generateTotpSecret, otpauthUri, verifyTotp } from '../src/lib/totp';
 import { ask } from './prompt';
 
 const env = loadEnv();
-const database = await connectDatabase(env.MONGODB_URI);
+const database = await connectDatabase(env.MONGODB_URI, env.MONGODB_DB);
 const col = collections(database.db);
 const crypto = createFieldCrypto(env.FIELD_ENCRYPTION_KEY);
 

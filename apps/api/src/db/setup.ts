@@ -6,7 +6,8 @@ import { ensureIndexes } from './indexes';
 import { runMigrations } from './migrations';
 import { ensureSchemas } from './schema';
 
-const database = await connectDatabase(loadEnv().MONGODB_URI);
+const env = loadEnv();
+const database = await connectDatabase(env.MONGODB_URI, env.MONGODB_DB);
 try {
   await ensureSchemas(database.db, (m) => console.log(m));
   await ensureIndexes(database.db);

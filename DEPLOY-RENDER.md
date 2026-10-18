@@ -38,6 +38,15 @@ O banco continua no MongoDB Atlas.
 2. Domínio próprio (opcional): Render → Settings → Custom Domains. Depois **atualize `ALLOWED_ORIGINS`** para o domínio novo.
 3. Confira que a sincronização roda: em Configurações, o "última sincronização" das conexões deve atualizar a cada 6 h.
 
+## Erros comuns
+
+- **`Cannot read properties of null (reading 'useContext')` no `/_global-error` durante o build:** o `NODE_ENV` do serviço não é `production`. Isso costuma acontecer quando se copia o `.env` local, que tem `NODE_ENV=development`.
+- **Não copie `HOST` nem `PORT` do `.env` local.** O Render define a porta do site, e o script de inicialização define a da API (3333). Com `PORT=3333` no painel, os dois disputariam a mesma porta.
+- **`bad auth : Authentication failed`:** usuário ou senha errados na `MONGODB_URI`. Senhas com `@ : / ? # [ ] %` precisam ser codificadas; prefira senhas só com letras e números.
+- **Banco usado:** a API usa sempre o banco `pluto` (variável `MONGODB_DB`, padrão `pluto`), mesmo que a URI não tenha `/pluto`. Antes dessa correção, uma URI sem o nome caía no banco `test`.
+- **Usuário do banco só com `readWrite`:** as migrações da inicialização funcionam sem permissão de admin. O `pnpm --filter @pluto/api db:setup`, que atualiza os validadores, exige um usuário com `dbAdmin`.
+- **`ALLOWED_ORIGINS` deve ser o endereço público** (`https://...onrender.com`), não `localhost`. Caso contrário o login responde "origem não permitida".
+
 ## Observações
 
 - **Login atrás do proxy:** a API confia só no salto local (`trustProxy: 'loopback'`) e usa o IP que o proxy do Render acrescenta ao `X-Forwarded-For`. Com isso o limite de tentativas de login é por visitante. Para conferir, veja nos logs do Render se `remoteAddress` é o seu IP real e não `127.0.0.1`.

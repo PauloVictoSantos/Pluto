@@ -7,6 +7,5 @@ export default defineConfig({
   platform: 'node',
   sourcemap: true,
   clean: true,
-  // Pacotes do monorepo sao TS puro: embutir no bundle.
   noExternal: [/^@pluto\//],
 });

@@ -8,8 +8,20 @@ import { matchKeyOf } from '../lib/text';
  */
 export async function runMigrations(db: Db, log: (msg: string) => void = () => {}): Promise<void> {
   const tx = db.collection('transactions');
-  // Migracao nossa: documentos antigos fora do schema atual nao devem travar a atualizacao.
-  const opts = { bypassDocumentValidation: true };
+  // Documentos antigos fora do schema atual nao devem travar a atualizacao, entao tenta com
+  // bypassDocumentValidation. Em producao o usuario da API so tem readWrite (essa acao exige papel
+  // de admin no Atlas): sem permissao, refaz sem o bypass.
+  let opts: { bypassDocumentValidation?: boolean } = { bypassDocumentValidation: true };
+  const write = async <T>(op: (o: typeof opts) => Promise<T>): Promise<T> => {
+    try {
+      return await op(opts);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (!opts.bypassDocumentValidation || !(/bypassDocumentValidation/.test(msg) || (e as { code?: number }).code === 13)) throw e;
+      opts = {};
+      return op(opts);
+    }
+  };
 
   // 0. Indice antigo de orcamentos por categoryId (substituido por categoryKey). Unico e sobre um
   //    campo ausente, ele impediria mais de um orcamento por mes.
@@ -43,16 +55,18 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
   for (const { _id, keys } of groups) {
     const key = categoryKeyForType(_id.type as never, _id.cat, _id.sign);
     if (keys.length === 1 && keys[0] === key) continue;
-    const r = await tx.updateMany(
-      {
-        categorySource: { $nin: ['MANUAL', 'RULE'] },
-        type: _id.type,
-        pluggyCategory: _id.cat,
-        amountMinor: _id.sign > 0 ? { $gt: 0 } : { $lte: 0 },
-        categoryKey: { $ne: key },
-      },
-      { $set: { categoryKey: key } },
-      opts,
+    const r = await write((o) =>
+      tx.updateMany(
+        {
+          categorySource: { $nin: ['MANUAL', 'RULE'] },
+          type: _id.type,
+          pluggyCategory: _id.cat,
+          amountMinor: _id.sign > 0 ? { $gt: 0 } : { $lte: 0 },
+          categoryKey: { $ne: key },
+        },
+        { $set: { categoryKey: key } },
+        o,
+      ),
     );
     changed += r.modifiedCount;
   }
@@ -63,9 +77,11 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
   for (;;) {
     const batch = await tx.find({ matchKey: { $exists: false } }, { projection: { description: 1 } }).limit(1000).toArray();
     if (!batch.length) break;
-    await tx.bulkWrite(
-      batch.map((d) => ({ updateOne: { filter: { _id: d._id }, update: { $set: { matchKey: matchKeyOf(String(d.description ?? '')) } } } })),
-      opts,
+    await write((o) =>
+      tx.bulkWrite(
+        batch.map((d) => ({ updateOne: { filter: { _id: d._id }, update: { $set: { matchKey: matchKeyOf(String(d.description ?? '')) } } } })),
+        o,
+      ),
     );
     keyed += batch.length;
   }
@@ -73,6 +89,6 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
 
   // 3. Faturas antigas sem pagamento informado pelo Pluggy nao sao "atrasadas" (o Pluggy nao traz o pagamento).
   const cutoff = new Date(Date.now() - 40 * 86_400_000);
-  const r = await db.collection('invoices').updateMany({ status: 'OVERDUE', dueDate: { $lt: cutoff } }, { $set: { status: 'CLOSED', updatedAt: new Date() } }, opts);
+  const r = await write((o) => db.collection('invoices').updateMany({ status: 'OVERDUE', dueDate: { $lt: cutoff } }, { $set: { status: 'CLOSED', updatedAt: new Date() } }, o));
   if (r.modifiedCount) log(`${r.modifiedCount} faturas antigas reclassificadas de OVERDUE para CLOSED`);
 }
