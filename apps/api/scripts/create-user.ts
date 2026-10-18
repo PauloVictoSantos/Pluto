@@ -2,11 +2,12 @@
 // Interativo: senha digitada sem eco (aparece •), autenticador configurado por QR code,
 // codigos de recuperacao mostrados uma unica vez. Nada sensivel e gravado em claro.
 import QRCode from 'qrcode';
-import { EmailSchema } from '@pluto/shared';
+import { CpfSchema, EmailSchema } from '@pluto/shared';
 import { loadEnv } from '../src/config/env';
 import { connectDatabase } from '../src/db/client';
 import { collections } from '../src/db/collections';
 import { ensureIndexes } from '../src/db/indexes';
+import { cpfHash } from '../src/modules/auth/service';
 import { buildUser } from '../src/modules/auth/users';
 import { createFieldCrypto } from '../src/lib/crypto';
 import { passwordProblems, pwnedCount } from '../src/lib/password';
@@ -23,9 +24,18 @@ try {
   console.log('\n🐱 Pluto · criar usuário\n');
 
   const name = (await ask('Seu nome: ')) || 'Proprietário';
+  let cpf = '';
+  for (;;) {
+    const r = CpfSchema.safeParse(await ask('CPF (é o seu login): '));
+    if (r.success) {
+      cpf = r.data;
+      break;
+    }
+    console.log('  CPF inválido.');
+  }
   let email = '';
   for (;;) {
-    const r = EmailSchema.safeParse(await ask('E-mail de login: '));
+    const r = EmailSchema.safeParse(await ask('E-mail de contato: '));
     if (r.success) {
       email = r.data;
       break;
@@ -33,9 +43,10 @@ try {
     console.log('  E-mail inválido.');
   }
 
-  const existing = await col.users.findOne({ email });
+  // Usuario ja existente: pelo CPF ou, se ainda nao tinha CPF, pelo e-mail.
+  const existing = (await col.users.findOne({ cpfHash: cpfHash(crypto, cpf) })) ?? (await col.users.findOne({ email }));
   if (existing) {
-    const ok = (await ask('Já existe um usuário com este e-mail. Redefinir senha e autenticador? (s/N) ')).toLowerCase() === 's';
+    const ok = (await ask('Este usuário já existe. Redefinir senha e autenticador? (s/N) ')).toLowerCase() === 's';
     if (!ok) process.exit(0);
   }
 
@@ -78,7 +89,7 @@ try {
     console.log('  Código não confere. Verifique se o relógio do computador e do celular estão certos.');
   }
 
-  const { doc, recoveryCodes } = await buildUser(crypto, { name, email, password, totpSecret: secret });
+  const { doc, recoveryCodes } = await buildUser(crypto, { name, email, cpf, password, totpSecret: secret });
   if (existing) {
     await col.users.updateOne({ _id: existing._id }, { $set: { ...doc, createdAt: existing.createdAt } });
     // Senha nova: derruba todas as sessoes abertas.

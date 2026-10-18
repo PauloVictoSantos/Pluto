@@ -58,13 +58,23 @@ export class FakePluggy implements PluggyGateway {
   }
 }
 
+/** CPF valido e aleatorio (so digitos): cada usuario de teste tem o seu. */
+export function randomCpf(): string {
+  const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+  for (const len of [9, 10]) {
+    const r = (d.slice(0, len).reduce((s, n, i) => s + n * (len + 1 - i), 0) * 10) % 11;
+    d.push(r === 10 ? 0 : r);
+  }
+  return d.join('');
+}
+
 export interface Harness {
   ctx: AppContext;
   db: Db;
   pluggy: FakePluggy;
   app: Awaited<ReturnType<typeof buildApp>>;
   token(userId: ObjectId, opts?: { authAgeSec?: number }): Promise<string>;
-  createUser(opts?: { email?: string; password?: string }): Promise<{ id: ObjectId; email: string; password: string; secret: string; recoveryCodes: string[]; code: () => Promise<string> }>;
+  createUser(opts?: { email?: string; cpf?: string; password?: string }): Promise<{ id: ObjectId; email: string; cpf: string; password: string; secret: string; recoveryCodes: string[]; code: () => Promise<string> }>;
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -101,16 +111,16 @@ export async function startHarness(): Promise<Harness> {
     pluggy,
     app,
     token: (userId, opts = {}) => jwt.sign!({ userId: userId.toHexString(), authTime: Math.floor(Date.now() / 1000) - (opts.authAgeSec ?? 0) }),
-    async createUser({ email = 'dono@pluto.test', password = 'senha muito segura 123' } = {}) {
+    async createUser({ email = 'dono@pluto.test', cpf = randomCpf(), password = 'senha muito segura 123' } = {}) {
       const secret = generateTotpSecret();
-      const { doc, recoveryCodes } = await buildUser(ctx.crypto, { name: 'Marina Souza', email, password, totpSecret: secret });
+      const { doc, recoveryCodes } = await buildUser(ctx.crypto, { name: 'Marina Souza', email, cpf, password, totpSecret: secret });
       const { insertedId } = await ctx.col.users.insertOne(doc as never);
       // Zera o ultimo passo usado para permitir varios logins no mesmo intervalo de 30 s.
       const code = async () => {
         await ctx.col.users.updateOne({ _id: insertedId }, { $set: { 'totp.lastStep': null } });
         return hotp(base32Decode(secret), stepAt(Date.now()));
       };
-      return { id: insertedId, email, password, secret, recoveryCodes, code };
+      return { id: insertedId, email, cpf, password, secret, recoveryCodes, code };
     },
     async reset() {
       for (const c of await db.collections()) await c.deleteMany({});

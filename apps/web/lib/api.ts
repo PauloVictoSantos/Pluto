@@ -15,6 +15,8 @@ import {
   HealthSchema,
   MeSchema,
   MfaChallengeSchema,
+  PasskeyOptionsSchema,
+  PasskeySchema,
   SyncResultSchema,
   TokensSchema,
   TransactionPageSchema,
@@ -100,7 +102,7 @@ const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === 
 export const api = {
   health: () => request('/health', {}, HealthSchema),
 
-  login: (email: string, password: string) => request('/auth/login', post({ email, password }), MfaChallengeSchema),
+  login: (cpf: string, password: string) => request('/auth/login', post({ cpf, password }), MfaChallengeSchema),
   async verifyMfa(mfaToken: string, code: string, remember: boolean) {
     const t = await request('/auth/2fa/verify', post({ mfaToken, code, remember }), TokensSchema);
     setAccessToken(t.accessToken);
@@ -117,8 +119,20 @@ export const api = {
     }
   },
   me: () => request('/me', {}, MeSchema),
-  updateMe: (patch: { name?: string; phone?: string | null; email?: string }) =>
+  updateMe: (patch: { name?: string; phone?: string | null; email?: string; cpf?: string }) =>
     request('/me', { method: 'PATCH', body: JSON.stringify(patch) }, MeSchema),
+
+  // Passkeys (biometria do aparelho). As opcoes e respostas vao direto para o WebAuthn do navegador.
+  passkeys: () => request('/auth/passkeys', {}, z.array(PasskeySchema)),
+  passkeyRegisterOptions: () => request('/auth/passkeys/register/options', post(), PasskeyOptionsSchema),
+  passkeyRegister: (challengeId: string, response: unknown, name?: string) =>
+    request('/auth/passkeys/register/verify', post({ challengeId, response, name }), PasskeySchema),
+  removePasskey: (id: string) => request<void>(`/auth/passkeys/${id}`, { method: 'DELETE' }),
+  passkeyLoginOptions: () => request('/auth/passkeys/login/options', post(), PasskeyOptionsSchema),
+  async passkeyLogin(challengeId: string, response: unknown, remember: boolean) {
+    const t = await request('/auth/passkeys/login/verify', post({ challengeId, response, remember }), TokensSchema);
+    setAccessToken(t.accessToken);
+  },
 
   connections: () => request('/connections', {}, z.array(ConnectionSchema)),
   importConnection: (itemId: string) => request('/connections/import', post({ itemId }), ConnectionSchema),

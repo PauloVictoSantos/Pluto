@@ -24,7 +24,7 @@ describe('limites por cliente atras do proxy', () => {
     const attacker = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: {}, ...viaProxy('203.0.113.9') });
     expect(attacker.statusCode).toBe(429);
 
-    const res = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { email: owner.email, password: owner.password }, ...viaProxy('198.51.100.7') });
+    const res = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { cpf: owner.cpf, password: owner.password }, ...viaProxy('198.51.100.7') });
     expect(res.statusCode).toBe(200);
   });
 

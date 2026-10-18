@@ -3,6 +3,10 @@ import {
   LoginSchema,
   MeSchema,
   MfaChallengeSchema,
+  PasskeyLoginSchema,
+  PasskeyOptionsSchema,
+  PasskeyRegisterSchema,
+  PasskeySchema,
   ReauthSchema,
   RefreshSchema,
   TokensSchema,
@@ -14,9 +18,12 @@ import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provid
 import type { AppContext } from '../../context';
 import { audit } from '../../lib/audit';
 import { AppError } from '../../lib/errors';
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
+import { z } from 'zod';
 import { perUser } from '../../plugins/security';
-import { requireAuth, userOf } from '../../plugins/auth';
-import { login, logout, reauth, refresh, toMe, verifyMfa, type RequestMeta } from './service';
+import { requireAuth, requireRecentAuth, userOf } from '../../plugins/auth';
+import { listPasskeys, loginOptions, loginWithPasskey, registerPasskey, registrationOptions, removePasskey } from './passkeys';
+import { cpfHash, login, logout, reauth, refresh, toMe, verifyMfa, type RequestMeta } from './service';
 
 // Web: refresh em cookie HttpOnly; Secure; SameSite=Strict, prefixo __Host- (secoes 6.2 e 6.7).
 // Mobile: refresh no corpo, guardado no Keychain/Keystore pelo app.
@@ -59,7 +66,29 @@ export const authRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: { body: LoginSchema, response: { 200: MfaChallengeSchema } } },
     async (req) => {
       ensureLogin();
-      return { mfaRequired: true as const, mfaToken: await login(ctx, req.body.email, req.body.password, meta(req)) };
+      return { mfaRequired: true as const, mfaToken: await login(ctx, req.body.cpf, req.body.password, meta(req)) };
+    },
+  );
+
+  // Login com passkey (biometria): desafio publico, depois a assinatura do aparelho cria a sessao.
+  app.post(
+    '/auth/passkeys/login/options',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } }, schema: { response: { 200: PasskeyOptionsSchema } } },
+    async () => {
+      ensureLogin();
+      return loginOptions(ctx);
+    },
+  );
+
+  app.post(
+    '/auth/passkeys/login/verify',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: { body: PasskeyLoginSchema, response: { 200: TokensSchema } } },
+    async (req, reply) => {
+      ensureLogin();
+      if (meta(req).client === 'web') assertOrigin(req);
+      const { challengeId, response, remember } = req.body;
+      const r = await loginWithPasskey(ctx, challengeId, response as unknown as AuthenticationResponseJSON, remember, meta(req));
+      return sendTokens(req, reply, r);
     },
   );
 
@@ -118,26 +147,72 @@ export const authRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
     authed.get('/me', { schema: { response: { 200: MeSchema } } }, async (req) => {
       const u = await ctx.col.users.findOne({ _id: userOf(req).id });
       if (!u) throw new AppError(401, 'INVALID_SESSION', 'Sessão expirada. Entre novamente.');
-      return toMe(u);
+      return toMe(u, ctx.crypto);
     });
+
+    // Passkeys: cadastrar ou remover muda como se entra na conta, entao exige autenticacao recente.
+    authed.get('/auth/passkeys', { schema: { response: { 200: z.array(PasskeySchema) } } }, async (req) => listPasskeys(ctx, userOf(req).id));
+
+    authed.post(
+      '/auth/passkeys/register/options',
+      { preHandler: requireRecentAuth(), config: { rateLimit: perUser(10) }, schema: { response: { 200: PasskeyOptionsSchema } } },
+      async (req) => registrationOptions(ctx, userOf(req).id),
+    );
+
+    authed.post(
+      '/auth/passkeys/register/verify',
+      { preHandler: requireRecentAuth(), config: { rateLimit: perUser(10) }, schema: { body: PasskeyRegisterSchema, response: { 201: PasskeySchema } } },
+      async (req, reply) => {
+        const { challengeId, response, name } = req.body;
+        const pk = await registerPasskey(ctx, userOf(req).id, challengeId, response as unknown as RegistrationResponseJSON, name, req.ip);
+        return reply.status(201).send(pk);
+      },
+    );
+
+    authed.delete(
+      '/auth/passkeys/:id',
+      { preHandler: requireRecentAuth(), schema: { params: z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) }) } },
+      async (req, reply) => {
+        await removePasskey(ctx, userOf(req).id, req.params.id, req.ip);
+        return reply.status(204).send();
+      },
+    );
 
     authed.patch('/me', { schema: { body: UpdateMeSchema, response: { 200: MeSchema } } }, async (req) => {
       const auth = userOf(req);
       const u = await ctx.col.users.findOne({ _id: auth.id });
       if (!u) throw new AppError(401, 'INVALID_SESSION', 'Sessão expirada. Entre novamente.');
-      const { name, phone, email } = req.body;
-      if (email && email !== u.email) {
-        // Trocar o e-mail de login e acao sensivel (secao 6.2).
+      const { name, phone, email, cpf } = req.body;
+      const recent = () => {
         if (Date.now() / 1000 - auth.authTime > 10 * 60) throw new AppError(401, 'REAUTH_REQUIRED', 'Confirme sua identidade para continuar');
+      };
+      if (email && email !== u.email) {
+        // E-mail de contato recebe avisos de seguranca: trocar exige autenticacao recente (secao 6.2).
+        recent();
         if (await ctx.col.users.findOne({ email, _id: { $ne: u._id } })) throw new AppError(409, 'EMAIL_IN_USE', 'Este e-mail já está em uso');
         await audit(ctx.col, 'user.email_changed', u._id, {}, req.ip);
       }
+      const newCpfHash = cpf ? cpfHash(ctx.crypto, cpf) : null;
+      if (newCpfHash && newCpfHash !== u.cpfHash) {
+        // CPF e o login: mesma exigencia.
+        recent();
+        if (await ctx.col.users.findOne({ cpfHash: newCpfHash, _id: { $ne: u._id } })) throw new AppError(409, 'CPF_IN_USE', 'Este CPF já está em uso');
+        await audit(ctx.col, 'user.cpf_changed', u._id, {}, req.ip);
+      }
       const updated = await ctx.col.users.findOneAndUpdate(
         { _id: u._id },
-        { $set: { ...(name !== undefined ? { name } : {}), ...(phone !== undefined ? { phone } : {}), ...(email ? { email } : {}), updatedAt: new Date() } },
+        {
+          $set: {
+            ...(name !== undefined ? { name } : {}),
+            ...(phone !== undefined ? { phone } : {}),
+            ...(email ? { email } : {}),
+            ...(cpf && newCpfHash !== u.cpfHash ? { cpfHash: newCpfHash, cpfEnc: ctx.crypto.encrypt(cpf) } : {}),
+            updatedAt: new Date(),
+          },
+        },
         { returnDocument: 'after' },
       );
-      return toMe(updated!);
+      return toMe(updated!, ctx.crypto);
     });
   });
 };

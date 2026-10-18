@@ -37,6 +37,9 @@ export const EnvSchema = z
     PLUGGY_CLIENT_SECRET: optional,
     PLUGGY_WEBHOOK_SECRET: optional,
 
+    /** Dominio das passkeys; padrao: host da primeira origem em ALLOWED_ORIGINS. */
+    WEBAUTHN_RP_ID: optional,
+
     LLM_API_KEY: optional,
     /** Alias de LLM_API_KEY para o Gemini. */
     GEMINI_API_KEY: optional,

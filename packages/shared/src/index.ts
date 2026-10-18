@@ -6,4 +6,5 @@ export * from './schemas/settings';
 export * from './schemas/auth';
 export * from './schemas/api';
 export * from './categories';
+export * from './cpf';
 export * from './schemas/dashboard';

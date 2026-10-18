@@ -9,14 +9,18 @@ import type {
   TransactionType,
   UserSettings,
 } from '@pluto/shared';
-import type { Collection, Db, ObjectId } from 'mongodb';
+import type { Binary, Collection, Db, ObjectId } from 'mongodb';
 
 // Documentos persistidos (secao 4.3). Dinheiro sempre em centavos (*Minor), datas em UTC.
 
 export interface UserDoc {
   _id: ObjectId;
-  /** Normalizado em minusculas (secao 4.3). */
+  /** Contato (normalizado em minusculas). O login e pelo CPF. */
   email: string;
+  /** HMAC do CPF (so digitos): busca no login sem guardar o CPF em claro. */
+  cpfHash?: string | null;
+  /** CPF cifrado (AES-256-GCM), so para exibir mascarado. */
+  cpfEnc?: string | null;
   name: string;
   phone: string | null;
   passwordHash: string;
@@ -33,6 +37,31 @@ export interface UserDoc {
   lockedUntil: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Passkey (WebAuthn) do usuario: chave publica do aparelho; a privada nunca sai dele. */
+export interface PasskeyDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** ID da credencial em base64url (unico). */
+  credentialId: string;
+  publicKey: Binary;
+  /** Contador de assinaturas: valor que nao cresce indica credencial clonada. */
+  counter: number;
+  transports: string[];
+  name: string;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+/** Desafio WebAuthn de uso unico, valido por 5 minutos (TTL). */
+export interface WebauthnChallengeDoc {
+  _id: ObjectId;
+  challenge: string;
+  purpose: 'register' | 'login';
+  /** Cadastro: dono do desafio. Login: null (a credencial identifica o usuario). */
+  userId: ObjectId | null;
+  expiresAt: Date;
 }
 
 export interface SessionDoc {
@@ -229,6 +258,8 @@ export interface AuditLogDoc {
 export interface Collections {
   users: Collection<UserDoc>;
   sessions: Collection<SessionDoc>;
+  passkeys: Collection<PasskeyDoc>;
+  webauthnChallenges: Collection<WebauthnChallengeDoc>;
   connections: Collection<ConnectionDoc>;
   accounts: Collection<AccountDoc>;
   transactions: Collection<TransactionDoc>;
@@ -244,6 +275,8 @@ export interface Collections {
 export const collections = (db: Db): Collections => ({
   users: db.collection<UserDoc>('users'),
   sessions: db.collection<SessionDoc>('sessions'),
+  passkeys: db.collection<PasskeyDoc>('passkeys'),
+  webauthnChallenges: db.collection<WebauthnChallengeDoc>('webauthn_challenges'),
   connections: db.collection<ConnectionDoc>('connections'),
   accounts: db.collection<AccountDoc>('accounts'),
   transactions: db.collection<TransactionDoc>('transactions'),

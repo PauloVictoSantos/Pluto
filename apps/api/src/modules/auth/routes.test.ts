@@ -1,7 +1,8 @@
+import { formatCpf, maskCpf } from '@pluto/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ITEM_ID, fakeAccount, fakeItem } from '../../integrations/pluggy/fixtures';
 import { base32Decode, hotp, stepAt } from '../../lib/totp';
-import { startHarness, type Harness } from '../../test/harness';
+import { randomCpf, startHarness, type Harness } from '../../test/harness';
 
 let h: Harness;
 beforeAll(async () => {
@@ -17,25 +18,32 @@ const post = (url: string, payload?: object, headers: Record<string, string> = O
 const cookieOf = (res: { cookies: { name: string; value: string; maxAge?: number }[] }) => res.cookies.find((c) => c.name === '__Host-pluto_rt');
 
 async function loginWeb(u: User, remember = true) {
-  const { mfaToken } = (await post('/v1/auth/login', { email: u.email, password: u.password })).json();
+  const { mfaToken } = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json();
   const res = await post('/v1/auth/2fa/verify', { mfaToken, code: await u.code(), remember });
   return { res, accessToken: res.json().accessToken as string, refresh: cookieOf(res)!.value };
 }
 
 describe('login', () => {
-  it('senha errada e e-mail inexistente dao a mesma resposta', async () => {
+  it('senha errada e CPF inexistente dao a mesma resposta', async () => {
     const u = await h.createUser();
-    const a = await post('/v1/auth/login', { email: u.email, password: 'errada' });
-    const b = await post('/v1/auth/login', { email: 'ninguem@x.com', password: 'errada' });
+    const a = await post('/v1/auth/login', { cpf: u.cpf, password: 'errada' });
+    const b = await post('/v1/auth/login', { cpf: randomCpf(), password: 'errada' });
     expect(a.statusCode).toBe(401);
     expect(a.json()).toEqual(b.json());
     expect(a.json().error.code).toBe('INVALID_CREDENTIALS');
   });
 
-  it('e-mail e normalizado', async () => {
+  it('CPF aceita pontuacao e rejeita digito verificador errado', async () => {
     const u = await h.createUser();
-    const res = await post('/v1/auth/login', { email: '  DONO@Pluto.TEST ', password: u.password });
+    const res = await post('/v1/auth/login', { cpf: ' ' + formatCpf(u.cpf) + ' ', password: u.password });
     expect(res.json().mfaRequired).toBe(true);
+    const bad = u.cpf.slice(0, 10) + String((+u.cpf[10]! + 1) % 10);
+    expect((await post('/v1/auth/login', { cpf: bad, password: u.password })).statusCode).toBe(400);
+  });
+
+  it('e-mail nao serve mais como login', async () => {
+    const u = await h.createUser();
+    expect((await post('/v1/auth/login', { email: u.email, password: u.password })).statusCode).toBe(400);
   });
 
   it('web: senha + TOTP geram access token e cookie HttpOnly Secure SameSite=Strict', async () => {
@@ -47,7 +55,7 @@ describe('login', () => {
     expect(c).toMatchObject({ httpOnly: true, secure: true, sameSite: 'Strict', path: '/' });
     expect(c.maxAge).toBe(30 * 86_400);
     const me = await h.app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${accessToken}` } });
-    expect(me.json()).toMatchObject({ email: u.email, name: 'Marina Souza', settings: { timezone: 'America/Manaus' } });
+    expect(me.json()).toMatchObject({ email: u.email, cpfMasked: maskCpf(u.cpf), name: 'Marina Souza', settings: { timezone: 'America/Manaus' } });
   });
 
   it('sem "lembrar de mim" o cookie e de sessao', async () => {
@@ -58,7 +66,7 @@ describe('login', () => {
 
   it('mobile recebe o refresh no corpo e nao recebe cookie', async () => {
     const u = await h.createUser();
-    const { mfaToken } = (await post('/v1/auth/login', { email: u.email, password: u.password }, {})).json();
+    const { mfaToken } = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password }, {})).json();
     const res = await post('/v1/auth/2fa/verify', { mfaToken, code: await u.code() }, { 'x-pluto-client': 'mobile' });
     expect(res.json().refreshToken).toMatch(/^[\w-]{43}$/);
     expect(cookieOf(res)).toBeUndefined();
@@ -66,14 +74,14 @@ describe('login', () => {
 
   it('web exige Origin permitida (CSRF)', async () => {
     const u = await h.createUser();
-    const { mfaToken } = (await post('/v1/auth/login', { email: u.email, password: u.password })).json();
+    const { mfaToken } = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json();
     const res = await post('/v1/auth/2fa/verify', { mfaToken, code: await u.code() }, { origin: 'https://evil.example' });
     expect(res.json().error.code).toBe('BAD_ORIGIN');
   });
 
   it('o token de etapa MFA nao serve como access token', async () => {
     const u = await h.createUser();
-    const { mfaToken } = (await post('/v1/auth/login', { email: u.email, password: u.password })).json();
+    const { mfaToken } = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json();
     expect((await h.app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${mfaToken}` } })).statusCode).toBe(401);
   });
 });
@@ -82,26 +90,26 @@ describe('segundo fator', () => {
   it('o mesmo codigo nao pode ser reutilizado', async () => {
     const u = await h.createUser();
     const code = await u.code();
-    const t1 = (await post('/v1/auth/login', { email: u.email, password: u.password })).json().mfaToken;
+    const t1 = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json().mfaToken;
     expect((await post('/v1/auth/2fa/verify', { mfaToken: t1, code })).statusCode).toBe(200);
-    const t2 = (await post('/v1/auth/login', { email: u.email, password: u.password })).json().mfaToken;
+    const t2 = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json().mfaToken;
     expect((await post('/v1/auth/2fa/verify', { mfaToken: t2, code })).json().error.code).toBe('INVALID_CODE');
   });
 
   it('codigo de recuperacao funciona uma unica vez', async () => {
     const u = await h.createUser();
     const rc = u.recoveryCodes[0]!.toUpperCase();
-    const t1 = (await post('/v1/auth/login', { email: u.email, password: u.password })).json().mfaToken;
+    const t1 = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json().mfaToken;
     expect((await post('/v1/auth/2fa/verify', { mfaToken: t1, code: rc })).statusCode).toBe(200);
-    const t2 = (await post('/v1/auth/login', { email: u.email, password: u.password })).json().mfaToken;
+    const t2 = (await post('/v1/auth/login', { cpf: u.cpf, password: u.password })).json().mfaToken;
     expect((await post('/v1/auth/2fa/verify', { mfaToken: t2, code: rc })).statusCode).toBe(401);
     expect(await h.ctx.col.auditLogs.countDocuments({ event: '2fa.recovery_code_used' })).toBe(1);
   });
 
   it('bloqueio progressivo apos 5 falhas', async () => {
     const u = await h.createUser();
-    for (let i = 0; i < 5; i++) await post('/v1/auth/login', { email: u.email, password: 'errada' });
-    const res = await post('/v1/auth/login', { email: u.email, password: u.password });
+    for (let i = 0; i < 5; i++) await post('/v1/auth/login', { cpf: u.cpf, password: 'errada' });
+    const res = await post('/v1/auth/login', { cpf: u.cpf, password: u.password });
     expect(res.statusCode).toBe(429);
     expect(res.json().error.code).toBe('ACCOUNT_LOCKED');
   });

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCpf, isValidCpf, normalizeCpf } from '@pluto/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { PlutoMark } from '@/components/brand/PlutoMark';
@@ -8,10 +9,11 @@ import { Icon } from '@/components/ui/Icon';
 import { ApiRequestError, api } from '@/lib/api';
 import { play } from '@/lib/motion';
 import { isNative } from '@/lib/native/platform';
+import { loginWithPasskey, passkeyCancelled, passkeySupported } from '@/lib/passkey';
 import { completeLogin, consumeLoginMsg, useApp, type LoginMsg } from '@/lib/store';
 import { useHydrated, useMode } from '@/lib/viewport';
 
-// Secao 6.2: senha + codigo do autenticador (TOTP) ou codigo de recuperacao.
+// Secao 6.2: CPF + senha + codigo do autenticador (TOTP) ou codigo de recuperacao; ou passkey (biometria).
 export default function LoginPage() {
   const router = useRouter();
   const isMobile = useMode() === 'mobile';
@@ -20,7 +22,9 @@ export default function LoginPage() {
   const native = useHydrated() && isNative();
 
   const [step, setStep] = useState<'password' | 'code'>('password');
-  const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
+  // Depois da hidratacao: no servidor nao ha WebAuthn.
+  const canPasskey = useHydrated() && passkeySupported();
   const [pw, setPw] = useState('');
   const [code, setCode] = useState('');
   const [mfaToken, setMfaToken] = useState('');
@@ -61,13 +65,33 @@ export default function LoginPage() {
   };
   const errorText = (e: unknown) => (e instanceof ApiRequestError ? e.message : 'Não foi possível falar com o servidor. A API está rodando?');
 
+  const enterApp = async () => {
+    setMood('happy');
+    setJumpKey((k) => k + 1);
+    await completeLogin();
+    router.replace('/');
+  };
+
+  const submitPasskey = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await loginWithPasskey(remember);
+      await enterApp();
+    } catch (e) {
+      if (!passkeyCancelled(e)) fail(errorText(e));
+      setBusy(false);
+    }
+  };
+
   const submitPassword = async () => {
-    if (!email.trim()) return fail('Informe seu e-mail.');
+    if (!isValidCpf(cpf)) return fail('Informe um CPF válido.');
     if (!pw) return fail('Informe sua senha.');
     setBusy(true);
     setMsg(null);
     try {
-      const r = await api.login(email.trim(), pw);
+      const r = await api.login(normalizeCpf(cpf), pw);
       setMfaToken(r.mfaToken);
       setPw('');
       setStep('code');
@@ -85,10 +109,7 @@ export default function LoginPage() {
     setMsg(null);
     try {
       await api.verifyMfa(mfaToken, code, remember);
-      setMood('happy');
-      setJumpKey((k) => k + 1);
-      await completeLogin();
-      router.replace('/');
+      await enterApp();
     } catch (e) {
       setCode('');
       if (e instanceof ApiRequestError && e.code === 'MFA_EXPIRED') {
@@ -137,22 +158,21 @@ export default function LoginPage() {
           <div>
             <h1 className="m-0 text-[clamp(26px,6vw,32px)] font-bold tracking-[-0.035em]">{title}</h1>
             <p className="mt-1.5 mb-0 text-[15px] text-muted-foreground">
-              {step === 'code' ? 'Digite o código do seu app autenticador.' : 'Entre com seu e-mail e senha.'}
+              {step === 'code' ? 'Digite o código do seu app autenticador.' : 'Entre com seu CPF e senha.'}
             </p>
           </div>
 
           {step === 'password' ? (
             <>
               <label className="flex flex-col gap-1.5 text-[13px] font-medium">
-                E-mail
+                CPF
                 <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCpf(e.target.value))}
                   autoComplete="username"
-                  inputMode="email"
-                  placeholder="nome@email.com"
-                  className="input h-[52px] rounded-[14px] px-4"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                  className="input h-[52px] rounded-[14px] px-4 tabular-nums"
                 />
               </label>
               <label className="flex flex-col gap-1.5 text-[13px] font-medium">
@@ -229,17 +249,17 @@ export default function LoginPage() {
             </button>
           )}
 
-          {/* Biometria so existe no app (secao 8.3): desbloqueia o refresh token guardado no Keychain/Keystore. */}
-          {native && step === 'password' && (
+          {/* Passkey: digital, Face ID ou Windows Hello. Cadastre em Configuracoes depois de entrar. */}
+          {canPasskey && !native && step === 'password' && (
             <>
               <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
                 ou
                 <span className="h-px flex-1 bg-border" />
               </div>
-              <button type="button" disabled className="btn btn-outline h-[52px] gap-2.5 text-[15px] opacity-60">
-                <Icon icon="smartphone" size={18} />
-                Entrar com biometria (em breve)
+              <button type="button" onClick={submitPasskey} disabled={busy} className="btn btn-outline h-[52px] gap-2.5 text-[15px]">
+                <Icon icon="fingerprint" size={20} />
+                Entrar com biometria
               </button>
             </>
           )}

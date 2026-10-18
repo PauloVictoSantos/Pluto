@@ -1,8 +1,10 @@
 'use client';
 
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { formatCpf, isValidCpf, normalizeCpf } from '@pluto/shared';
 import { CategoryRulesCard } from '@/components/CategoryRulesCard';
 import { ConnectionsCard } from '@/components/ConnectionsCard';
+import { PasskeysCard } from '@/components/PasskeysCard';
 import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
@@ -18,7 +20,6 @@ const TOGGLES: [string, string, string, boolean][] = [
   ['limit', 'Gastos acima do limite', 'Quando uma categoria passar do orçamento', true],
   ['weekly', 'Resumo semanal da Pluto', 'Toda segunda, às 8h', true],
   ['hide', 'Ocultar valores', 'Mostra R$ •••• em todas as telas até você tocar no olho de novo', false],
-  ['bio', 'Entrar com biometria', 'Face ID ou digital (no app)', true],
 ];
 const THEMES: { id: Theme; label: ReactNode }[] = [
   { id: 'light', label: <><Icon icon="sun" size={16} />Claro</> },
@@ -31,7 +32,7 @@ export default function ConfiguracoesPage() {
   const hideValues = useApp((s) => s.hideValues);
   const { run, sheet } = useReauth();
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((t) => [t[0], t[3]])));
-  const [draft, setDraft] = useState<{ name: string; email: string; phone: string } | null>(null);
+  const [draft, setDraft] = useState<{ name: string; email: string; phone: string; cpf: string } | null>(null);
   const [tried, setTried] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,7 +46,9 @@ export default function ConfiguracoesPage() {
       ? 'Informe seu nome.'
       : !/^\S+@\S+\.\S+$/.test(draft.email)
         ? 'Informe um e-mail válido.'
-        : '';
+        : draft.cpf && !isValidCpf(draft.cpf)
+          ? 'Informe um CPF válido.'
+          : '';
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,8 +57,9 @@ export default function ConfiguracoesPage() {
     setSaving(true);
     setServerErr('');
     try {
-      // Trocar o e-mail de login pede confirmacao de identidade (secao 6.2).
-      const me = await run(() => api.updateMe({ name: draft.name.trim(), email: draft.email, phone: draft.phone || null }));
+      // Trocar e-mail ou CPF (o login) pede confirmacao de identidade (secao 6.2).
+      const cpf = draft.cpf ? normalizeCpf(draft.cpf) : undefined;
+      const me = await run(() => api.updateMe({ name: draft.name.trim(), email: draft.email, phone: draft.phone || null, ...(cpf ? { cpf } : {}) }));
       setUser(me);
       setDraft(null);
       setSaved(true);
@@ -77,11 +81,12 @@ export default function ConfiguracoesPage() {
         <div className="min-w-[200px] flex-1">
           <div className="text-lg font-bold">{user.name}</div>
           <div className="mt-0.5 text-sm text-muted-foreground">{user.email}</div>
+          <div className="mt-0.5 text-[13px] text-muted-foreground tabular-nums">{user.cpfMasked ? `CPF ${user.cpfMasked}` : 'CPF não cadastrado'}</div>
           {user.phone && <div className="mt-0.5 text-[13px] text-muted-foreground">{user.phone}</div>}
         </div>
         <button
           onClick={() => {
-            setDraft({ name: user.name, email: user.email, phone: user.phone ?? '' });
+            setDraft({ name: user.name, email: user.email, phone: user.phone ?? '', cpf: '' });
             setTried(false);
             setSaved(false);
             setServerErr('');
@@ -99,6 +104,7 @@ export default function ConfiguracoesPage() {
         )}
       </div>
 
+      <PasskeysCard />
       <ConnectionsCard />
       <CategoryRulesCard />
 
@@ -146,7 +152,7 @@ export default function ConfiguracoesPage() {
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoComplete="name" className="input" />
           </label>
           <label className="field">
-            E-mail de login
+            E-mail de contato
             <input
               value={draft.email}
               onChange={(e) => setDraft({ ...draft, email: e.target.value.trim() })}
@@ -154,6 +160,17 @@ export default function ConfiguracoesPage() {
               inputMode="email"
               autoComplete="email"
               className="input"
+            />
+          </label>
+          <label className="field">
+            CPF (seu login)
+            <input
+              value={draft.cpf}
+              onChange={(e) => setDraft({ ...draft, cpf: formatCpf(e.target.value) })}
+              placeholder={user.cpfMasked ? `Atual: ${user.cpfMasked} · vazio mantém` : '000.000.000-00'}
+              inputMode="numeric"
+              autoComplete="off"
+              className="input tabular-nums"
             />
           </label>
           <label className="field">

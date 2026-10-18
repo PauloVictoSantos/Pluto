@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { Me } from '@pluto/shared';
+import { maskCpf, type Me } from '@pluto/shared';
 import { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
 import type { SessionDoc, UserDoc } from '../../db/collections';
 import { audit } from '../../lib/audit';
+import type { FieldCrypto } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { ACCESS_TTL_SEC } from '../../lib/jwt';
 import { verifyPassword } from '../../lib/password';
@@ -23,12 +24,22 @@ export interface RequestMeta {
   client: 'web' | 'mobile';
 }
 
-const invalidCredentials = () => new AppError(401, 'INVALID_CREDENTIALS', 'E-mail ou senha inválidos');
+const invalidCredentials = () => new AppError(401, 'INVALID_CREDENTIALS', 'CPF ou senha inválidos');
 const invalidSession = () => new AppError(401, 'INVALID_SESSION', 'Sessão expirada. Entre novamente.');
 
-export const toMe = (u: UserDoc): Me => ({ id: u._id.toHexString(), email: u.email, name: u.name, phone: u.phone, settings: u.settings });
+/** Chave de busca do CPF (so digitos). O prefixo separa do hash de outros identificadores. */
+export const cpfHash = (crypto: FieldCrypto, cpf: string) => crypto.hash(`cpf:${cpf}`);
 
-function assertNotLocked(u: UserDoc | null, now: Date) {
+export const toMe = (u: UserDoc, crypto: FieldCrypto): Me => ({
+  id: u._id.toHexString(),
+  email: u.email,
+  cpfMasked: u.cpfEnc ? maskCpf(crypto.decrypt(u.cpfEnc)) : null,
+  name: u.name,
+  phone: u.phone,
+  settings: u.settings,
+});
+
+export function assertNotLocked(u: UserDoc | null, now: Date) {
   if (u?.lockedUntil && u.lockedUntil > now) {
     const min = Math.ceil((u.lockedUntil.getTime() - now.getTime()) / 60_000);
     throw new AppError(429, 'ACCOUNT_LOCKED', `Muitas tentativas. Tente de novo em ${min} minuto${min > 1 ? 's' : ''}.`);
@@ -43,11 +54,11 @@ async function registerFailure(ctx: AppContext, u: UserDoc, now: Date) {
 }
 
 /** Etapa 1: senha. Retorna o token de etapa MFA. */
-export async function login(ctx: AppContext, email: string, password: string, meta: RequestMeta): Promise<string> {
+export async function login(ctx: AppContext, cpf: string, password: string, meta: RequestMeta): Promise<string> {
   const now = new Date();
-  const u = await ctx.col.users.findOne({ email });
+  const u = await ctx.col.users.findOne({ cpfHash: cpfHash(ctx.crypto, cpf) });
   assertNotLocked(u, now);
-  // Sempre roda o Argon2, mesmo sem usuario, para o tempo nao revelar quais e-mails existem.
+  // Sempre roda o Argon2, mesmo sem usuario, para o tempo nao revelar quais CPFs existem.
   if (!(await verifyPassword(u?.passwordHash ?? null, password)) || !u) {
     if (u) await registerFailure(ctx, u, now);
     await audit(ctx.col, 'login.failed', u?._id ?? null, { step: 'password' }, meta.ip);
@@ -75,7 +86,7 @@ async function checkSecondFactor(ctx: AppContext, u: UserDoc, code: string): Pro
   return r.modifiedCount ? 'recovery' : null;
 }
 
-async function createSession(ctx: AppContext, u: UserDoc, opts: { meta: RequestMeta; persistent: boolean; authTime: Date; familyId?: string }) {
+export async function createSession(ctx: AppContext, u: UserDoc, opts: { meta: RequestMeta; persistent: boolean; authTime: Date; familyId?: string }) {
   const now = new Date();
   const refreshToken = randomToken();
   const doc: Omit<SessionDoc, '_id'> = {

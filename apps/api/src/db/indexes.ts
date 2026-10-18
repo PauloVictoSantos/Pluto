@@ -2,7 +2,13 @@ import type { Db, IndexDescription } from 'mongodb';
 
 // Secao 4.4. Indices unicos garantem idempotencia da importacao (RN-01).
 export const INDEXES: Record<string, IndexDescription[]> = {
-  users: [{ key: { email: 1 }, unique: true }],
+  users: [
+    { key: { email: 1 }, unique: true },
+    // Login por CPF; usuarios antigos sem CPF nao entram no indice.
+    { key: { cpfHash: 1 }, unique: true, partialFilterExpression: { cpfHash: { $type: 'string' } } },
+  ],
+  passkeys: [{ key: { credentialId: 1 }, unique: true }, { key: { userId: 1 } }],
+  webauthn_challenges: [{ key: { expiresAt: 1 }, expireAfterSeconds: 0 }],
   connections: [
     // Global: um item do Pluggy pertence a um unico usuario do Pluto (inclusive conexoes removidas com historico).
     { key: { pluggyItemIdHash: 1 }, unique: true },
