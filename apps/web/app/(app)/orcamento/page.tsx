@@ -3,6 +3,7 @@
 import { categoryOf } from '@pluto/shared';
 import { useRef } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
+import { BudgetSuggestionCard } from '@/components/BudgetSuggestionCard';
 import { CategoryChart } from '@/components/charts/CategoryChart';
 import { useShell } from '@/components/shell/ShellContext';
 import { CountUp } from '@/components/ui/CountUp';
@@ -128,6 +129,8 @@ export default function OrcamentoPage() {
           })}
         </div>
       </div>
+
+      <BudgetSuggestionCard month={month} />
 
       {spending.data && spending.data.categories.length > 0 && (
         <div data-anim="" className="card flex flex-wrap items-center gap-3.5 p-[18px]">

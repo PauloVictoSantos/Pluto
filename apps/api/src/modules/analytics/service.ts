@@ -45,10 +45,11 @@ export async function refreshRecurrences(col: Collections, userId: ObjectId, now
   const txs = await col.transactions
     .find(
       { userId, deletedAt: null, installment: null, type: { $in: ['INCOME', 'EXPENSE'] }, date: { $gte: since } },
-      { projection: { date: 1, amountMinor: 1, matchKey: 1, counterpartyKey: 1, descriptionNorm: 1, merchant: 1, description: 1, categoryKey: 1 } },
+      { projection: { date: 1, amountMinor: 1, matchKey: 1, counterpartyKey: 1, descriptionNorm: 1, merchant: 1, description: 1, categoryKey: 1, accountId: 1 } },
     )
     .toArray();
 
+  const cards = new Set((await col.accounts.find({ userId, type: 'CREDIT_CARD' }, { projection: { _id: 1 } }).toArray()).map((a) => a._id.toHexString()));
   const groups = new Map<string, TransactionDoc[]>();
   for (const t of txs) {
     const g = `${directionOf(t.amountMinor)}|${ruleKeyOf(t)}`;
@@ -70,6 +71,7 @@ export async function refreshRecurrences(col: Collections, userId: ObjectId, now
           $set: {
             label: last.merchant ?? (last.matchKey || last.description),
             categoryKey: last.categoryKey,
+            onCard: list.filter((t) => cards.has(t.accountId.toHexString())).length * 2 > list.length,
             period: r.period,
             amountMinor: r.amountMinor,
             count: r.count,

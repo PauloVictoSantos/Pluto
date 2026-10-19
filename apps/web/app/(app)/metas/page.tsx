@@ -1,16 +1,25 @@
 'use client';
 
-import type { Goal } from '@pluto/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { categoryOf, type Goal, type GoalInsights } from '@pluto/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
+import { ProbabilityBadge, Why } from '@/components/Insight';
 import { Icon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { ymdIn } from '@/lib/datetime';
-import { MESES, daysBetween, maskMoney } from '@/lib/format';
+import { MESES, maskMoney } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { money, useGoals, useTz } from '@/lib/queries';
+
+const PRIORITIES = [
+  { v: 1, label: 'Máxima' },
+  { v: 2, label: 'Alta' },
+  { v: 3, label: 'Média' },
+  { v: 4, label: 'Baixa' },
+  { v: 5, label: 'Quando der' },
+];
 
 const ICONS = ['target', 'plane', 'shield', 'laptop', 'house', 'car', 'heart-pulse', 'briefcase'];
 
@@ -26,6 +35,9 @@ export default function MetasPage() {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('target');
   const [deadline, setDeadline] = useState(`${+today.slice(0, 4) + 1}-12-31`);
+  const [priority, setPriority] = useState(3);
+  const insights = useQuery({ queryKey: ['analytics', 'goals'], queryFn: api.goalInsights });
+  const insightOf = (id: string) => insights.data?.goals.find((x) => x.goalId === id);
   const [error, setError] = useState('');
   const root = useRef<HTMLDivElement>(null);
   useEnter(root);
@@ -38,9 +50,10 @@ export default function MetasPage() {
   const done = () => {
     setDialog(null);
     void qc.invalidateQueries({ queryKey: ['goals'] });
+    void qc.invalidateQueries({ queryKey: ['analytics'] });
   };
   const fail = (e: unknown) => setError(e instanceof ApiRequestError ? e.message : 'Não foi possível salvar.');
-  const create = useMutation({ mutationFn: () => api.createGoal({ name: name.trim(), icon, targetMinor: Math.round(amount.value * 100), deadline }), onSuccess: done, onError: fail });
+  const create = useMutation({ mutationFn: () => api.createGoal({ name: name.trim(), icon, targetMinor: Math.round(amount.value * 100), deadline, priority }), onSuccess: done, onError: fail });
   const add = useMutation({ mutationFn: (g: Goal) => api.updateGoal(g.id, { addMinor: Math.round(amount.value * 100) }), onSuccess: done, onError: fail });
   const remove = useMutation({ mutationFn: (g: Goal) => api.deleteGoal(g.id), onSuccess: done, onError: fail });
 
@@ -50,6 +63,7 @@ export default function MetasPage() {
     if (d?.kind === 'new') {
       setName('');
       setIcon('target');
+      setPriority(3);
     }
     setDialog(d);
   };
@@ -92,8 +106,9 @@ export default function MetasPage() {
 
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))' }}>
         {list.map((g, i) => {
-          const r = Math.min(g.savedMinor / g.targetMinor, 1), doneGoal = r >= 1, feat = i === 0, left = g.targetMinor - g.savedMinor;
-          const months = Math.max(1, Math.ceil(daysBetween(today, g.deadline) / 30.4));
+          const r = Math.min(g.savedMinor / g.targetMinor, 1), doneGoal = r >= 1, feat = i === 0;
+          // Aporte necessario calculado no servidor (o navegador nao calcula valores).
+          const need = insightOf(g.id)?.requiredMonthlyMinor;
           const late = g.deadline < today && !doneGoal;
           const subFg = feat ? 'rgba(255,255,255,.85)' : 'var(--muted-foreground)';
           return (
@@ -110,7 +125,7 @@ export default function MetasPage() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-base font-semibold">{g.name}</div>
                   <div className="mt-0.5 text-xs" style={{ color: subFg }}>
-                    até {MESES[+g.deadline.slice(5, 7) - 1]} {g.deadline.slice(0, 4)}
+                    até {MESES[+g.deadline.slice(5, 7) - 1]} {g.deadline.slice(0, 4)} · prioridade {PRIORITIES[g.priority - 1]!.label.toLowerCase()}
                   </div>
                 </div>
                 <button
@@ -136,10 +151,13 @@ export default function MetasPage() {
                   ? 'Meta concluída. Parabéns!'
                   : late
                     ? 'O prazo passou. Ajuste a data ou o valor.'
-                    : g.monthlyContributionMinor
-                      ? `Plano: ${money(g.monthlyContributionMinor)}/mês · precisa de ${money(Math.ceil(left / months))}/mês`
-                      : `Guarde ${money(Math.ceil(left / months))} por mês para chegar lá`}
+                    : !need
+                      ? 'Calculando quanto guardar por mês…'
+                      : g.monthlyContributionMinor
+                        ? `Plano: ${money(g.monthlyContributionMinor)}/mês · precisa de ${money(need)}/mês`
+                        : `Guarde ${money(need)} por mês para chegar lá`}
               </div>
+              <GoalChance goal={g} insight={insightOf(g.id)} months={insights.data?.months ?? 0} featured={feat} />
               <button
                 onClick={() => open({ kind: 'add', goal: g })}
                 className="btn h-[46px]"
@@ -184,6 +202,24 @@ export default function MetasPage() {
                 Prazo
                 <input type="date" value={deadline} min={today} onChange={(e) => setDeadline(e.target.value)} className="input" />
               </label>
+              <div className="field" role="radiogroup" aria-label="Prioridade">
+                Prioridade (a sobra do mês vai primeiro para as metas mais importantes)
+                <div className="flex flex-wrap gap-1.5">
+                  {PRIORITIES.map((p) => (
+                    <button
+                      key={p.v}
+                      type="button"
+                      role="radio"
+                      aria-checked={priority === p.v}
+                      onClick={() => setPriority(p.v)}
+                      className="h-11 cursor-pointer rounded-full border px-3.5 text-[13px] font-semibold"
+                      style={{ background: priority === p.v ? 'var(--brand-soft)' : 'var(--card)', borderColor: priority === p.v ? 'var(--brand)' : 'var(--border)', color: 'var(--foreground)' }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           ) : (
             <div className="text-[13px] text-muted-foreground">Registre o que você já separou para esta meta. O Pluto não movimenta dinheiro.</div>
@@ -224,6 +260,38 @@ export default function MetasPage() {
           </div>
         </Sheet>
       )}
+    </div>
+  );
+}
+
+/** Chance de cumprir no prazo e o que fazer para chegar a 85% (doc. "Metas"). */
+function GoalChance({ goal, insight, months, featured }: { goal: Goal; insight: GoalInsights['goals'][number] | undefined; months: number; featured: boolean }) {
+  if (!insight || goal.savedMinor >= goal.targetMinor) return null;
+  const sub = featured ? 'rgba(255,255,255,.85)' : 'var(--muted-foreground)';
+  if (insight.chance === null)
+    return (
+      <div className="text-xs" style={{ color: sub }}>
+        A chance de cumprir aparece com 3 meses de histórico.
+      </div>
+    );
+  const cut = insight.cutCategory ? categoryOf(insight.cutCategory).label.toLowerCase() : null;
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl p-2.5" style={{ background: featured ? 'rgba(255,255,255,.12)' : 'var(--muted)' }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <ProbabilityBadge p={insight.chance} label="de chance no prazo" />
+      </div>
+      {insight.extraFor85Minor !== null && insight.extraFor85Minor > 0 && (
+        <div className="text-[13px] leading-snug">
+          Guardando {money(insight.extraFor85Minor)} a mais por mês{cut ? ` (por exemplo, menos em ${cut})` : ''}, a chance sobe para 85%.
+        </div>
+      )}
+      <div className={featured ? '[&_button]:text-white' : ''}>
+        <Why>
+          Precisa de {money(insight.requiredMonthlyMinor)} por mês em {insight.months} {insight.months === 1 ? 'mês' : 'meses'}. Simulamos 4.000 vezes os
+          próximos meses sorteando a sobra (receitas menos despesas) dos seus últimos {months} meses. A sobra vai primeiro para as metas de prioridade mais
+          alta, e mês no vermelho não tira dinheiro de meta.
+        </Why>
+      </div>
     </div>
   );
 }

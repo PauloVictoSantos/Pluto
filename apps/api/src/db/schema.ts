@@ -124,6 +124,16 @@ export const VALIDATORS: Record<string, Document> = {
     currentValueMinor: int,
     dueDate: dateOrNull,
   }),
+  bills: schema(['userId', 'payeeEnc', 'amountEnc', 'dueDate', 'status', 'createdAt'], {
+    userId: oid,
+    payeeEnc: { bsonType: 'string', pattern: '^v1\\.' },
+    amountEnc: { bsonType: 'string', pattern: '^v1\\.' },
+    lineEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },
+    dueDate: { bsonType: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+    status: enumOf(['pending', 'paid', 'overdue']),
+    paidAt: dateOrNull,
+    paidTransactionId: oidOrNull,
+  }),
   shopping_items: schema(['userId', 'name', 'nameNorm', 'aliases', 'category', 'unit', 'createdAt'], {
     userId: oid,
     name: { bsonType: 'string', maxLength: 60 },

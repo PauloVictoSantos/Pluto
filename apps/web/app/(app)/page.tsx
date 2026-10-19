@@ -6,6 +6,7 @@ import { CategoryChart, PlutoTip } from '@/components/charts/CategoryChart';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { BankLogo } from '@/components/BankLogo';
 import { CreditCard, cardLook } from '@/components/CreditCard';
+import { ForecastCard } from '@/components/ForecastCard';
 import { useShell } from '@/components/shell/ShellContext';
 import { LiveTransactionList } from '@/components/TransactionList';
 import { CountUp } from '@/components/ui/CountUp';
@@ -19,13 +20,13 @@ import { change, monthLower, money, useBudget, useCards, useCurrentMonth, useInv
 import { setHideValues, useApp } from '@/lib/store';
 import { useHydrated, type Mode } from '@/lib/viewport';
 
-type Block = 'saldo' | 'kpis' | 'chart' | 'pie' | 'limit' | 'cards' | 'due' | 'invest' | 'tx';
+type Block = 'saldo' | 'kpis' | 'forecast' | 'chart' | 'pie' | 'limit' | 'cards' | 'due' | 'invest' | 'tx';
 const LAYOUT: Record<Mode, Partial<Record<Block, string>>> = {
-  desktop: { saldo: 'span 5', kpis: 'span 7', chart: 'span 8', pie: 'span 4', cards: 'span 5', invest: 'span 4', limit: 'span 3', due: 'span 3' },
-  tablet: { saldo: '1 / -1', kpis: '1 / -1', chart: '1 / -1', pie: 'span 6', limit: 'span 6', cards: '1 / -1', due: 'span 6', invest: 'span 6' },
+  desktop: { saldo: 'span 5', kpis: 'span 7', forecast: '1 / -1', chart: 'span 8', pie: 'span 4', cards: 'span 5', invest: 'span 4', limit: 'span 3', due: 'span 3' },
+  tablet: { saldo: '1 / -1', kpis: '1 / -1', forecast: '1 / -1', chart: '1 / -1', pie: 'span 6', limit: 'span 6', cards: '1 / -1', due: 'span 6', invest: 'span 6' },
   mobile: {},
 };
-const MOBILE_ORDER: Block[] = ['saldo', 'kpis', 'limit', 'cards', 'due', 'pie', 'chart', 'tx', 'invest'];
+const MOBILE_ORDER: Block[] = ['saldo', 'kpis', 'forecast', 'limit', 'cards', 'due', 'pie', 'chart', 'tx', 'invest'];
 const pctText = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`);
 
 export default function OverviewPage() {
@@ -223,6 +224,11 @@ export default function OverviewPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Saldo no fim do mes em faixa e probabilidade (camada analitica) */}
+        <div data-anim="" className="min-w-0" style={L('forecast')}>
+          <ForecastCard />
         </div>
 
         <div data-anim="" className="min-w-0" style={L('chart')}>

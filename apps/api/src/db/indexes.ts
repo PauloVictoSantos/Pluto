@@ -40,6 +40,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
   shopping_items: [{ key: { userId: 1, nameNorm: 1 }, unique: true }, { key: { userId: 1, aliases: 1 } }],
   shopping_lists: [{ key: { userId: 1, month: 1 }, unique: true }, { key: { status: 1 } }],
+  bills: [{ key: { userId: 1, dueDate: 1 } }, { key: { status: 1, dueDate: 1 } }],
   budgets: [{ key: { userId: 1, month: 1, categoryKey: 1 }, unique: true }],
   goals: [{ key: { userId: 1, deadline: 1 } }],
   charges: [{ key: { userId: 1, createdAt: -1 } }, { key: { 'installments.paymentIntentId': 1 } }, { key: { 'installments.status': 1 } }],

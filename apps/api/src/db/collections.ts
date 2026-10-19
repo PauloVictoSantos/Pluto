@@ -246,6 +246,8 @@ export interface RecurrenceDoc {
   label: string;
   categoryKey: string;
   period: 7 | 14 | 30 | 365;
+  /** A maioria das ocorrencias e no cartao: sai do saldo so pela fatura (projecao do saldo). */
+  onCard?: boolean;
   amountMinor: number;
   count: number;
   lastDate: Date;
@@ -353,6 +355,24 @@ export interface ShoppingListDoc {
   updatedAt: Date;
 }
 
+/** Boleto a pagar cadastrado pelo usuario (doc. "bills"). Beneficiario, valor e linha cifrados. */
+export interface BillDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  payeeEnc: string;
+  amountEnc: string;
+  /** "YYYY-MM-DD" */
+  dueDate: string;
+  status: 'pending' | 'paid' | 'overdue';
+  lineEnc: string | null;
+  fine: number;
+  monthlyInterest: number;
+  paidAt: Date | null;
+  paidTransactionId: ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface BudgetDoc {
   _id: ObjectId;
   userId: ObjectId;
@@ -375,6 +395,8 @@ export interface GoalDoc {
   deadline: string;
   /** Aporte mensal planejado (Planejamento). */
   monthlyContributionMinor: number;
+  /** 1 (mais importante) a 5 (RN-M02). Ausente em metas antigas: vale 3. */
+  priority?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -404,6 +426,7 @@ export interface Collections {
   charges: Collection<ChargeDoc>;
   budgets: Collection<BudgetDoc>;
   shoppingItems: Collection<ShoppingItemDoc>;
+  bills: Collection<BillDoc>;
   shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
   auditLogs: Collection<AuditLogDoc>;
@@ -425,6 +448,7 @@ export const collections = (db: Db): Collections => ({
   charges: db.collection<ChargeDoc>('charges'),
   budgets: db.collection<BudgetDoc>('budgets'),
   shoppingItems: db.collection<ShoppingItemDoc>('shopping_items'),
+  bills: db.collection<BillDoc>('bills'),
   shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),

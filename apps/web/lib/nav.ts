@@ -31,7 +31,7 @@ export const TABS: [PageId, string][] = [
   ['budget', 'Orçamento'], ['invest', 'Investimentos'], ['reports', 'Relatórios'],
 ];
 export const SIDE_TOP: [PageId, string, string][] = [
-  ['overview', 'Dashboard', 'layout-dashboard'], ['list', 'Lista de compras', 'list-checks'], ['bills', 'Calendário de contas', 'calendar-days'], ['goals', 'Metas', 'target'],
+  ['overview', 'Dashboard', 'layout-dashboard'], ['list', 'Lista de compras', 'list-checks'], ['bills', 'Contas a pagar', 'calendar-days'], ['goals', 'Metas', 'target'],
   ['cards', 'Cartões', 'credit-card'], ['invest', 'Investimentos', 'trending-up'], ['settings', 'Configurações', 'settings'],
 ];
 export const SIDE_BOTTOM: [NavId, string, string][] = [['help', 'Ajuda', 'circle-help'], ['logout', 'Sair', 'log-out']];

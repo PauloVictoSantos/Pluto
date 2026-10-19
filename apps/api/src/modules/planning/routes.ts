@@ -21,6 +21,7 @@ const toGoal = (g: GoalDoc): Goal => ({
   savedMinor: g.savedMinor,
   deadline: g.deadline,
   monthlyContributionMinor: g.monthlyContributionMinor ?? 0,
+  priority: g.priority ?? 3,
 });
 
 export const planningRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app, { ctx }) => {
@@ -46,7 +47,7 @@ export const planningRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async 
   });
 
   app.get('/goals', { schema: { response: { 200: z.array(GoalSchema) } } }, async (req) =>
-    (await col.goals.find({ userId: userOf(req).id }).sort({ deadline: 1 }).toArray()).map(toGoal),
+    (await col.goals.find({ userId: userOf(req).id }).sort({ priority: 1, deadline: 1 }).toArray()).map(toGoal),
   );
 
   app.post('/goals', { schema: { body: CreateGoalSchema, response: { 201: GoalSchema } } }, async (req, reply) => {

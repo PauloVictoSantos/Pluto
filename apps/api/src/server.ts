@@ -9,7 +9,7 @@ import { createResendMailer } from './integrations/email/resend';
 import { createGemini } from './integrations/llm/gemini';
 import { createStripeGateway } from './integrations/stripe/gateway';
 import { createPluggyGateway } from './integrations/pluggy/sdk-gateway';
-import { startChargeScheduler, startShoppingScheduler, startSyncScheduler } from './jobs/sync-scheduler';
+import { startChargeScheduler, startPlannerScheduler, startSyncScheduler } from './jobs/sync-scheduler';
 import { createFieldCrypto } from './lib/crypto';
 import { createJwt } from './lib/jwt';
 
@@ -42,7 +42,7 @@ const app = await buildApp(ctx);
 if (!ctx.jwt) app.log.warn('JWT_PUBLIC_KEY ausente: rotas autenticadas vão responder 401');
 const stopScheduler = startSyncScheduler(ctx, app.log);
 const stopCharges = startChargeScheduler(ctx, app.log);
-const stopShopping = startShoppingScheduler(ctx, app.log);
+const stopShopping = startPlannerScheduler(ctx, app.log);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'encerrando');

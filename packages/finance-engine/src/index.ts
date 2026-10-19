@@ -4,3 +4,4 @@ export * from './present-value';
 export * from './recurrence';
 export * from './stats';
 export * from './shopping';
+export * from './forecast';

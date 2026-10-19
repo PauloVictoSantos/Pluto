@@ -7,6 +7,11 @@ import {
   BudgetSchema,
   CardSchema,
   CommitmentsSchema,
+  BillSchema,
+  BudgetSuggestionSchema,
+  ForecastSchema,
+  GoalInsightsSchema,
+  PaymentPlanSchema,
   CatalogSchema,
   ClosedListSchema,
   ListHistorySchema,
@@ -158,6 +163,17 @@ export const api = {
 
   // Camada analitica: numeros prontos do servidor (o navegador nao calcula previsoes).
   commitments: () => request('/analytics/commitments', {}, CommitmentsSchema),
+  forecast: () => request('/analytics/forecast', {}, ForecastSchema),
+  budgetSuggestion: () => request('/analytics/budget', {}, BudgetSuggestionSchema),
+  goalInsights: () => request('/analytics/goals', {}, GoalInsightsSchema),
+  paymentPlan: () => request('/analytics/payments', {}, PaymentPlanSchema),
+
+  // Boletos a pagar (cadastro manual ou pela linha digitavel).
+  bills: () => request('/bills', {}, z.array(BillSchema)),
+  createBill: (b: { payee: string; line?: string; amountMinor?: number; dueDate?: string }) => request('/bills', post(b), BillSchema),
+  updateBill: (id: string, patch: { status?: 'paid' | 'pending'; transactionId?: string }) =>
+    request(`/bills/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, BillSchema),
+  deleteBill: (id: string) => request<void>(`/bills/${id}`, { method: 'DELETE' }),
 
   // Lista de compras do mes.
   shoppingList: () => request('/shopping/list', {}, ShoppingListSchema),
@@ -194,9 +210,9 @@ export const api = {
   putBudget: (month: string, items: { categoryKey: string; limitMinor: number }[]) =>
     request('/budgets', { method: 'PUT', body: JSON.stringify({ month, items }) }, BudgetSchema),
   goals: () => request('/goals', {}, z.array(GoalSchema)),
-  createGoal: (g: { name: string; targetMinor: number; deadline: string; icon?: string; savedMinor?: number }) =>
+  createGoal: (g: { name: string; targetMinor: number; deadline: string; icon?: string; savedMinor?: number; priority?: number }) =>
     request('/goals', post(g), GoalSchema),
-  updateGoal: (id: string, patch: { addMinor?: number; monthlyContributionMinor?: number; name?: string; targetMinor?: number; deadline?: string }) =>
+  updateGoal: (id: string, patch: { addMinor?: number; monthlyContributionMinor?: number; name?: string; targetMinor?: number; deadline?: string; priority?: number }) =>
     request(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, GoalSchema),
   deleteGoal: (id: string) => request<void>(`/goals/${id}`, { method: 'DELETE' }),
   similar: (id: string) => request(`/transactions/${id}/similar`, {}, SimilarSchema),

@@ -1,12 +1,17 @@
 'use client';
 
+import type { Bill as BillDTO } from '@pluto/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { AddBillSheet } from '@/components/AddBillSheet';
 import { BankLogo } from '@/components/BankLogo';
 import { CommitmentsCard } from '@/components/CommitmentsCard';
+import { PaymentPlanCard } from '@/components/PaymentPlanCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
 import { StatTiles, tileBrand, tilePlain } from '@/components/StatTiles';
 import { Icon } from '@/components/ui/Icon';
+import { ApiRequestError, api } from '@/lib/api';
 import { bankBrand } from '@/lib/banks';
 import { ymdIn } from '@/lib/datetime';
 import { daysBetween, fmtDay } from '@/lib/format';
@@ -34,6 +39,8 @@ interface Bill {
   date: string;
   amount: number;
   kind: Kind;
+  /** Boleto a pagar cadastrado pelo usuario (as faturas vem do banco). */
+  boleto?: BillDTO;
 }
 
 export default function ContasPage() {
@@ -43,6 +50,24 @@ export default function ContasPage() {
   const today = ymdIn(new Date(), tz);
   const [month, setMonth] = useState(current);
   const [day, setDay] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [undo, setUndo] = useState<{ id: string; label: string } | null>(null);
+  const [error, setError] = useState('');
+  const qc = useQueryClient();
+  const userBills = useQuery({ queryKey: ['bills'], queryFn: api.bills });
+  const setPaid = useMutation({
+    mutationFn: ({ id, paid, transactionId }: { id: string; paid: boolean; transactionId?: string }) =>
+      api.updateBill(id, paid ? { status: 'paid', ...(transactionId ? { transactionId } : {}) } : { status: 'pending' }),
+    onMutate: () => setError(''),
+    onSuccess: (b, v) => {
+      void qc.invalidateQueries({ queryKey: ['bills'] });
+      void qc.invalidateQueries({ queryKey: ['analytics'] });
+      setUndo(v.paid ? { id: b.id, label: `${b.payee} marcado como pago` } : null);
+      if (v.paid) setTimeout(() => setUndo((u) => (u?.id === b.id ? null : u)), 5000);
+    },
+    onError: (e) => setError(e instanceof ApiRequestError ? e.message : 'Não conseguimos salvar. Tente de novo.'),
+  });
   const root = useRef<HTMLDivElement>(null);
   useEnter(root);
 
@@ -67,6 +92,12 @@ export default function ContasPage() {
     if (date.slice(0, 7) !== month || bills.some((b) => b.name === c.name && b.date === date)) continue;
     bills.push({ id: `cur-${c.id}`, name: c.name, sub: `${bankBrand(c.institutionName).label} · fatura atual`, bank: c.institutionName, date, amount: c.currentBillMinor, kind: 'OPEN' });
   }
+  // Boletos a pagar cadastrados (RN-M03: vencido pelo job, pago so por acao do usuario).
+  for (const b of userBills.data ?? []) {
+    if (b.dueDate.slice(0, 7) !== month) continue;
+    const kind: Kind = b.status === 'paid' ? 'PAID' : b.status === 'overdue' ? 'OVERDUE' : 'OPEN';
+    bills.push({ id: `bill-${b.id}`, name: b.payee, sub: 'Boleto', bank: '', date: b.dueDate, amount: b.amountMinor, kind, boleto: b });
+  }
   bills.sort((a, b) => a.date.localeCompare(b.date));
 
   const y = +month.slice(0, 4), m = +month.slice(5);
@@ -81,7 +112,7 @@ export default function ContasPage() {
   const open = bills.filter((b) => b.kind === 'OPEN' || b.kind === 'OVERDUE');
   const paid = bills.filter((b) => b.kind === 'PAID');
   const overdue = bills.filter((b) => b.kind === 'OVERDUE');
-  const loading = invoices.isPending || cards.isPending;
+  const loading = invoices.isPending || cards.isPending || userBills.isPending;
 
   const go = (n: number) => {
     setMonth(addMonth(month, n));
@@ -92,8 +123,8 @@ export default function ContasPage() {
     <div ref={root} className="flex flex-col gap-4">
       <div data-anim="" className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="page-title">Calendário de contas</h1>
-          <p className="m-0 text-sm text-muted-foreground">Faturas dos seus cartões</p>
+          <h1 className="page-title">Contas a pagar</h1>
+          <p className="m-0 text-sm text-muted-foreground">Faturas dos seus cartões e boletos</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => go(-1)} aria-label="Mês anterior" className="icon-btn size-11">
@@ -102,6 +133,10 @@ export default function ContasPage() {
           <span className="min-w-36 text-center text-[15px] font-semibold">{monthLong(month)}</span>
           <button onClick={() => go(1)} aria-label="Próximo mês" className="icon-btn size-11">
             <Icon icon="chevron-right" size={18} />
+          </button>
+          <button onClick={() => setAdding(true)} className="btn btn-primary h-11">
+            <Icon icon="plus" size={16} />
+            Boleto
           </button>
           {month !== current && (
             <button onClick={() => { setMonth(current); setDay(null); }} className="btn btn-outline h-11">
@@ -124,6 +159,8 @@ export default function ContasPage() {
           },
         ]}
       />
+
+      {month === current && <PaymentPlanCard today={today} />}
 
       <div className="grid items-start gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'minmax(0,5fr) minmax(0,7fr)' : 'minmax(0,1fr)' }}>
         <div data-anim="" className="card flex flex-col gap-3 p-[clamp(14px,4vw,24px)]">
@@ -171,7 +208,7 @@ export default function ContasPage() {
 
         <div data-anim="" className="card flex flex-col gap-1">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="card-title">{day ? `Faturas de ${fmtDay(day)}` : 'Faturas do mês'}</span>
+            <span className="card-title">{day ? `Contas de ${fmtDay(day)}` : 'Contas do mês'}</span>
             {day && (
               <button onClick={() => setDay(null)} className="btn btn-outline h-9 px-3 text-[13px]">
                 Ver todas
@@ -195,7 +232,13 @@ export default function ContasPage() {
                         : `Venceu ${fmtDay(b.date)}`;
             return (
               <div key={b.id} className="flex min-h-[68px] flex-wrap items-center gap-3 border-t border-border py-2">
-                <BankLogo name={b.bank} size={42} />
+                {b.boleto ? (
+                  <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-muted">
+                    <Icon icon="barcode" size={18} />
+                  </span>
+                ) : (
+                  <BankLogo name={b.bank} size={42} />
+                )}
                 <div className="min-w-[120px] flex-1">
                   <div className="text-[15px] font-semibold">{b.name}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
@@ -208,13 +251,22 @@ export default function ContasPage() {
                     {st.label}
                   </span>
                 </div>
+                {b.boleto && (
+                  <BoletoActions
+                    bill={b.boleto}
+                    dismissed={dismissed.has(b.boleto.id)}
+                    busy={setPaid.isPending}
+                    onPaid={(transactionId) => setPaid.mutate({ id: b.boleto!.id, paid: true, transactionId })}
+                    onDismiss={() => setDismissed((x) => new Set([...x, b.boleto!.id]))}
+                  />
+                )}
               </div>
             );
           })}
           {!loading && list.length === 0 && (
             <div className="flex flex-col items-center gap-2.5 border-t border-border px-3 py-7 text-center">
               <PlutoLogo size={56} />
-              <div className="text-[15px] font-semibold">{day ? 'Nenhuma fatura neste dia' : 'Nenhuma fatura neste mês'}</div>
+              <div className="text-[15px] font-semibold">{day ? 'Nenhuma conta neste dia' : 'Nenhuma conta neste mês'}</div>
               <div className="text-[13px] text-muted-foreground">Dia livre. A Pluto avisa quando algo vencer.</div>
             </div>
           )}
@@ -226,6 +278,65 @@ export default function ContasPage() {
         </div>
       </div>
       <CommitmentsCard />
+
+      {error && (
+        <div role="alert" className="fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-danger-soft px-4 py-2 text-sm text-danger-text">
+          {error}
+        </div>
+      )}
+      {undo && (
+        <div role="status" aria-live="polite" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-dark-card py-2 pr-2 pl-4 text-sm text-white shadow-lg">
+          {undo.label}
+          <button
+            onClick={() => {
+              setPaid.mutate({ id: undo.id, paid: false });
+              setUndo(null);
+            }}
+            className="flex h-9 cursor-pointer items-center gap-1 rounded-full border-0 bg-white px-3 font-semibold text-black"
+          >
+            <Icon icon="undo-2" size={14} />
+            Desfazer
+          </button>
+        </div>
+      )}
+      {adding && <AddBillSheet today={today} onClose={() => setAdding(false)} />}
     </div>
+  );
+}
+
+/** Pago so por acao do usuario ou conciliacao confirmada (RN-M03): a sugestao nunca marca sozinha. */
+function BoletoActions({
+  bill,
+  dismissed,
+  busy,
+  onPaid,
+  onDismiss,
+}: {
+  bill: BillDTO;
+  dismissed: boolean;
+  busy: boolean;
+  onPaid: (transactionId?: string) => void;
+  onDismiss: () => void;
+}) {
+  if (bill.status === 'paid') return null;
+  if (bill.match && !dismissed)
+    return (
+      <div className="flex w-full flex-wrap items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-[13px]">
+        <span className="min-w-[160px] flex-1">
+          Parece pago em {fmtDay(bill.match.date.toISOString().slice(0, 10))} ({bill.match.label}). Confirmar?
+        </span>
+        <button onClick={onDismiss} className="btn btn-outline h-10 px-3 text-[13px]">
+          Não é este
+        </button>
+        <button onClick={() => onPaid(bill.match!.transactionId)} disabled={busy} className="btn btn-primary h-10 px-3 text-[13px]">
+          Confirmar
+        </button>
+      </div>
+    );
+  return (
+    <button onClick={() => onPaid()} disabled={busy} className="btn btn-outline h-10 w-full text-[13px]">
+      <Icon icon="check" size={14} />
+      Marcar como pago
+    </button>
   );
 }

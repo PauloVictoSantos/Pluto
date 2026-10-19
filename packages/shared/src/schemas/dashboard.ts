@@ -113,6 +113,8 @@ export const GoalSchema = z.object({
   /** AAAA-MM-DD */
   deadline: z.string(),
   monthlyContributionMinor: z.number().int(),
+  /** 1 (mais importante) a 5 (RN-M02); metas antigas valem 3. */
+  priority: z.number().int().min(1).max(5),
 });
 export type Goal = z.infer<typeof GoalSchema>;
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -121,7 +123,9 @@ export const CreateGoalSchema = z.object({
   icon: z.string().max(30).default('target'),
   targetMinor: z.number().int().positive().max(1e12),
   savedMinor: z.number().int().nonnegative().max(1e12).default(0),
-  deadline: Day,
+  /** RN-M02: prazo no futuro. */
+  deadline: Day.refine((d) => d > new Date().toISOString().slice(0, 10), 'O prazo precisa ser uma data futura'),
+  priority: z.number().int().min(1).max(5).default(3),
 });
 // Sem .partial() do CreateGoalSchema: no Zod v4 os defaults continuariam valendo e um PATCH
 // parcial zeraria savedMinor/icon.
@@ -134,6 +138,7 @@ export const UpdateGoalSchema = z.object({
   /** Soma ao valor guardado ("Guardar dinheiro"). Registro manual: o Pluto nao move dinheiro. */
   addMinor: z.number().int().min(-1e12).max(1e12).optional(),
   monthlyContributionMinor: z.number().int().nonnegative().max(1e12).optional(),
+  priority: z.number().int().min(1).max(5).optional(),
 });
 
 // Assistente (secao 5.7): a API calcula, o LLM so explica.
