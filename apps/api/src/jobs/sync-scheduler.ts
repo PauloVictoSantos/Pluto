@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppContext } from '../context';
+import { processCharges } from '../modules/charges/service';
 import { syncConnection } from '../modules/sync/service';
 
 /**
@@ -34,6 +35,27 @@ export function startSyncScheduler(ctx: AppContext, log: FastifyBaseLogger) {
   };
 
   const first = setTimeout(run, 15_000);
+  const every = setInterval(run, ctx.env.SYNC_INTERVAL_HOURS * 3_600_000);
+  return () => {
+    clearTimeout(first);
+    clearInterval(every);
+  };
+}
+
+/**
+ * Cobrancas por boleto: emite parcelas que entraram na janela de 60 dias do Stripe e atualiza as
+ * abertas (rede de seguranca para quando o webhook nao chega, como no computador local).
+ */
+export function startChargeScheduler(ctx: AppContext, log: FastifyBaseLogger) {
+  if (!ctx.stripe) return () => {};
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    await processCharges(ctx, {}, log).catch((err) => log.error({ err }, 'falha no job de cobranças'));
+    running = false;
+  };
+  const first = setTimeout(run, 30_000);
   const every = setInterval(run, ctx.env.SYNC_INTERVAL_HOURS * 3_600_000);
   return () => {
     clearTimeout(first);

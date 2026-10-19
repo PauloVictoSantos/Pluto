@@ -38,6 +38,19 @@ O banco continua no MongoDB Atlas.
 2. Domínio próprio (opcional): Render → Settings → Custom Domains. Depois **atualize `ALLOWED_ORIGINS`** para o domínio novo.
 3. Confira que a sincronização roda: em Configurações, o "última sincronização" das conexões deve atualizar a cada 6 h.
 
+## Boletos (Stripe)
+
+1. No Stripe, crie uma **chave restrita** com **PaymentIntents: Write** e **PaymentMethods: Write**, e todo o resto em **None**. Coloque em `STRIPE_SECRET_KEY`. Comece com a de teste (`rk_test_...`). A chave `live` só é aceita com `NODE_ENV=production`.
+2. Em **Developers → Webhooks → Add endpoint**, use `https://<seu-serviço>.onrender.com/v1/webhooks/stripe` com os eventos `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled` e `payment_intent.processing`. Copie o **Signing secret** (`whsec_...`) para `STRIPE_WEBHOOK_SECRET`.
+3. Sem webhook (ex.: no computador), a situação dos boletos é atualizada pelo botão de atualizar na tela de boleto e pelo job a cada 6 h.
+
+## E-mail dos boletos (Resend)
+
+1. No Resend, crie uma API key com permissão **Sending access** e coloque em `RESEND_API_KEY`.
+2. Em **Domains**, verifique um domínio seu (o Resend mostra os registros DNS que você precisa criar). Depois defina `EMAIL_FROM`, por exemplo `Pluto <cobranca@seudominio.com.br>`.
+3. Sem domínio verificado, o Resend só envia do endereço de testes (`onboarding@resend.dev`) e **só para o e-mail da sua própria conta Resend**. Isso serve para testar, mas não para mandar boletos a outras pessoas.
+4. O pagador recebe e-mail quando você toca em **Enviar e-mail** no boleto, e automaticamente quando um boleto já emitido é cancelado. As respostas ao e-mail vão para o seu e-mail de contato do Pluto.
+
 ## Erros comuns
 
 - **`Cannot read properties of null (reading 'useContext')` no `/_global-error` durante o build:** o `NODE_ENV` do serviço não é `production`. Isso costuma acontecer quando se copia o `.env` local, que tem `NODE_ENV=development`.

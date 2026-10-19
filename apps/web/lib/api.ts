@@ -14,6 +14,7 @@ import {
   SpendingSchema,
   HealthSchema,
   MeSchema,
+  ChargeSchema,
   MfaChallengeSchema,
   PasskeyOptionsSchema,
   PasskeySchema,
@@ -22,9 +23,12 @@ import {
   TransactionPageSchema,
   TransactionSummarySchema,
   type ApiError,
+  CreateChargeSchema,
   type TransactionQuery,
 } from '@pluto/shared';
 import { z } from 'zod';
+
+export type CreateChargeInput = z.input<typeof CreateChargeSchema>;
 
 // Web: mesma origem (o Next repassa /v1 para a API). Mobile: URL absoluta da API.
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/v1';
@@ -121,6 +125,16 @@ export const api = {
   me: () => request('/me', {}, MeSchema),
   updateMe: (patch: { name?: string; phone?: string | null; email?: string; cpf?: string }) =>
     request('/me', { method: 'PATCH', body: JSON.stringify(patch) }, MeSchema),
+
+  // Cobrancas por boleto (Stripe).
+  chargesStatus: () => request('/charges/status', {}, z.object({ enabled: z.boolean(), testMode: z.boolean(), emailEnabled: z.boolean() })),
+  charges: () => request('/charges', {}, z.array(ChargeSchema)),
+  createCharge: (body: CreateChargeInput) => request('/charges', post(body), ChargeSchema),
+  refreshCharges: () => request('/charges/refresh', post(), z.array(ChargeSchema)),
+  cancelCharge: (id: string) => request(`/charges/${id}/cancel`, post(), ChargeSchema),
+  sendCharge: (id: string, n: number | null) => request(`/charges/${id}/send`, post({ n }), ChargeSchema),
+  closeInstallment: (id: string, n: number, outcome: 'CANCEL' | 'RECEIVED') =>
+    request(`/charges/${id}/installments/${n}/close`, post({ outcome }), ChargeSchema),
 
   // Passkeys (biometria do aparelho). As opcoes e respostas vao direto para o WebAuthn do navegador.
   passkeys: () => request('/auth/passkeys', {}, z.array(PasskeySchema)),

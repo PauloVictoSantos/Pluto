@@ -5,9 +5,11 @@ import { connectDatabase } from './db/client';
 import { collections } from './db/collections';
 import { ensureIndexes } from './db/indexes';
 import { runMigrations } from './db/migrations';
+import { createResendMailer } from './integrations/email/resend';
 import { createGemini } from './integrations/llm/gemini';
+import { createStripeGateway } from './integrations/stripe/gateway';
 import { createPluggyGateway } from './integrations/pluggy/sdk-gateway';
-import { startSyncScheduler } from './jobs/sync-scheduler';
+import { startChargeScheduler, startSyncScheduler } from './jobs/sync-scheduler';
 import { createFieldCrypto } from './lib/crypto';
 import { createJwt } from './lib/jwt';
 
@@ -30,16 +32,21 @@ const ctx: AppContext = {
       ? createPluggyGateway({ clientId: env.PLUGGY_CLIENT_ID, clientSecret: env.PLUGGY_CLIENT_SECRET })
       : null,
   pingDb: database.ping,
+  stripe: env.STRIPE_SECRET_KEY ? createStripeGateway({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET }) : null,
+  // Sem dominio verificado, o Resend so envia do endereco de testes para o e-mail da propria conta.
+  mailer: env.RESEND_API_KEY ? createResendMailer({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM ?? 'Pluto <onboarding@resend.dev>' }) : null,
   llm: llmKey ? createGemini({ apiKey: llmKey, model: env.LLM_MODEL ?? 'gemini-2.5-flash', fallbackModel: 'gemini-2.5-flash' }) : null,
 };
 
 const app = await buildApp(ctx);
 if (!ctx.jwt) app.log.warn('JWT_PUBLIC_KEY ausente: rotas autenticadas vão responder 401');
 const stopScheduler = startSyncScheduler(ctx, app.log);
+const stopCharges = startChargeScheduler(ctx, app.log);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'encerrando');
   stopScheduler();
+  stopCharges();
   await app.close();
   await database.close();
   process.exit(0);

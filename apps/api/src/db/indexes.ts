@@ -38,6 +38,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
   budgets: [{ key: { userId: 1, month: 1, categoryKey: 1 }, unique: true }],
   goals: [{ key: { userId: 1, deadline: 1 } }],
+  charges: [{ key: { userId: 1, createdAt: -1 } }, { key: { 'installments.paymentIntentId': 1 } }, { key: { 'installments.status': 1 } }],
   notifications: [{ key: { userId: 1, dedupeKey: 1 }, unique: true }],
   sessions: [
     { key: { expiresAt: 1 }, expireAfterSeconds: 0 },

@@ -44,5 +44,17 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Chave restrita do Stripe (PaymentIntents e PaymentMethods em Write). Teste: rk_test_...
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      # Segredo do webhook (whsec_...), criado ao cadastrar https://<servico>.onrender.com/v1/webhooks/stripe
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Resend: e-mail dos boletos e aviso de cancelamento ao pagador.
+      - key: RESEND_API_KEY
+        sync: false
+      # Remetente de um dominio verificado no Resend, ex.: Pluto <cobranca@seudominio.com.br>
+      - key: EMAIL_FROM
+        sync: false
       - key: LLM_MODEL
         value: gemini-3.8-flash

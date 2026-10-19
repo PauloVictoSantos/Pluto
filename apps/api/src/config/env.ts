@@ -45,6 +45,15 @@ export const EnvSchema = z
     GEMINI_API_KEY: optional,
     LLM_MODEL: optional,
 
+    /** Chave restrita do Stripe (rk_test_/rk_live_): PaymentIntents e PaymentMethods em Write. */
+    STRIPE_SECRET_KEY: optional,
+    /** Segredo de assinatura do webhook do Stripe (whsec_...). */
+    STRIPE_WEBHOOK_SECRET: optional,
+
+    /** Resend (e-mail dos boletos). EMAIL_FROM precisa ser de um dominio verificado no Resend. */
+    RESEND_API_KEY: optional,
+    EMAIL_FROM: optional,
+
     FCM_SERVICE_ACCOUNT_JSON: optional,
     BACKUP_PASSPHRASE: optional,
 
@@ -61,6 +70,10 @@ export const EnvSchema = z
         path: ['HOST'],
         message: 'nao escute em todas as interfaces; use 127.0.0.1 ou o IP da VPN',
       });
+    }
+    // Chave de producao do Stripe so roda em producao: no desenvolvimento, boletos seriam reais.
+    if (env.STRIPE_SECRET_KEY && /^(sk|rk)_live_/.test(env.STRIPE_SECRET_KEY) && env.NODE_ENV !== 'production') {
+      ctx.addIssue({ code: 'custom', path: ['STRIPE_SECRET_KEY'], message: 'chave live do Stripe so com NODE_ENV=production' });
     }
     if (env.NODE_ENV === 'production') {
       for (const key of ['JWT_PRIVATE_KEY', 'JWT_PUBLIC_KEY', 'BACKUP_PASSPHRASE'] as const) {

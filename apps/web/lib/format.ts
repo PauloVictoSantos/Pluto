@@ -47,7 +47,8 @@ export const addMonths = (iso: string, n: number) => {
 
 export const maskMoney = (raw: string) => {
   const d = String(raw).replace(/\D/g, '').slice(0, 11);
-  return d ? { text: fmt(+d / 100), value: +d / 100 } : { text: '', value: 0 };
+  // Campo de digitacao: sempre o valor real, mesmo com valores ocultos.
+  return d ? { text: fmtRaw(+d / 100), value: +d / 100 } : { text: '', value: 0 };
 };
 
 export const maskDoc = (raw: string) => {

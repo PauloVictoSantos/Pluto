@@ -1,10 +1,12 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
 import { CountUp } from '@/components/ui/CountUp';
 import { Icon } from '@/components/ui/Icon';
+import { api } from '@/lib/api';
 import { fmtDayFull } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { monthLong, money, useInvestments, useSummary } from '@/lib/queries';
@@ -25,6 +27,9 @@ export default function InvestimentosPage() {
   const inv = useInvestments();
   const summary = useSummary();
   const d = inv.data;
+  // Boletos pagos com destino "para investir" (a Pluto so separa o valor; nao aplica).
+  const charges = useQuery({ queryKey: ['charges'], queryFn: api.charges });
+  const toInvestMinor = (charges.data ?? []).filter((c) => c.destination === 'INVESTMENT').reduce((s, c) => s + c.paidMinor, 0);
   const gain = d && d.appliedMinor ? ((d.totalMinor - d.appliedMinor) / d.appliedMinor) * 100 : null;
   const monthlyInvested = summary.data?.monthly ?? [];
   const names = (summary.data?.banks ?? []).map((b) => b.institutionName.replace(/\s+INSTITUI.*$/i, ''));
@@ -36,6 +41,21 @@ export default function InvestimentosPage() {
         <h1 className="page-title">Investimentos</h1>
         <p className="m-0 text-sm text-muted-foreground">Posições informadas pelas instituições via Open Finance</p>
       </div>
+
+      {toInvestMinor > 0 && (
+        <div data-anim="" className="card flex flex-wrap items-center gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-black">
+            <Icon icon="barcode" size={18} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm text-muted-foreground">Recebido por boleto para investir</div>
+            <div className="text-xl font-bold tracking-[-0.03em] tabular-nums">{money(toInvestMinor)}</div>
+          </div>
+          <button onClick={() => nav('boleto')} className="btn btn-outline">
+            Ver boletos
+          </button>
+        </div>
+      )}
 
       {d && d.items.length === 0 && (
         <div data-anim="" className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card px-6 py-10 text-center">

@@ -9,6 +9,7 @@ import {
 } from 'fastify-type-provider-zod';
 import type { AppContext } from './context';
 import { assistantRoutes } from './modules/assistant/routes';
+import { chargeRoutes, stripeWebhookRoutes } from './modules/charges/routes';
 import { authRoutes } from './modules/auth/routes';
 import { connectionRoutes } from './modules/connections/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
@@ -53,6 +54,8 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(dashboardRoutes, { ctx });
       await v1.register(planningRoutes, { ctx });
       await v1.register(assistantRoutes, { ctx });
+      await v1.register(chargeRoutes, { ctx });
+      await v1.register(stripeWebhookRoutes, { ctx });
     },
     { prefix: API_PREFIX },
   );

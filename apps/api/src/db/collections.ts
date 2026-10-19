@@ -1,5 +1,7 @@
 import type {
   AccountType,
+  ChargeDestination,
+  InstallmentStatus,
   CategorySource,
   ConnectionSource,
   ConnectionStatus,
@@ -220,6 +222,48 @@ export interface CategoryRuleDoc {
   updatedAt: Date;
 }
 
+/** Parcela de uma cobranca: um boleto do Stripe (emitido na hora ou ate 60 dias antes do vencimento). */
+export interface InstallmentDoc {
+  n: number;
+  amountMinor: number;
+  /** "YYYY-MM-DD" (vencimento no horario de Sao Paulo, regra do boleto). */
+  dueDate: string;
+  status: InstallmentStatus;
+  paymentIntentId: string | null;
+  number: string | null;
+  pdfUrl: string | null;
+  voucherUrl: string | null;
+  paidAt: Date | null;
+  /** Valor ja somado a meta (idempotencia do credito). */
+  creditedAt: Date | null;
+  /** Ausente em parcelas antigas (equivale a null). */
+  paidVia?: 'BOLETO' | 'MANUAL' | null;
+  /** Ultimo envio do boleto por e-mail ao pagador. */
+  sentAt?: Date | null;
+  /** Quando o pagador foi avisado por e-mail do cancelamento. */
+  cancelNotifiedAt?: Date | null;
+  error: string | null;
+}
+
+export interface ChargeDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  destination: ChargeDestination;
+  goalId: ObjectId | null;
+  description: string;
+  payerName: string;
+  payerEmail: string;
+  payerPhone: string | null;
+  /** CPF/CNPJ e endereco do pagador cifrados: necessarios para emitir as parcelas futuras. */
+  payerTaxIdEnc: string;
+  payerAddressEnc: string;
+  totalMinor: number;
+  installments: InstallmentDoc[];
+  canceledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface BudgetDoc {
   _id: ObjectId;
   userId: ObjectId;
@@ -267,6 +311,7 @@ export interface Collections {
   investments: Collection<InvestmentDoc>;
   investmentSnapshots: Collection<InvestmentSnapshotDoc>;
   categoryRules: Collection<CategoryRuleDoc>;
+  charges: Collection<ChargeDoc>;
   budgets: Collection<BudgetDoc>;
   goals: Collection<GoalDoc>;
   auditLogs: Collection<AuditLogDoc>;
@@ -284,6 +329,7 @@ export const collections = (db: Db): Collections => ({
   investments: db.collection<InvestmentDoc>('investments'),
   investmentSnapshots: db.collection<InvestmentSnapshotDoc>('investment_snapshots'),
   categoryRules: db.collection<CategoryRuleDoc>('category_rules'),
+  charges: db.collection<ChargeDoc>('charges'),
   budgets: db.collection<BudgetDoc>('budgets'),
   goals: db.collection<GoalDoc>('goals'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),

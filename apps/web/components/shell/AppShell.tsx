@@ -392,7 +392,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {BOTTOM.map(([id, label, icon]) => {
               const on = id === 'more' ? moreOpen || morePages.includes(page) : page === id && !moreOpen;
-              const center = id === 'bills';
+              const center = id === 'boleto';
               return (
                 <button
                   key={id}
