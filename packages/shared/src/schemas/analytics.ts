@@ -126,3 +126,50 @@ export const PaymentPlanSchema = z.object({
   ),
 });
 export type PaymentPlan = z.infer<typeof PaymentPlanSchema>;
+
+/** Categorizacao aprendida: ligada so com F1 macro >= 0,85 nas correcoes reservadas (RN-I04). */
+export const CategorizerStatusSchema = z.object({
+  enabled: z.boolean(),
+  examples: z.number().int(),
+  f1: z.number().nullable(),
+  applied: z.number().int(),
+  suggested: z.number().int(),
+});
+
+/** Padroes de gasto (Relatorios). Pico so com 8 semanas e significancia (RN-D04). */
+export const PatternsSchema = z.object({
+  status: z.enum(['ready', 'learning']),
+  weeks: z.number().int(),
+  needWeeks: z.number().int(),
+  /** 42 celulas: dia da semana (0 = domingo) x faixa de 4 horas (0 = 0h-4h). */
+  cells: z.array(
+    z.object({
+      dow: z.number().int(),
+      band: z.number().int(),
+      count: z.number().int(),
+      ratePerWeek: z.number(),
+      ticketMinor: Money,
+      expectedMinor: Money,
+      peak: z.boolean(),
+    }),
+  ),
+  /** Frase-conclusao do mapa (null sem pico significativo). */
+  conclusion: z.string().nullable(),
+  /** Transacoes sem horario real ficam fora do mapa (RN-D03). */
+  untimedShare: z.number(),
+  byDay: z.array(z.object({ dow: z.number().int(), weeklyMinor: Money })),
+  /** Ate 5 categorias + "outras", em barras ordenadas. */
+  categories: z.array(z.object({ categoryKey: z.string(), totalMinor: Money, share: z.number() })),
+  /** Mudancas de patamar (CUSUM) nas ultimas semanas. */
+  shifts: z.array(z.object({ categoryKey: z.string(), weeksAgo: z.number().int(), baselineWeeklyMinor: Money, recentWeeklyMinor: Money })),
+  /** Proximo mes por categoria (Holt); nextMonthMinor null quando nao vence "igual ao mes passado". */
+  trend: z.array(z.object({ categoryKey: z.string(), lastMonthMinor: Money, nextMonthMinor: Money.nullable(), mase: z.number().nullable() })),
+  /** O que explica a variacao do ultimo mes fechado contra o anterior. */
+  variation: z
+    .object({ month: z.string(), prevMonth: z.string(), totalDeltaMinor: Money, drivers: z.array(z.object({ categoryKey: z.string(), deltaMinor: Money })) })
+    .nullable(),
+  /** Sazonalidade anual so com 24 meses de historico. */
+  seasonalityNeedMonths: z.number().int(),
+  categorizer: CategorizerStatusSchema,
+});
+export type Patterns = z.infer<typeof PatternsSchema>;

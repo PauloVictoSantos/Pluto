@@ -391,6 +391,8 @@ export function LiveTransactionList({
       marks: [
         ...(t.installment ? [`Parcela ${t.installment.n}/${t.installment.total}`] : []),
         ...(t.recurring ? ['Recorrente'] : []),
+        ...(t.outlier ? ['Fora do normal'] : []),
+        ...(t.suggestion ? [`Sugestão: ${categoryOf(t.suggestion.categoryKey).label}`] : []),
       ],
       dayKey: day,
       dayLabel: dayLabelOf(day, today),

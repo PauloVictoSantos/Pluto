@@ -1,10 +1,13 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { CategoryChart } from '@/components/charts/CategoryChart';
 import { RevenueChart } from '@/components/charts/RevenueChart';
+import { CategorizerNote, CategoryBarsCard, HabitsCard, HeatmapCard } from '@/components/PatternsCards';
 import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
+import { api } from '@/lib/api';
 import { MESES_LONGOS, downloadCsv } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { monthLong, money, useSpending, useSummary } from '@/lib/queries';
@@ -19,6 +22,9 @@ export default function RelatoriosPage() {
 
   const summary = useSummary();
   const spending = useSpending();
+  const patterns = useQuery({ queryKey: ['analytics', 'patterns'], queryFn: api.patterns, staleTime: 5 * 60_000 });
+  const pt = patterns.data;
+  const desk = mode === 'desktop';
   const m = summary.data?.monthly ?? [];
   const rowCols = isMobile ? '52px repeat(3,minmax(0,1fr))' : '1.2fr repeat(4,minmax(0,1fr))';
   const short = (v: number) => (isMobile ? money(v).replace(/,\d\d$/, '') : money(v));
@@ -64,6 +70,19 @@ export default function RelatoriosPage() {
           <CategoryChart spending={spending.data} loading={spending.isPending} />
         </div>
       </div>
+
+      {/* Camada analitica: mapa dia x horario e categorias em barras, abaixo de Receitas x Despesas. */}
+      {patterns.isPending && <div className="card h-48 animate-pulse" aria-busy="true" />}
+      {pt && (
+        <>
+          <div className="grid items-start gap-4" style={{ gridTemplateColumns: desk ? 'minmax(0,7fr) minmax(0,5fr)' : 'minmax(0,1fr)' }}>
+            <HeatmapCard p={pt} />
+            <CategoryBarsCard p={pt} />
+          </div>
+          <HabitsCard p={pt} />
+          <CategorizerNote p={pt} />
+        </>
+      )}
 
       <div data-anim="" className="card flex flex-col gap-1.5">
         <div className="card-title mb-2">Resumo mensal</div>

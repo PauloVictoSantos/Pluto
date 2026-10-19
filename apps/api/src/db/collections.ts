@@ -170,6 +170,8 @@ export interface TransactionDoc {
   categoryId: ObjectId | null;
   categorySource: CategorySource | null;
   categoryConfidence: number | null;
+  /** Sugestao do Naive Bayes com confianca entre 0,60 e 0,90: o usuario confirma (RN-D01). */
+  aiSuggestion?: { categoryKey: string; p: number } | null;
   invoiceId: ObjectId | null;
   tags: string[];
   notes: string | null;

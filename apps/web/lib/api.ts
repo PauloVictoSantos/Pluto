@@ -10,6 +10,7 @@ import {
   BillSchema,
   BudgetSuggestionSchema,
   ForecastSchema,
+  PatternsSchema,
   GoalInsightsSchema,
   PaymentPlanSchema,
   CatalogSchema,
@@ -167,6 +168,7 @@ export const api = {
   budgetSuggestion: () => request('/analytics/budget', {}, BudgetSuggestionSchema),
   goalInsights: () => request('/analytics/goals', {}, GoalInsightsSchema),
   paymentPlan: () => request('/analytics/payments', {}, PaymentPlanSchema),
+  patterns: () => request('/analytics/patterns', {}, PatternsSchema),
 
   // Boletos a pagar (cadastro manual ou pela linha digitavel).
   bills: () => request('/bills', {}, z.array(BillSchema)),

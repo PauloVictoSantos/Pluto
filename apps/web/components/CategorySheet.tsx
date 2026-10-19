@@ -25,7 +25,8 @@ const groupsFor = (amountMinor: number) =>
 /** Trocar a categoria de uma transacao (RN-12), opcionalmente criando uma regra para as parecidas. */
 export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string; onClose: () => void }) {
   const qc = useQueryClient();
-  const [key, setKey] = useState(tx.categoryKey);
+  // Sugestao do modelo (0,60-0,90) vem pre-selecionada; so vale quando o usuario salva (RN-D01).
+  const [key, setKey] = useState(tx.suggestion?.categoryKey ?? tx.categoryKey);
   const [similarToo, setSimilarToo] = useState(true);
   const [done, setDone] = useState(false);
   const similar = useQuery({ queryKey: ['similar', tx.id], queryFn: () => api.similar(tx.id) });
@@ -63,6 +64,25 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
           <Icon icon="x" size={18} />
         </SheetCloseButton>
       </div>
+
+      {tx.suggestion && (
+        <div className="flex items-start gap-2 rounded-xl bg-brand-soft px-3 py-2.5 text-[13px] leading-snug text-brand-text">
+          <Icon icon="sparkles" size={16} />
+          <span>
+            Sugestão da Pluto: <b>{categoryOf(tx.suggestion.categoryKey).label}</b> ({Math.round(tx.suggestion.p * 100)}% de confiança), aprendida com as
+            categorias que você já corrigiu. Salve para confirmar ou escolha outra.
+          </span>
+        </div>
+      )}
+      {tx.outlier && (
+        <div className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-[13px] leading-snug text-muted-foreground">
+          <Icon icon="info" size={16} />
+          <span>
+            Fora do normal: {money(Math.abs(tx.amountMinor))} contra {money(tx.outlier.medianMinor)} de costume em {categoryOf(tx.categoryKey).label}. É só um
+            aviso: nada muda na transação.
+          </span>
+        </div>
+      )}
 
       <div className="-mx-1 flex max-h-[46vh] flex-col gap-3 overflow-y-auto px-1">
         {groupsFor(tx.amountMinor).map((g) => (

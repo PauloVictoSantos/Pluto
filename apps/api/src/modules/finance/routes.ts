@@ -21,6 +21,8 @@ import { audit } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
 import { escapeRegex, normalizeDescription } from '../../lib/text';
 import { requireAuth, userOf } from '../../plugins/auth';
+import { isAnomaly, median, modifiedZ } from '@pluto/finance-engine';
+import { autoCategorize } from '../analytics/categorizer';
 import { recurringKeys } from '../analytics/service';
 import { applyRule, directionOf, ruleKeyFilter, ruleKeyOf, typeFor } from '../categories/rules';
 
@@ -38,7 +40,8 @@ const toAccountDTO = (a: AccountDoc): Account => ({
   dueDay: a.dueDay,
 });
 
-const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>()): Transaction => ({
+type Outlier = Transaction['outlier'];
+const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outliers = new Map<string, Outlier>()): Transaction => ({
   id: t._id.toHexString(),
   accountId: t.accountId.toHexString(),
   date: t.date,
@@ -59,7 +62,11 @@ const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>()): Tra
   hasTime: t.hasTime ?? true,
   recurring: recurring.has(`${directionOf(t.amountMinor)}|${ruleKeyOf(t)}`),
   hasCounterparty: !!t.counterpartyKey,
+  outlier: outliers.get(t._id.toHexString()) ?? null,
+  suggestion: t.aiSuggestion ?? null,
 });
+
+const OUTLIER_WINDOW = 180 * 86_400_000;
 
 // Cursor opaco: data + _id da ultima transacao da pagina (ordem date desc, _id desc).
 const encodeCursor = (t: TransactionDoc) => Buffer.from(JSON.stringify([t.date.toISOString(), t._id.toHexString()])).toString('base64url');
@@ -122,8 +129,34 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const docs = await ctx.col.transactions.find(filter).sort({ date: -1, _id: -1 }).limit(q.limit + 1).toArray();
     const page = docs.slice(0, q.limit);
     const recurring = await recurringKeys(ctx.col, userOf(req).id);
-    return { items: page.map((t) => toTransactionDTO(t, recurring)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
+    const outliers = await outliersOf(userOf(req).id, page);
+    return { items: page.map((t) => toTransactionDTO(t, recurring, outliers)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
   });
+
+  /**
+   * Gasto isolado fora do normal na categoria: z-score modificado > 3,5 contra os gastos dos ultimos
+   * 180 dias da mesma categoria (minimo 8). So sinaliza; nada e escondido ou alterado (RN-D05).
+   */
+  const outliersOf = async (userId: ObjectId, page: TransactionDoc[]) => {
+    const out = new Map<string, Outlier>();
+    const spend = page.filter((t) => t.type === 'EXPENSE');
+    for (const cat of new Set(spend.map((t) => t.categoryKey))) {
+      const ref = await ctx.col.transactions
+        .find(
+          { userId, deletedAt: null, type: 'EXPENSE', categoryKey: cat, date: { $gte: new Date(Date.now() - OUTLIER_WINDOW) } },
+          { projection: { amountMinor: 1 } },
+        )
+        .toArray();
+      for (const t of spend.filter((x) => x.categoryKey === cat)) {
+        const others = ref.filter((r) => !r._id.equals(t._id)).map((r) => -r.amountMinor);
+        const z = modifiedZ(-t.amountMinor, others);
+        if (z !== null && z > 0 && isAnomaly(z)) {
+          out.set(t._id.toHexString(), { medianMinor: Math.round(median(others)), z: Math.round(z * 10) / 10 });
+        }
+      }
+    }
+    return out;
+  };
 
   // Categoria escolhida pelo usuario (RN-12) e regras por destinatario/descricao (RN-10).
   const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
@@ -154,7 +187,7 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
       const now = new Date();
       await ctx.col.transactions.updateOne(
         { _id: t._id, userId },
-        { $set: { categoryKey, categorySource: 'MANUAL', type: typeFor(categoryKey, t.amountMinor), updatedAt: now } },
+        { $set: { categoryKey, categorySource: 'MANUAL', type: typeFor(categoryKey, t.amountMinor), aiSuggestion: null, updatedAt: now } },
       );
       let updated = 1, ruleId: string | null = null;
       if (applyToSimilar) {
@@ -173,6 +206,8 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
         );
         updated += await applyRule(ctx.col, { userId, matchKey, direction, categoryKey }, { _id: { $ne: t._id } });
       }
+      // Cada correcao vira exemplo de treino: o modelo se atualiza na hora (doc. "Retreino").
+      await autoCategorize(ctx.col, userId).catch((e) => req.log.warn({ err: e instanceof Error ? e.message : e }, 'falha ao recategorizar'));
       await audit(ctx.col, 'transaction.category_set', userId, { transactionId: t._id.toHexString(), categoryKey, applyToSimilar }, req.ip);
       return { updated, ruleId };
     },

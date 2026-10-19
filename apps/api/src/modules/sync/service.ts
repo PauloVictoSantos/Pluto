@@ -5,6 +5,7 @@ import type { FieldCrypto } from '../../lib/crypto';
 import type { PluggyGateway } from '../../integrations/pluggy/gateway';
 import { USER_SOURCES, applyUserRules } from '../categories/rules';
 import { counterpartyRef, institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
+import { autoCategorize } from '../analytics/categorizer';
 import { dedupPending, refreshRecurrences } from '../analytics/service';
 
 export interface SyncDeps {
@@ -113,6 +114,11 @@ export async function syncConnection(deps: SyncDeps, connectionId: ObjectId, opt
     deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha ao sincronizar investimentos');
     result.errors.push('investments');
   }
+
+  // Categorizacao aprendida nas transacoes novas: falha aqui nao invalida a sincronizacao.
+  await autoCategorize(col, conn.userId, now).catch((e) =>
+    deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha na categorização aprendida'),
+  );
 
   // Series recorrentes do usuario: falha aqui nao invalida a sincronizacao.
   await refreshRecurrences(col, conn.userId, now).catch((e) =>

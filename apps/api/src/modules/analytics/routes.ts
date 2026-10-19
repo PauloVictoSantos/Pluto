@@ -1,8 +1,9 @@
-import { BudgetSuggestionSchema, CommitmentsSchema, ForecastSchema, GoalInsightsSchema, PaymentPlanSchema } from '@pluto/shared';
+import { BudgetSuggestionSchema, CommitmentsSchema, ForecastSchema, GoalInsightsSchema, PatternsSchema, PaymentPlanSchema } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import type { AppContext } from '../../context';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { budgetSuggestion, forecast, goalInsights, paymentPlan } from './forecast';
+import { patterns } from './patterns';
 import { commitments, refreshRecurrences } from './service';
 
 // Camada analitica: numeros calculados aqui; a interface e o Gemini so exibem e explicam (RN-I01).
@@ -23,6 +24,9 @@ export const analyticsRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async
   app.get('/analytics/budget', { schema: { response: { 200: BudgetSuggestionSchema } } }, async (req) => budgetSuggestion(ctx, userOf(req).id));
 
   app.get('/analytics/goals', { schema: { response: { 200: GoalInsightsSchema } } }, async (req) => goalInsights(ctx, userOf(req).id));
+
+  /** Mapa dia x horario, mudancas de habito, tendencia e explicacao da variacao (Relatorios). */
+  app.get('/analytics/patterns', { schema: { response: { 200: PatternsSchema } } }, async (req) => patterns(ctx, userOf(req).id));
 
   app.get('/analytics/payments', { schema: { response: { 200: PaymentPlanSchema } } }, async (req) => paymentPlan(ctx, userOf(req).id));
 };
