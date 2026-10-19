@@ -12,3 +12,4 @@ export * from './schemas/charges';
 export * from './schemas/analytics';
 export * from './schemas/shopping';
 export * from './schemas/bills';
+export * from './schemas/alerts';

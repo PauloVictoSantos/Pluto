@@ -11,6 +11,8 @@ export const UserSettingsSchema = z.object({
   maxCommitmentPct: z.number().min(0).max(1).default(0.3),
   discountRateMonthly: z.number().min(0).max(0.2).default(0.009),
   aiEnabled: z.boolean().default(true),
+  /** Canais dos alertas (o painel do sino sempre recebe). */
+  alerts: z.object({ push: z.boolean(), email: z.boolean() }).default({ push: true, email: true }),
   lockAfterSeconds: z.number().int().min(0).default(30),
   scoreWeights: z
     .object({

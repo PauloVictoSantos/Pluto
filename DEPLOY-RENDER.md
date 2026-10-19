@@ -51,6 +51,14 @@ O banco continua no MongoDB Atlas.
 3. Sem domínio verificado, o Resend só envia do endereço de testes (`onboarding@resend.dev`) e **só para o e-mail da sua própria conta Resend**. Isso serve para testar, mas não para mandar boletos a outras pessoas.
 4. O pagador recebe e-mail quando você toca em **Enviar e-mail** no boleto, e automaticamente quando um boleto já emitido é cancelado. As respostas ao e-mail vão para o seu e-mail de contato do Pluto.
 
+## Avisos (notificações e e-mail)
+
+1. Copie `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` do `apps/api/.env` para o Render. Use o mesmo par: se trocar, os aparelhos já cadastrados param de receber e precisam ativar de novo.
+2. Defina `VAPID_SUBJECT` como `mailto:` com um e-mail seu. Os serviços de push usam esse contato se houver problema com os envios.
+3. Os avisos por e-mail usam o mesmo Resend dos boletos (`RESEND_API_KEY` e `EMAIL_FROM`) e vão para o e-mail de contato do seu usuário.
+4. Em Configurações → Avisos da Pluto, toque em **Receber neste aparelho** em cada aparelho e depois em **Enviar teste**. No iPhone, a notificação só funciona com a Pluto instalada na tela inicial.
+5. Horários (fuso do usuário): avisos do dia às 7h, lembrete 1 hora antes do seu horário de pico e resumo da semana no domingo às 19h. Nada entre 22h e 7h, exceto conta que vence no dia.
+
 ## Erros comuns
 
 - **`Cannot read properties of null (reading 'useContext')` no `/_global-error` durante o build:** o `NODE_ENV` do serviço não é `production`. Isso costuma acontecer quando se copia o `.env` local, que tem `NODE_ENV=development`.

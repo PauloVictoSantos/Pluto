@@ -6,3 +6,4 @@ export * from './stats';
 export * from './shopping';
 export * from './forecast';
 export * from './patterns';
+export * from './alerts';

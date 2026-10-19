@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppContext } from '../context';
 import { processCharges } from '../modules/charges/service';
+import { tickAlerts } from '../modules/alerts/service';
 import { markOverdueBills } from '../modules/bills/routes';
 import { rollShoppingLists } from '../modules/shopping/service';
 import { syncConnection } from '../modules/sync/service';
@@ -89,4 +90,29 @@ export function startPlannerScheduler(ctx: AppContext, log: FastifyBaseLogger) {
   };
   const every = setInterval(run, 5 * 60_000);
   return () => clearInterval(every);
+}
+
+/**
+ * Alertas (doc. "Rotas de API e jobs"): diario as 07:00, semanal domingo 19:00 e o lembrete antes do
+ * pico de gastos, no fuso de cada usuario. Verifica a cada 10 min; jobRuns garante uma execucao por periodo.
+ */
+export function startAlertsScheduler(ctx: AppContext, log: FastifyBaseLogger) {
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await tickAlerts(ctx);
+    } catch (err) {
+      log.error({ err }, 'falha no job de alertas');
+    } finally {
+      running = false;
+    }
+  };
+  const first = setTimeout(run, 60_000);
+  const every = setInterval(run, 10 * 60_000);
+  return () => {
+    clearTimeout(first);
+    clearInterval(every);
+  };
 }

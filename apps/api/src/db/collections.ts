@@ -1,4 +1,6 @@
 import type {
+  ALERT_PAGES,
+  AlertType,
   AccountType,
   ChargeDestination,
   InstallmentStatus,
@@ -375,6 +377,49 @@ export interface BillDoc {
   updatedAt: Date;
 }
 
+/** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
+export interface AlertDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  type: AlertType;
+  /** Alvo do alerta (boleto, categoria do mes, meta da semana): RN-A02 nao repete o mesmo em 72 h. */
+  target: string;
+  title: string;
+  body: string;
+  /** Texto do push e do e-mail, sem valores nem nomes (RN-A03). */
+  pushText: string;
+  action: { label: string; page: (typeof ALERT_PAGES)[number] } | null;
+  why: string[];
+  /** Pontuacao A e as variaveis usadas em P(util | x). */
+  score: number;
+  features: { type: string; hour: number; group: string; amountMinor: number };
+  dueToday: boolean;
+  createdAt: Date;
+  readAt: Date | null;
+  sentAt: Date | null;
+  channels: ('push' | 'email')[];
+  feedback: 'useful' | 'not_useful' | null;
+  feedbackAt: Date | null;
+}
+
+/** Inscricao Web Push de um aparelho; as chaves ficam cifradas. */
+export interface PushSubscriptionDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  endpoint: string;
+  keysEnc: string;
+  userAgent: string | null;
+  createdAt: Date;
+  lastSuccessAt: Date | null;
+}
+
+/** Execucao de job (doc. "jobRuns"): idempotente por chave usuario:job:periodo. */
+export interface JobRunDoc {
+  _id: string;
+  at: Date;
+  meta?: Record<string, unknown>;
+}
+
 export interface BudgetDoc {
   _id: ObjectId;
   userId: ObjectId;
@@ -429,6 +474,9 @@ export interface Collections {
   budgets: Collection<BudgetDoc>;
   shoppingItems: Collection<ShoppingItemDoc>;
   bills: Collection<BillDoc>;
+  alerts: Collection<AlertDoc>;
+  pushSubscriptions: Collection<PushSubscriptionDoc>;
+  jobRuns: Collection<JobRunDoc>;
   shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
   auditLogs: Collection<AuditLogDoc>;
@@ -451,6 +499,9 @@ export const collections = (db: Db): Collections => ({
   budgets: db.collection<BudgetDoc>('budgets'),
   shoppingItems: db.collection<ShoppingItemDoc>('shopping_items'),
   bills: db.collection<BillDoc>('bills'),
+  alerts: db.collection<AlertDoc>('alerts'),
+  pushSubscriptions: db.collection<PushSubscriptionDoc>('push_subscriptions'),
+  jobRuns: db.collection<JobRunDoc>('job_runs'),
   shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),

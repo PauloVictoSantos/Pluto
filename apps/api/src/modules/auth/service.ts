@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { maskCpf, type Me } from '@pluto/shared';
+import { UserSettingsSchema, maskCpf, type Me } from '@pluto/shared';
 import { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
 import type { SessionDoc, UserDoc } from '../../db/collections';
@@ -36,7 +36,8 @@ export const toMe = (u: UserDoc, crypto: FieldCrypto): Me => ({
   cpfMasked: u.cpfEnc ? maskCpf(crypto.decrypt(u.cpfEnc)) : null,
   name: u.name,
   phone: u.phone,
-  settings: u.settings,
+  // Usuarios antigos nao tem as configuracoes criadas depois (ex.: alerts): completa com os padroes.
+  settings: UserSettingsSchema.parse(u.settings ?? {}),
 });
 
 export function assertNotLocked(u: UserDoc | null, now: Date) {

@@ -54,6 +54,11 @@ export const EnvSchema = z
     RESEND_API_KEY: optional,
     EMAIL_FROM: optional,
 
+    /** Web Push (alertas): par VAPID gerado por scripts/gen-secrets.mjs; SUBJECT e um mailto: do responsavel. */
+    VAPID_PUBLIC_KEY: optional,
+    VAPID_PRIVATE_KEY: optional,
+    VAPID_SUBJECT: optional,
+
     FCM_SERVICE_ACCOUNT_JSON: optional,
     BACKUP_PASSPHRASE: optional,
 

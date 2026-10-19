@@ -12,6 +12,7 @@ import { EASE_DRAWER, play, reducedMotion } from '@/lib/motion';
 import { BOTTOM, MORE, ROUTES, SIDE_BOTTOM, SIDE_TOP, TABS, pageFromPath, type NavId, type PageId } from '@/lib/nav';
 import { finishBoot, logout, setHideValues, setTheme, useApp } from '@/lib/store';
 import { modeOf, useWidth } from '@/lib/viewport';
+import { AlertCard } from '../AlertsPanel';
 import { PlutoLogo } from '../brand/PlutoLogo';
 import { PlutoMark } from '../brand/PlutoMark';
 import { PlutoMascot } from '../brand/PlutoMascot';
@@ -87,6 +88,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const user = useApp((s) => s.user);
 
   const notices = useNotices(hydrated && session);
+  // Avisos da camada analitica (painel do sino): atualiza a cada 5 min.
+  const alerts = useQuery({ queryKey: ['alerts'], queryFn: api.alerts, enabled: hydrated && session, refetchInterval: 5 * 60_000 });
+  const unread = (alerts.data ?? []).filter((a) => !a.readAt).length;
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -250,13 +254,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                   onClick={() => {
                     setNotifOpen(!notifOpen);
                     setUserOpen(false);
+                    // Abrir o painel marca os avisos como lidos (o destaque fica ate a proxima atualizacao).
+                    if (!notifOpen && unread) void api.markAlertsRead().catch(() => {});
                   }}
-                  aria-label="Notificações"
+                  aria-label={unread ? `Notificações, ${unread} nova${unread > 1 ? 's' : ''}` : 'Notificações'}
                   aria-expanded={notifOpen}
                   className="icon-btn relative size-11"
                 >
                   <Icon icon="bell" size={18} />
-                  {notices.length > 0 && <span className="absolute top-[9px] right-2.5 size-2 rounded-full border-2 border-card bg-brand" />}
+                  {(notices.length > 0 || unread > 0) && <span className="absolute top-[9px] right-2.5 size-2 rounded-full border-2 border-card bg-brand" />}
                 </button>
                 {!isMobile && !notifOpen && <Tooltip label="Notificações" />}
                 {notifOpen && (
@@ -264,11 +270,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <div onClick={closeMenus} className="fixed inset-0 z-40" />
                     <div
                       ref={notifRef}
-                      className="z-41 box-border w-[340px] max-w-[calc(100vw-24px)] rounded-2xl border border-border bg-card p-2 shadow-[0_12px_32px_rgba(0,0,0,.12)]"
+                      className="z-41 box-border max-h-[75vh] w-[380px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-[0_12px_32px_rgba(0,0,0,.12)]"
                       style={isMobile ? { position: 'fixed', right: 12, top: 70 } : { position: 'absolute', right: 0, top: 52 }}
                     >
                       <div className="px-2.5 py-2 text-[13px] font-semibold text-muted-foreground">Notificações</div>
-                      {notices.length === 0 && <div className="px-2.5 pb-3 text-sm text-muted-foreground">Tudo em dia. Nada para avisar agora.</div>}
+                      {(alerts.data ?? []).slice(0, 10).map((a) => (
+                        <AlertCard key={a.id} a={a} onNav={(p) => nav(p)} />
+                      ))}
+                      {notices.length === 0 && !alerts.data?.length && <div className="px-2.5 pb-3 text-sm text-muted-foreground">Tudo em dia. Nada para avisar agora.</div>}
                       {notices.map((n) => (
                         <button
                           key={n.key}

@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { formatCpf, isValidCpf, normalizeCpf } from '@pluto/shared';
 import { CategoryRulesCard } from '@/components/CategoryRulesCard';
 import { ConnectionsCard } from '@/components/ConnectionsCard';
+import { AlertsCard } from '@/components/AlertsCard';
 import { PasskeysCard } from '@/components/PasskeysCard';
 import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
@@ -105,6 +106,7 @@ export default function ConfiguracoesPage() {
       </div>
 
       <PasskeysCard />
+      <AlertsCard />
       <ConnectionsCard />
       <CategoryRulesCard />
 

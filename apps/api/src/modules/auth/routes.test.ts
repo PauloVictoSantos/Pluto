@@ -56,6 +56,12 @@ describe('login', () => {
     expect(c.maxAge).toBe(30 * 86_400);
     const me = await h.app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${accessToken}` } });
     expect(me.json()).toMatchObject({ email: u.email, cpfMasked: maskCpf(u.cpf), name: 'Marina Souza', settings: { timezone: 'America/Manaus' } });
+
+    // Usuario criado antes de uma configuracao nova (ex.: alerts) continua conseguindo entrar.
+    await h.ctx.col.users.updateOne({ _id: u.id }, { $unset: { 'settings.alerts': '' } });
+    const old = await h.app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${accessToken}` } });
+    expect(old.statusCode).toBe(200);
+    expect(old.json().settings.alerts).toEqual({ push: true, email: true });
   });
 
   it('sem "lembrar de mim" o cookie e de sessao', async () => {

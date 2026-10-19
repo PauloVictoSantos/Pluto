@@ -56,5 +56,13 @@ services:
       # Remetente de um dominio verificado no Resend, ex.: Pluto <cobranca@seudominio.com.br>
       - key: EMAIL_FROM
         sync: false
+      # Web Push dos alertas: o mesmo par VAPID do apps/api/.env (node apps/api/scripts/gen-secrets.mjs gera um novo).
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      # Contato do responsavel para os servicos de push, ex.: mailto:voce@seudominio.com.br
+      - key: VAPID_SUBJECT
+        sync: false
       - key: LLM_MODEL
         value: gemini-3.8-flash

@@ -10,6 +10,8 @@ import {
   BillSchema,
   BudgetSuggestionSchema,
   ForecastSchema,
+  AlertSchema,
+  AlertSettingsSchema,
   PatternsSchema,
   GoalInsightsSchema,
   PaymentPlanSchema,
@@ -169,6 +171,18 @@ export const api = {
   goalInsights: () => request('/analytics/goals', {}, GoalInsightsSchema),
   paymentPlan: () => request('/analytics/payments', {}, PaymentPlanSchema),
   patterns: () => request('/analytics/patterns', {}, PatternsSchema),
+
+  // Alertas: painel do sino, canais e Web Push.
+  alerts: () => request('/alerts', {}, z.array(AlertSchema)),
+  markAlertsRead: () => request<void>('/alerts/read', post()),
+  alertFeedback: (id: string, feedback: 'useful' | 'not_useful') =>
+    request(`/alerts/${id}`, { method: 'PATCH', body: JSON.stringify({ feedback }) }, AlertSchema),
+  alertSettings: () => request('/alerts/settings', {}, AlertSettingsSchema),
+  updateAlertSettings: (patch: { push?: boolean; email?: boolean }) =>
+    request('/alerts/settings', { method: 'PATCH', body: JSON.stringify(patch) }, AlertSettingsSchema),
+  pushSubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) => request('/push/subscribe', post(sub), AlertSettingsSchema),
+  pushUnsubscribe: (endpoint: string) => request('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }, AlertSettingsSchema),
+  testAlert: () => request('/alerts/test', post(), z.object({ channels: z.array(z.enum(['push', 'email'])) })),
 
   // Boletos a pagar (cadastro manual ou pela linha digitavel).
   bills: () => request('/bills', {}, z.array(BillSchema)),

@@ -41,6 +41,14 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   shopping_items: [{ key: { userId: 1, nameNorm: 1 }, unique: true }, { key: { userId: 1, aliases: 1 } }],
   shopping_lists: [{ key: { userId: 1, month: 1 }, unique: true }, { key: { status: 1 } }],
   bills: [{ key: { userId: 1, dueDate: 1 } }, { key: { status: 1, dueDate: 1 } }],
+  alerts: [
+    { key: { userId: 1, createdAt: -1 } },
+    { key: { userId: 1, type: 1, target: 1, createdAt: -1 } },
+    // RN-G07: alertas so expiram pelo TTL de 180 dias.
+    { key: { createdAt: 1 }, expireAfterSeconds: 180 * 86_400, name: 'alerts_ttl' },
+  ],
+  push_subscriptions: [{ key: { endpoint: 1 }, unique: true }, { key: { userId: 1 } }],
+  job_runs: [{ key: { at: 1 }, expireAfterSeconds: 400 * 86_400, name: 'job_runs_ttl' }],
   budgets: [{ key: { userId: 1, month: 1, categoryKey: 1 }, unique: true }],
   goals: [{ key: { userId: 1, deadline: 1 } }],
   charges: [{ key: { userId: 1, createdAt: -1 } }, { key: { 'installments.paymentIntentId': 1 } }, { key: { 'installments.status': 1 } }],
