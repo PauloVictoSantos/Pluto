@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { PARC_RE, hasRealTime, parseInstallment } from '@pluto/finance-engine';
 import { NEEDS_USER_ACTION, categoryKeyFor, toMinor, type AccountType, type InvestmentType, type InvoiceStatus, type TransactionType } from '@pluto/shared';
 import { matchKeyOf, normalizeDescription } from '../../lib/text';
 import type { PluggyAccount, PluggyBill, PluggyInvestment, PluggyItem, PluggyTransaction } from './gateway';
@@ -93,6 +94,28 @@ function installmentGroupId(accountId: string, t: PluggyTransaction): string {
   return createHash('sha256').update([accountId, base, m.totalAmount ?? '', purchase].join('|')).digest('hex').slice(0, 24);
 }
 
+/** Parcela lida da descricao (PARC07/09) quando o banco nao informa os metadados do cartao. */
+function installmentFromText(accountId: string, t: PluggyTransaction, abs: number) {
+  const p = parseInstallment(t.description);
+  if (!p) return null;
+  const base = normalizeDescription(t.description.replace(PARC_RE, ''));
+  return { ...p, groupId: createHash('sha256').update([accountId, base, p.total, abs].join('|')).digest('hex').slice(0, 24) };
+}
+
+/**
+ * Quem recebeu (saida) ou pagou (entrada): CPF/CNPJ, senao agencia+conta. Valor em claro, so para
+ * gerar o hash (counterpartyKey) na sincronizacao; nunca e gravado (RN-D02).
+ */
+export function counterpartyRef(t: Pick<PluggyTransaction, 'type' | 'paymentData'>): string | null {
+  const p = t.type === 'DEBIT' ? t.paymentData?.receiver : t.paymentData?.payer;
+  const digits = (s: string | undefined) => (s ?? '').replace(/\D/g, '');
+  const doc = digits(p?.documentNumber?.value);
+  if (doc.length === 11 || doc.length === 14) return `doc:${doc}`;
+  const acc = digits(p?.accountNumber), branch = digits(p?.branchNumber);
+  if (acc && branch) return `acc:${p?.routingNumberISPB ?? p?.routingNumber ?? ''}:${branch}:${acc}`;
+  return null;
+}
+
 export function mapTransaction(t: PluggyTransaction, accountType: AccountType) {
   const m = t.creditCardMetadata;
   // O sinal vem do tipo (DEBIT = saida), nao do campo amount, que varia entre conta e cartao.
@@ -100,12 +123,14 @@ export function mapTransaction(t: PluggyTransaction, accountType: AccountType) {
   const installment =
     m?.installmentNumber && m.totalInstallments && m.totalInstallments > 1
       ? { n: m.installmentNumber, total: m.totalInstallments, groupId: installmentGroupId(t.accountId, t) }
-      : null;
+      : installmentFromText(t.accountId, t, abs);
   const amountMinor = t.type === 'DEBIT' ? -abs : abs;
   const type = deriveType(t, accountType);
   return {
     pluggyTransactionId: t.id,
     date: new Date(t.date),
+    /** RN-D03: transacao sem horario real fica fora da analise por horario. */
+    hasTime: hasRealTime(new Date(t.date)),
     description: t.description,
     descriptionNorm: normalizeDescription(t.description),
     matchKey: matchKeyOf(t.description),

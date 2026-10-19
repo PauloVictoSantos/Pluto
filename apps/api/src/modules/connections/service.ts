@@ -92,6 +92,8 @@ export async function registerConnection(
         pluggyItemIdHash: hash,
         lastSyncAt: null,
         lastTransactionsSyncAt: null,
+        // Ja nasce com o historico completo: nao precisa da reimportacao da migracao 5.
+        analyticsBackfillAt: now,
         syncingUntil: null,
         createdAt: now,
       },

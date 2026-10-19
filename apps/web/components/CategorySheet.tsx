@@ -99,7 +99,15 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
         <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-border p-3">
           <input type="checkbox" checked={similarToo} onChange={(e) => setSimilarToo(e.target.checked)} className="mt-0.5 size-[18px] shrink-0 cursor-pointer accent-brand" />
           <span className="text-sm leading-snug">
-            Aplicar também às outras {others} transaç{others > 1 ? 'ões' : 'ão'} de <b>“{similar.data!.matchKey}”</b> e às próximas que chegarem
+            {similar.data!.byCounterparty ? (
+              <>
+                Aplicar também às outras {others} transaç{others > 1 ? 'ões' : 'ão'} para <b>{similar.data!.label}</b> (mesmo CPF/CNPJ ou conta) e às próximas que chegarem
+              </>
+            ) : (
+              <>
+                Aplicar também às outras {others} transaç{others > 1 ? 'ões' : 'ão'} de <b>“{similar.data!.matchKey}”</b> e às próximas que chegarem
+              </>
+            )}
             <span className="mt-0.5 block text-xs text-muted-foreground">Vale só para {tx.amountMinor > 0 ? 'entradas' : 'saídas'}. Você pode desfazer em Configurações.</span>
           </span>
         </label>

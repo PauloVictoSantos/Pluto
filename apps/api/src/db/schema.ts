@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES, CONNECTION_SOURCES, CONNECTION_STATUSES, INVESTMENT_TYPES, INVOICE_STATUSES, TRANSACTION_STATUSES, TRANSACTION_TYPES } from '@pluto/shared';
+import { ACCOUNT_TYPES, CONNECTION_SOURCES, CONNECTION_STATUSES, INVESTMENT_TYPES, INVOICE_STATUSES, SHOPPING_CATEGORY_KEYS, TRANSACTION_STATUSES, TRANSACTION_TYPES, UNITS } from '@pluto/shared';
 import { MongoServerError, type Db, type Document } from 'mongodb';
 
 // JSON Schema validator do MongoDB nas colecoes criticas (secao 4.1).
@@ -123,6 +123,37 @@ export const VALIDATORS: Record<string, Document> = {
     appliedMinor: int,
     currentValueMinor: int,
     dueDate: dateOrNull,
+  }),
+  shopping_items: schema(['userId', 'name', 'nameNorm', 'aliases', 'category', 'unit', 'createdAt'], {
+    userId: oid,
+    name: { bsonType: 'string', maxLength: 60 },
+    nameNorm: str,
+    aliases: { bsonType: 'array', items: str },
+    category: enumOf(SHOPPING_CATEGORY_KEYS),
+    unit: enumOf(UNITS),
+    createdAt: date,
+  }),
+  shopping_lists: schema(['userId', 'month', 'status', 'entries', 'createdAt'], {
+    userId: oid,
+    month: { bsonType: 'string', pattern: '^\\d{4}-\\d{2}$' },
+    status: enumOf(['open', 'closed']),
+    entries: {
+      bsonType: 'array',
+      items: {
+        bsonType: 'object',
+        required: ['itemId', 'qty', 'bought', 'suggested'],
+        properties: {
+          itemId: oid,
+          qty: { bsonType: ['int', 'long', 'double'], minimum: 0 },
+          bought: bool,
+          boughtAt: dateOrNull,
+          priceEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },
+          suggested: bool,
+          removedAt: dateOrNull,
+        },
+      },
+    },
+    closedAt: dateOrNull,
   }),
 };
 

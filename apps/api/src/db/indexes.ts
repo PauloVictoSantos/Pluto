@@ -25,7 +25,9 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1, categoryId: 1, date: -1 } },
     { key: { userId: 1, accountId: 1, date: -1 } },
     { key: { userId: 1, matchKey: 1 } },
+    { key: { userId: 1, counterpartyKey: 1 }, sparse: true },
   ],
+  recurrences: [{ key: { userId: 1, key: 1, direction: 1 }, unique: true }],
   category_rules: [{ key: { userId: 1, matchKey: 1, direction: 1 }, unique: true }],
   invoices: [
     { key: { accountId: 1, pluggyBillId: 1 }, unique: true },
@@ -36,6 +38,8 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1 } },
   ],
   investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
+  shopping_items: [{ key: { userId: 1, nameNorm: 1 }, unique: true }, { key: { userId: 1, aliases: 1 } }],
+  shopping_lists: [{ key: { userId: 1, month: 1 }, unique: true }, { key: { status: 1 } }],
   budgets: [{ key: { userId: 1, month: 1, categoryKey: 1 }, unique: true }],
   goals: [{ key: { userId: 1, deadline: 1 } }],
   charges: [{ key: { userId: 1, createdAt: -1 } }, { key: { 'installments.paymentIntentId': 1 } }, { key: { 'installments.status': 1 } }],

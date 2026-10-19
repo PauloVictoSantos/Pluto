@@ -4,7 +4,8 @@ import type { AccountDoc, Collections, ConnectionDoc, TransactionDoc } from '../
 import type { FieldCrypto } from '../../lib/crypto';
 import type { PluggyGateway } from '../../integrations/pluggy/gateway';
 import { USER_SOURCES, applyUserRules } from '../categories/rules';
-import { institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
+import { counterpartyRef, institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
+import { dedupPending, refreshRecurrences } from '../analytics/service';
 
 export interface SyncDeps {
   col: Collections;
@@ -113,6 +114,11 @@ export async function syncConnection(deps: SyncDeps, connectionId: ObjectId, opt
     result.errors.push('investments');
   }
 
+  // Series recorrentes do usuario: falha aqui nao invalida a sincronizacao.
+  await refreshRecurrences(col, conn.userId, now).catch((e) =>
+    deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha ao detectar recorrências'),
+  );
+
   const failedAccounts = result.errors.some((e) => e.startsWith('account:'));
   return finish(
     {
@@ -128,19 +134,22 @@ export async function syncConnection(deps: SyncDeps, connectionId: ObjectId, opt
 }
 
 async function syncTransactions(deps: SyncDeps, conn: ConnectionDoc, acc: AccountDoc, pluggyAccountId: string, dateFrom: Date | null, now: Date) {
-  const { col, pluggy } = deps;
+  const { col, pluggy, crypto } = deps;
   const txs = await pluggy.fetchTransactions(pluggyAccountId, dateFrom ? ymd(dateFrom) : undefined);
   if (txs.length) {
     const ops: AnyBulkWriteOperation<TransactionDoc>[] = txs.flatMap((t) => {
       const { type, categoryKey, ...owned } = mapTransaction(t, acc.type);
       const filter = { connectionId: conn._id, pluggyTransactionId: t.id };
+      // RN-D02: so o hash do destinatario e guardado; o CPF/CNPJ e a conta nunca.
+      const ref = counterpartyRef(t);
+      const counterpartyKey = ref ? `cp:${crypto.hash(ref)}` : null;
       return [
         {
           updateOne: {
             filter,
             update: {
               // Campos do Pluggy: sempre atualizados (RN-02).
-              $set: { ...owned, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
+              $set: { ...owned, counterpartyKey, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
               // Campos derivados ou editaveis pelo usuario: so na criacao.
               $setOnInsert: {
                 type, categoryKey, categoryId: null, categorySource: null, categoryConfidence: null, invoiceId: null,
@@ -171,6 +180,8 @@ async function syncTransactions(deps: SyncDeps, conn: ConnectionDoc, acc: Accoun
     },
     { $set: { deletedAt: now, updatedAt: now } },
   );
+  // Pendente que ainda aparece, mas ja voltou liquidada com outro id.
+  await dedupPending(col, acc._id, now);
   return txs.length;
 }
 

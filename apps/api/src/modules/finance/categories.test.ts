@@ -58,7 +58,7 @@ describe('categoria escolhida pelo usuario', () => {
     await seed();
     const p1 = await txOf('p1');
     const similar = (await req('GET', `/v1/transactions/${p1!._id.toHexString()}/similar`)).json();
-    expect(similar).toEqual({ matchKey: 'faculdade norte', count: 2 });
+    expect(similar).toMatchObject({ matchKey: 'faculdade norte', count: 2, byCounterparty: false });
 
     const res = (await req('PATCH', `/v1/transactions/${p1!._id.toHexString()}/category`, { categoryKey: 'educacao', applyToSimilar: true })).json();
     expect(res.updated).toBe(2);

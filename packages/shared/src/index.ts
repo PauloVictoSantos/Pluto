@@ -9,3 +9,5 @@ export * from './categories';
 export * from './cpf';
 export * from './schemas/dashboard';
 export * from './schemas/charges';
+export * from './schemas/analytics';
+export * from './schemas/shopping';

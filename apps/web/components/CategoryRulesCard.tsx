@@ -31,15 +31,16 @@ export function CategoryRulesCard() {
               <Icon icon={c.icon} size={16} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[15px] font-semibold">“{r.matchKey}”</div>
+              <div className="truncate text-[15px] font-semibold">{r.byCounterparty ? r.label : `“${r.label}”`}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">
-                {r.direction === 'out' ? 'Saídas' : 'Entradas'} → {c.label}
+                {r.direction === 'out' ? 'Saídas' : 'Entradas'}
+                {r.byCounterparty && ' · mesmo destinatário'} → {c.label}
               </div>
             </div>
             <button
               onClick={() => remove.mutate(r.id)}
               disabled={remove.isPending}
-              aria-label={`Remover regra de ${r.matchKey}`}
+              aria-label={`Remover regra de ${r.label}`}
               className="icon-btn"
             >
               <Icon icon="x" size={16} />

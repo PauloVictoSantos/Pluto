@@ -1,6 +1,6 @@
 export type PageId =
   | 'overview' | 'tx' | 'boleto' | 'plan' | 'budget' | 'invest' | 'reports'
-  | 'bills' | 'goals' | 'cards' | 'settings' | 'help';
+  | 'bills' | 'goals' | 'cards' | 'settings' | 'help' | 'list';
 export type NavId = PageId | 'logout' | 'more';
 
 // Rotas estaticas (sem segmentos dinamicos) para funcionar no export do Capacitor (secao 3.6).
@@ -17,6 +17,7 @@ export const ROUTES: Record<PageId, string> = {
   cards: '/cartoes',
   settings: '/configuracoes',
   help: '/ajuda',
+  list: '/lista',
 };
 
 export function pageFromPath(path: string): PageId {
@@ -30,7 +31,7 @@ export const TABS: [PageId, string][] = [
   ['budget', 'Orçamento'], ['invest', 'Investimentos'], ['reports', 'Relatórios'],
 ];
 export const SIDE_TOP: [PageId, string, string][] = [
-  ['overview', 'Dashboard', 'layout-dashboard'], ['bills', 'Calendário de contas', 'calendar-days'], ['goals', 'Metas', 'target'],
+  ['overview', 'Dashboard', 'layout-dashboard'], ['list', 'Lista de compras', 'list-checks'], ['bills', 'Calendário de contas', 'calendar-days'], ['goals', 'Metas', 'target'],
   ['cards', 'Cartões', 'credit-card'], ['invest', 'Investimentos', 'trending-up'], ['settings', 'Configurações', 'settings'],
 ];
 export const SIDE_BOTTOM: [NavId, string, string][] = [['help', 'Ajuda', 'circle-help'], ['logout', 'Sair', 'log-out']];
@@ -39,7 +40,7 @@ export const BOTTOM: [NavId, string, string][] = [
   ['cards', 'Cartões', 'credit-card'], ['more', 'Mais', 'layout-grid'],
 ];
 export const MORE: [NavId, string, string][] = [
-  ['plan', 'Planeja­mento', 'target'], ['budget', 'Orçamento', 'pie-chart'], ['invest', 'Investi­mentos', 'trending-up'],
+  ['list', 'Lista de compras', 'list-checks'], ['plan', 'Planeja­mento', 'target'], ['budget', 'Orçamento', 'pie-chart'], ['invest', 'Investi­mentos', 'trending-up'],
   ['reports', 'Relatórios', 'bar-chart'], ['bills', 'Contas a pagar', 'calendar-days'], ['goals', 'Metas', 'target'],
   ['settings', 'Ajustes', 'settings'], ['help', 'Ajuda', 'circle-help'], ['logout', 'Sair', 'log-out'],
 ];

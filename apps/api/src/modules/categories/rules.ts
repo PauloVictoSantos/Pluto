@@ -22,13 +22,24 @@ const typeExpr = (categoryKey: string): Document | string =>
 export const directionOf = (amountMinor: number): 'in' | 'out' => (amountMinor > 0 ? 'in' : 'out');
 const amountFilter = (d: 'in' | 'out') => (d === 'in' ? { $gt: 0 } : { $lte: 0 });
 
+/**
+ * Chave de regra da transacao: o destinatario (hash do CPF/CNPJ ou da conta) quando o banco informa;
+ * senao a descricao sem o envelope do banco. Assim o rotulo de um Pix so passa para Pix ao mesmo
+ * destinatario (RN-D02), mesmo que o nome venha escrito de outro jeito.
+ */
+export const ruleKeyOf = (t: Pick<TransactionDoc, 'counterpartyKey' | 'matchKey' | 'descriptionNorm'>) =>
+  t.counterpartyKey ?? t.matchKey ?? t.descriptionNorm;
+
+/** Filtro das transacoes cobertas por uma chave de regra. */
+export const ruleKeyFilter = (key: string): Filter<TransactionDoc> => (key.startsWith('cp:') ? { counterpartyKey: key } : { matchKey: key });
+
 /** Aplica a regra nas transacoes que ainda nao tem categoria escolhida pelo usuario. */
 export async function applyRule(col: Collections, rule: Pick<CategoryRuleDoc, 'userId' | 'matchKey' | 'direction' | 'categoryKey'>, extra: Filter<TransactionDoc> = {}) {
   const r = await col.transactions.updateMany(
     {
       ...extra,
       userId: rule.userId,
-      matchKey: rule.matchKey,
+      ...ruleKeyFilter(rule.matchKey),
       amountMinor: amountFilter(rule.direction),
       categorySource: { $nin: [...USER_SOURCES] },
       deletedAt: null,

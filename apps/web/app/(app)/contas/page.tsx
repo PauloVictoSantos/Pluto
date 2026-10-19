@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { BankLogo } from '@/components/BankLogo';
+import { CommitmentsCard } from '@/components/CommitmentsCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
 import { StatTiles, tileBrand, tilePlain } from '@/components/StatTiles';
@@ -224,6 +225,7 @@ export default function ContasPage() {
           )}
         </div>
       </div>
+      <CommitmentsCard />
     </div>
   );
 }

@@ -91,4 +91,18 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
   const cutoff = new Date(Date.now() - 40 * 86_400_000);
   const r = await write((o) => db.collection('invoices').updateMany({ status: 'OVERDUE', dueDate: { $lt: cutoff } }, { $set: { status: 'CLOSED', updatedAt: new Date() } }, o));
   if (r.modifiedCount) log(`${r.modifiedCount} faturas antigas reclassificadas de OVERDUE para CLOSED`);
+
+  // 4. RN-D03: horario real ou so data (hora redonda) nas transacoes importadas antes do campo.
+  const isRound = { $and: [{ $eq: [{ $minute: '$date' }, 0] }, { $eq: [{ $second: '$date' }, 0] }, { $eq: [{ $millisecond: '$date' }, 0] }] };
+  const timed = await write((o) => tx.updateMany({ hasTime: { $exists: false } }, [{ $set: { hasTime: { $not: [isRound] } } }], o));
+  if (timed.modifiedCount) log(`horário real/só data marcado em ${timed.modifiedCount} transações`);
+
+  // 5. Destinatario do Pix (RN-D02) e parcelas pela descricao so chegam reimportando: uma vez por
+  //    conexao, a proxima sincronizacao busca o historico inteiro (upsert idempotente, RN-01).
+  const backfill = await write((o) =>
+    db
+      .collection('connections')
+      .updateMany({ analyticsBackfillAt: { $exists: false }, removedAt: null }, { $set: { lastTransactionsSyncAt: null, analyticsBackfillAt: new Date() } }, o),
+  );
+  if (backfill.modifiedCount) log(`${backfill.modifiedCount} conexões vão reimportar o histórico (destinatário e parcelas)`);
 }

@@ -3,7 +3,8 @@
  * calcula nem acessa o banco. Fronteira isolada para trocar de provedor.
  */
 export interface Llm {
-  generate(input: { system: string; prompt: string }): Promise<string>;
+  /** json: resposta em JSON conforme responseSchema (o chamador ainda valida com zod, RN-I03). */
+  generate(input: { system: string; prompt: string; json?: { responseSchema: object } }): Promise<string>;
 }
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -18,7 +19,7 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function createGemini(opts: { apiKey: string; model: string; fallbackModel?: string; timeoutMs?: number }): Llm {
-  async function call(model: string, system: string, prompt: string): Promise<Response> {
+  async function call(model: string, system: string, prompt: string, json?: { responseSchema: object }): Promise<Response> {
     return fetch(`${BASE}/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       // Chave no header, nunca na URL (URLs acabam em logs).
@@ -26,19 +27,23 @@ export function createGemini(opts: { apiKey: string; model: string; fallbackMode
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2048,
+          ...(json ? { responseMimeType: 'application/json', responseSchema: json.responseSchema } : {}),
+        },
       }),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
     });
   }
 
   return {
-    async generate({ system, prompt }) {
+    async generate({ system, prompt, json }) {
       const attempts = [opts.model, opts.model, ...(opts.fallbackModel && opts.fallbackModel !== opts.model ? [opts.fallbackModel] : [])];
       let res: Response | null = null;
       for (const [i, model] of attempts.entries()) {
         if (i > 0) await sleep(i === 1 ? 800 : 0);
-        res = await call(model, system, prompt);
+        res = await call(model, system, prompt, json);
         if (!RETRYABLE.has(res.status)) break;
       }
       // Corpo de erro do provedor nao e repassado: pode ecoar o prompt com dados financeiros.

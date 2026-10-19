@@ -6,6 +6,14 @@ import {
   SimilarSchema,
   BudgetSchema,
   CardSchema,
+  CommitmentsSchema,
+  CatalogSchema,
+  ClosedListSchema,
+  ListHistorySchema,
+  ResolveItemResultSchema,
+  ShoppingListSchema,
+  type ShoppingCategory,
+  type Unit,
   ConnectionSchema,
   DashboardSummarySchema,
   GoalSchema,
@@ -147,6 +155,23 @@ export const api = {
     const t = await request('/auth/passkeys/login/verify', post({ challengeId, response, remember }), TokensSchema);
     setAccessToken(t.accessToken);
   },
+
+  // Camada analitica: numeros prontos do servidor (o navegador nao calcula previsoes).
+  commitments: () => request('/analytics/commitments', {}, CommitmentsSchema),
+
+  // Lista de compras do mes.
+  shoppingList: () => request('/shopping/list', {}, ShoppingListSchema),
+  addShoppingEntry: (body: { raw?: string; itemId?: string; qty?: number; confirm?: { name: string; category: ShoppingCategory; unit: Unit } }) =>
+    request('/shopping/list/entries', post(body), ShoppingListSchema),
+  updateShoppingEntry: (itemId: string, patch: { bought?: boolean; priceMinor?: number | null; qty?: number; removed?: boolean }) =>
+    request(`/shopping/list/entries/${itemId}`, { method: 'PATCH', body: JSON.stringify(patch) }, ShoppingListSchema),
+  dismissSuggestion: (itemId: string) => request(`/shopping/list/suggestions/${itemId}/dismiss`, post(), ShoppingListSchema),
+  answerMarket: (transactionId: string, itemIds: string[]) => request('/shopping/list/market', post({ transactionId, itemIds }), ShoppingListSchema),
+  copyShopping: (month: string, itemIds: string[]) => request('/shopping/list/copy', post({ month, itemIds }), ShoppingListSchema),
+  resolveItem: (raw: string) => request('/shopping/items/resolve', post({ raw }), ResolveItemResultSchema),
+  shoppingCatalog: () => request('/shopping/items', {}, CatalogSchema),
+  shoppingHistory: () => request('/shopping/lists', {}, ListHistorySchema),
+  closedShoppingList: (month: string) => request(`/shopping/lists/${month}`, {}, ClosedListSchema),
 
   connections: () => request('/connections', {}, z.array(ConnectionSchema)),
   importConnection: (itemId: string) => request('/connections/import', post({ itemId }), ConnectionSchema),

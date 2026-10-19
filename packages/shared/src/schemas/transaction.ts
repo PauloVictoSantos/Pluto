@@ -25,6 +25,12 @@ export const TransactionSchema = z.object({
   tags: z.array(z.string()),
   hidden: z.boolean(),
   notes: z.string().nullable(),
+  /** false quando o banco so informa a data: o horario exibido nao e real (RN-D03). */
+  hasTime: z.boolean().default(true),
+  /** Faz parte de uma serie recorrente (assinatura, conta fixa, salario). */
+  recurring: z.boolean().default(false),
+  /** O banco informou quem recebeu/pagou: regras valem para o mesmo destinatario (RN-D02). */
+  hasCounterparty: z.boolean().default(false),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
 
@@ -74,11 +80,21 @@ export type SetCategory = z.infer<typeof SetCategorySchema>;
 export const SetCategoryResultSchema = z.object({ updated: z.number().int(), ruleId: z.string().nullable() });
 
 /** Quantas transacoes seriam afetadas por uma regra a partir desta transacao. */
-export const SimilarSchema = z.object({ matchKey: z.string(), count: z.number().int() });
+export const SimilarSchema = z.object({
+  matchKey: z.string(),
+  count: z.number().int(),
+  /** true: a regra vale para o mesmo destinatario (CPF/CNPJ/conta), nao so para o mesmo texto. */
+  byCounterparty: z.boolean().default(false),
+  /** Nome exibido do destinatario/descricao. */
+  label: z.string().default(''),
+});
 
 export const CategoryRuleSchema = z.object({
   id: z.string(),
   matchKey: z.string(),
+  /** Nome exibido: para regras por destinatario, matchKey e um hash. */
+  label: z.string(),
+  byCounterparty: z.boolean().default(false),
   direction: z.enum(['in', 'out']),
   categoryKey: z.string(),
   createdAt: z.coerce.date(),

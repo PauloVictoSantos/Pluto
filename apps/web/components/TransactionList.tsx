@@ -50,6 +50,21 @@ interface Row {
   timeText: string;
   dayKey: string;
   dayLabel: string;
+  /** Marcas da camada analitica: "Parcela 7/9", "Recorrente". */
+  marks: string[];
+}
+
+function Marks({ marks }: { marks: string[] }) {
+  if (!marks.length) return null;
+  return (
+    <span className="ml-1.5 inline-flex gap-1 align-middle">
+      {marks.map((m) => (
+        <span key={m} className="rounded-full border border-border px-1.5 py-px text-[11px] font-medium whitespace-nowrap text-muted-foreground">
+          {m}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 const amount = (minorOrReais: number, credit: boolean) => ({
@@ -173,7 +188,9 @@ function TransactionListView({
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-semibold">{t.name}</div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {t.category} · {t.timeText}
+                        {t.category}
+                        {t.timeText && ` · ${t.timeText}`}
+                        <Marks marks={t.marks} />
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
@@ -246,7 +263,10 @@ function TransactionListView({
                         </span>
                         <div className="min-w-0">
                           <div className="max-w-[340px] truncate font-semibold">{t.name}</div>
-                          <div className="mt-0.5 text-xs text-muted-foreground">{t.account}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {t.account}
+                            <Marks marks={t.marks} />
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -365,8 +385,13 @@ export function LiveTransactionList({
       category: cat.label,
       ...amount(t.amountMinor / 100, t.amountMinor > 0),
       st: STATUS[t.status]!,
-      dateText: fmtDateTimeIn(t.date, tz),
-      timeText: fmtTimeIn(t.date, tz),
+      // RN-D03: sem horario real o banco manda hora redonda; mostrar so a data.
+      dateText: t.hasTime ? fmtDateTimeIn(t.date, tz) : fmtDay(day),
+      timeText: t.hasTime ? fmtTimeIn(t.date, tz) : '',
+      marks: [
+        ...(t.installment ? [`Parcela ${t.installment.n}/${t.installment.total}`] : []),
+        ...(t.recurring ? ['Recorrente'] : []),
+      ],
       dayKey: day,
       dayLabel: dayLabelOf(day, today),
     };

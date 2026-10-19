@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppContext } from '../context';
 import { processCharges } from '../modules/charges/service';
+import { rollShoppingLists } from '../modules/shopping/service';
 import { syncConnection } from '../modules/sync/service';
 
 /**
@@ -61,4 +62,27 @@ export function startChargeScheduler(ctx: AppContext, log: FastifyBaseLogger) {
     clearTimeout(first);
     clearInterval(every);
   };
+}
+
+/**
+ * Lista de compras: no dia 1 (00:05 no fuso do usuario) fecha a do mes anterior e abre a nova com as
+ * sugestoes. Verifica a cada 5 min; idempotente (indice unico por mes). A tela tambem abre/fecha ao
+ * ser aberta, entao o job so garante a virada mesmo sem ninguem abrir o app.
+ */
+export function startShoppingScheduler(ctx: AppContext, log: FastifyBaseLogger) {
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const n = await rollShoppingLists(ctx);
+      if (n) log.info({ lists: n }, 'listas de compras do mês abertas');
+    } catch (err) {
+      log.error({ err }, 'falha no job da lista de compras');
+    } finally {
+      running = false;
+    }
+  };
+  const every = setInterval(run, 5 * 60_000);
+  return () => clearInterval(every);
 }

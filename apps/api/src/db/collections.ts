@@ -2,6 +2,8 @@ import type {
   AccountType,
   ChargeDestination,
   InstallmentStatus,
+  ShoppingCategory,
+  Unit,
   CategorySource,
   ConnectionSource,
   ConnectionStatus,
@@ -106,6 +108,8 @@ export interface ConnectionDoc {
   lastSyncAt: Date | null;
   lastTransactionsSyncAt: Date | null;
   lastError: string | null;
+  /** Reimportacao completa feita para preencher destinatario e horario das transacoes antigas. */
+  analyticsBackfillAt?: Date | null;
   /** Trava de sincronizacao: evita duas execucoes simultaneas da mesma conexao. */
   syncingUntil: Date | null;
   /** RN-06: conexao removida com historico mantido. */
@@ -147,6 +151,12 @@ export interface TransactionDoc {
   /** Descricao sem o envelope do banco (lib/text matchKeyOf): base das regras de categoria. */
   matchKey: string;
   merchant: string | null;
+  /** RN-D03: false quando o banco so informa a data (hora redonda); fica fora da analise por horario. */
+  hasTime?: boolean;
+  /** RN-D02: hash do CPF/CNPJ ou da conta de quem recebeu/pagou ("cp:..."). Ausente sem dados de pagamento. */
+  counterpartyKey?: string | null;
+  /** Pendente que reapareceu liquidada com outro id: aponta a liquidada (e fica com deletedAt). */
+  duplicateOf?: ObjectId | null;
   amountMinor: number;
   currency: string;
   type: TransactionType;
@@ -214,7 +224,10 @@ export interface InvestmentSnapshotDoc {
 export interface CategoryRuleDoc {
   _id: ObjectId;
   userId: ObjectId;
+  /** Descricao sem envelope, ou "cp:<hash>" para o destinatario do Pix (RN-D02). */
   matchKey: string;
+  /** Nome exibido quando matchKey e um hash de destinatario. */
+  label?: string | null;
   /** Sentido da transacao: Pix recebido e enviado para a mesma pessoa sao coisas diferentes. */
   direction: 'in' | 'out';
   categoryKey: string;
@@ -223,6 +236,23 @@ export interface CategoryRuleDoc {
 }
 
 /** Parcela de uma cobranca: um boleto do Stripe (emitido na hora ou ate 60 dias antes do vencimento). */
+/** Serie recorrente detectada (assinatura, conta fixa, salario), recalculada a cada sincronizacao. */
+export interface RecurrenceDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** counterpartyKey ou matchKey das transacoes da serie. */
+  key: string;
+  direction: 'in' | 'out';
+  label: string;
+  categoryKey: string;
+  period: 7 | 14 | 30 | 365;
+  amountMinor: number;
+  count: number;
+  lastDate: Date;
+  nextDate: Date;
+  updatedAt: Date;
+}
+
 export interface InstallmentDoc {
   n: number;
   amountMinor: number;
@@ -261,6 +291,65 @@ export interface ChargeDoc {
   installments: InstallmentDoc[];
   canceledAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Item canonico do catalogo de compras do usuario (RN-L02). */
+export interface ShoppingItemDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  /** normalizeItemName(name): busca exata. */
+  nameNorm: string;
+  /** Outros nomes ja digitados para o mesmo item, normalizados ("leite integral 1l"). */
+  aliases: string[];
+  category: ShoppingCategory;
+  unit: Unit;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ShoppingEntryDoc {
+  itemId: ObjectId;
+  qty: number;
+  bought: boolean;
+  boughtAt: Date | null;
+  /** Preco pago pela linha, cifrado (doc.: priceCents protegido). */
+  priceEnc: string | null;
+  /** Veio de sugestao: remover conta como rejeicao, nao como "nao comprado" (RN-L05). */
+  suggested: boolean;
+  class: 'essential' | 'maybe' | null;
+  reason: string | null;
+  addedAt: Date;
+  /** Removido da lista (desfazer limpa o campo). */
+  removedAt: Date | null;
+}
+
+export interface ShoppingSuggestionDoc {
+  itemId: ObjectId;
+  qty: number;
+  reason: string;
+  source: 'history' | 'explore';
+}
+
+/** Uma lista por mes (RN-L01). Fechada no dia 1, 00:05, e imutavel depois disso (RN-L06, RN-G07). */
+export interface ShoppingListDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** "YYYY-MM" no fuso do usuario. */
+  month: string;
+  status: 'open' | 'closed';
+  entries: ShoppingEntryDoc[];
+  /** Sugestoes ainda nao aceitas (chips), calculadas na abertura do mes. */
+  suggestions: ShoppingSuggestionDoc[];
+  /** "Voce costuma nao comprar", calculado na abertura. */
+  rarely: { itemId: ObjectId; reason: string }[];
+  /** Sugestoes dispensadas no "x": rejeicao (RN-L05/L08). */
+  dismissed: ObjectId[];
+  /** Compras de mercado ja respondidas ou dispensadas (nao pergunta de novo). */
+  handledTxIds: ObjectId[];
+  createdAt: Date;
+  closedAt: Date | null;
   updatedAt: Date;
 }
 
@@ -311,8 +400,11 @@ export interface Collections {
   investments: Collection<InvestmentDoc>;
   investmentSnapshots: Collection<InvestmentSnapshotDoc>;
   categoryRules: Collection<CategoryRuleDoc>;
+  recurrences: Collection<RecurrenceDoc>;
   charges: Collection<ChargeDoc>;
   budgets: Collection<BudgetDoc>;
+  shoppingItems: Collection<ShoppingItemDoc>;
+  shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
@@ -329,8 +421,11 @@ export const collections = (db: Db): Collections => ({
   investments: db.collection<InvestmentDoc>('investments'),
   investmentSnapshots: db.collection<InvestmentSnapshotDoc>('investment_snapshots'),
   categoryRules: db.collection<CategoryRuleDoc>('category_rules'),
+  recurrences: db.collection<RecurrenceDoc>('recurrences'),
   charges: db.collection<ChargeDoc>('charges'),
   budgets: db.collection<BudgetDoc>('budgets'),
+  shoppingItems: db.collection<ShoppingItemDoc>('shopping_items'),
+  shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

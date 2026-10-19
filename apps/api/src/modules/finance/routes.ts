@@ -21,7 +21,8 @@ import { audit } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
 import { escapeRegex, normalizeDescription } from '../../lib/text';
 import { requireAuth, userOf } from '../../plugins/auth';
-import { applyRule, directionOf, typeFor } from '../categories/rules';
+import { recurringKeys } from '../analytics/service';
+import { applyRule, directionOf, ruleKeyFilter, ruleKeyOf, typeFor } from '../categories/rules';
 
 const toAccountDTO = (a: AccountDoc): Account => ({
   id: a._id.toHexString(),
@@ -37,7 +38,7 @@ const toAccountDTO = (a: AccountDoc): Account => ({
   dueDay: a.dueDay,
 });
 
-const toTransactionDTO = (t: TransactionDoc): Transaction => ({
+const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>()): Transaction => ({
   id: t._id.toHexString(),
   accountId: t.accountId.toHexString(),
   date: t.date,
@@ -55,6 +56,9 @@ const toTransactionDTO = (t: TransactionDoc): Transaction => ({
   tags: t.tags,
   hidden: t.hidden,
   notes: t.notes,
+  hasTime: t.hasTime ?? true,
+  recurring: recurring.has(`${directionOf(t.amountMinor)}|${ruleKeyOf(t)}`),
+  hasCounterparty: !!t.counterpartyKey,
 });
 
 // Cursor opaco: data + _id da ultima transacao da pagina (ordem date desc, _id desc).
@@ -117,7 +121,8 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
 
     const docs = await ctx.col.transactions.find(filter).sort({ date: -1, _id: -1 }).limit(q.limit + 1).toArray();
     const page = docs.slice(0, q.limit);
-    return { items: page.map(toTransactionDTO), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
+    const recurring = await recurringKeys(ctx.col, userOf(req).id);
+    return { items: page.map((t) => toTransactionDTO(t, recurring)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
   });
 
   // Categoria escolhida pelo usuario (RN-12) e regras por destinatario/descricao (RN-10).
@@ -127,18 +132,17 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     if (!t) throw notFound('Transação');
     return t;
   };
-  const matchKeyOfTx = (t: TransactionDoc) => t.matchKey ?? t.descriptionNorm;
 
   app.get('/transactions/:id/similar', { schema: { params: IdParam, response: { 200: SimilarSchema } } }, async (req) => {
     const userId = userOf(req).id, t = await ownTx(userId, req.params.id);
-    const matchKey = matchKeyOfTx(t);
+    const matchKey = ruleKeyOf(t);
     const count = await ctx.col.transactions.countDocuments({
       userId,
-      matchKey,
+      ...ruleKeyFilter(matchKey),
       deletedAt: null,
       amountMinor: t.amountMinor > 0 ? { $gt: 0 } : { $lte: 0 },
     });
-    return { matchKey, count };
+    return { matchKey, count, byCounterparty: matchKey.startsWith('cp:'), label: t.merchant ?? (t.matchKey || t.description) };
   });
 
   app.patch(
@@ -154,16 +158,17 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
       );
       let updated = 1, ruleId: string | null = null;
       if (applyToSimilar) {
-        const matchKey = matchKeyOfTx(t), direction = directionOf(t.amountMinor);
+        const matchKey = ruleKeyOf(t), direction = directionOf(t.amountMinor);
+        const label = t.merchant ?? (t.matchKey || t.description);
         const rule = await ctx.col.categoryRules.findOneAndUpdate(
           { userId, matchKey, direction },
-          { $set: { categoryKey, updatedAt: now }, $setOnInsert: { createdAt: now } },
+          { $set: { categoryKey, label, updatedAt: now }, $setOnInsert: { createdAt: now } },
           { upsert: true, returnDocument: 'after' },
         );
         ruleId = rule!._id.toHexString();
         // Ao trocar a regra, as transacoes que ela ja tinha categorizado passam a seguir a nova.
         await ctx.col.transactions.updateMany(
-          { userId, matchKey, categorySource: 'RULE' },
+          { userId, ...ruleKeyFilter(matchKey), categorySource: 'RULE' },
           { $set: { categorySource: null } },
         );
         updated += await applyRule(ctx.col, { userId, matchKey, direction, categoryKey }, { _id: { $ne: t._id } });
@@ -176,6 +181,8 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
   const toRuleDTO = (r: CategoryRuleDoc) => ({
     id: r._id.toHexString(),
     matchKey: r.matchKey,
+    label: r.label ?? r.matchKey,
+    byCounterparty: r.matchKey.startsWith('cp:'),
     direction: r.direction,
     categoryKey: r.categoryKey,
     createdAt: r.createdAt,
@@ -191,7 +198,7 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const rule = await ctx.col.categoryRules.findOneAndDelete({ _id: new ObjectId(req.params.id), userId });
     if (!rule) throw notFound('Regra');
     const affected = await ctx.col.transactions
-      .find({ userId, matchKey: rule.matchKey, categorySource: 'RULE' }, { projection: { accountId: 1, pluggyCategory: 1, amountMinor: 1, description: 1 } })
+      .find({ userId, ...ruleKeyFilter(rule.matchKey), categorySource: 'RULE' }, { projection: { accountId: 1, pluggyCategory: 1, amountMinor: 1, description: 1 } })
       .toArray();
     if (affected.length) {
       const accType = new Map((await ctx.col.accounts.find({ userId }, { projection: { type: 1 } }).toArray()).map((a) => [a._id.toHexString(), a.type]));
