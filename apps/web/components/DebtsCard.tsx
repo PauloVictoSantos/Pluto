@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { ApiRequestError, api } from '@/lib/api';
 import { MESES, maskMoney } from '@/lib/format';
 import { money } from '@/lib/queries';
-import { CreditCard } from './CreditCard';
+import { CreditCard, cardTheme } from './CreditCard';
 import { Icon } from './ui/Icon';
 import { Sheet, useSheetClose } from './ui/Sheet';
 
@@ -74,7 +74,7 @@ export function DebtsCard() {
             {s.method === 'third_party_card' ? (
               <div className="w-[220px] shrink-0">
                 <CreditCard
-                  card={{ name: s.cardProduct ?? s.name, last4: s.last4, institution: s.bank ?? '', brand: s.brand, bg: '#EC7000', border: '#EC7000', tag: s.holder ? `de ${s.holder}` : null }}
+                  card={{ name: s.cardProduct ?? s.name, last4: s.last4, institution: s.bank ?? '', brand: s.brand, bg: cardTheme(s.bank ?? '', s.cardProduct ?? s.name), border: 'transparent', holder: s.holder }}
                 />
               </div>
             ) : (

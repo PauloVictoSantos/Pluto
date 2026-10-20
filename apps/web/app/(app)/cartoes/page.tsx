@@ -6,6 +6,7 @@ import { CreditCard, cardLook } from '@/components/CreditCard';
 import { useShell } from '@/components/shell/ShellContext';
 import { LiveTransactionList } from '@/components/TransactionList';
 import { Icon } from '@/components/ui/Icon';
+import { useApp } from '@/lib/store';
 import { ymdIn } from '@/lib/datetime';
 import { fmtDay, fmtDayFull } from '@/lib/format';
 import { nextDue } from '@/lib/insights';
@@ -16,6 +17,7 @@ const INVOICE_LABEL = { PAID: 'Paga', OPEN: 'Aberta', CLOSED: 'Fechada', OVERDUE
 
 export default function CartoesPage() {
   const { mode, nav } = useShell();
+  const holder = useApp((s) => s.user?.name) ?? null;
   const isMobile = mode === 'mobile';
   const tz = useTz();
   const today = ymdIn(new Date(), tz);
@@ -94,7 +96,7 @@ export default function CartoesPage() {
                   className="min-w-0 max-w-[360px] cursor-pointer snap-center transition-opacity"
                   style={{ flex: `0 0 ${isMobile ? '84%' : '320px'}`, opacity: i === sel ? 1 : 0.6 }}
                 >
-                  <CreditCard card={cardLook(x, i)} selected={i === sel} />
+                  <CreditCard card={cardLook(x, i, holder)} selected={i === sel} />
                 </div>
               ))}
             </div>

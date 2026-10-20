@@ -32,7 +32,8 @@ const pctText = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}
 export default function OverviewPage() {
   const { mode, nav, openChat } = useShell();
   const isMobile = mode === 'mobile';
-  const userName = (useApp((s) => s.user?.name) ?? '').split(' ')[0];
+  const fullName = useApp((s) => s.user?.name) ?? null;
+  const userName = (fullName ?? '').split(' ')[0];
   const hydrated = useHydrated();
   const tz = useTz();
   const month = useCurrentMonth();
@@ -290,7 +291,7 @@ export default function OverviewPage() {
             {cardList.map((c, i) => (
               <div key={c.id} className="flex min-w-0 snap-start flex-col gap-2.5" style={{ flex: `0 0 ${isMobile ? '84%' : 'calc(50% - 7px)'}` }}>
                 <div onClick={() => nav('cards')} className="cursor-pointer">
-                  <CreditCard card={cardLook(c, i)} />
+                  <CreditCard card={cardLook(c, i, fullName)} />
                 </div>
                 <div className="flex justify-between gap-2 text-[13px]">
                   <span className="text-muted-foreground">{c.dueDay ? `Fatura atual · vence ${fmtDay(nextDue(c.dueDay, today))}` : 'Fatura atual'}</span>
