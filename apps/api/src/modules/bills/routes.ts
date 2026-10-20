@@ -8,6 +8,7 @@ import { audit } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
 import { tzOffsetMs } from '../../lib/time';
 import { requireAuth, userOf } from '../../plugins/auth';
+import { splitPayment, syncDebtBills, unsplitPayment } from '../debts/service';
 
 // Boletos a pagar (doc. "bills"): cadastro manual ou pela linha digitavel. Beneficiario, valor e linha
 // ficam cifrados. Vencido pelo job diario; pago so por acao do usuario ou conciliacao confirmada (RN-M03).
@@ -43,6 +44,8 @@ export const billRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
     monthlyInterest: d.monthlyInterest,
     paidAt: d.paidAt,
     paidTransactionId: d.paidTransactionId?.toHexString() ?? null,
+    sourceId: d.sourceId?.toHexString() ?? null,
+    items: (d.items ?? []).map(({ label, categoryKey, amountMinor, n, total }) => ({ label, categoryKey, amountMinor, n, total })),
     match,
   });
 
@@ -64,6 +67,8 @@ export const billRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
 
   app.get('/bills', { schema: { response: { 200: z.array(BillSchema) } } }, async (req) => {
     const userId = userOf(req).id;
+    // Boletos do mes das dividas manuais (cartao de terceiro etc.) entram aqui tambem.
+    await syncDebtBills(ctx, userId);
     const docs = await col.bills.find({ userId }).sort({ dueDate: 1 }).limit(300).toArray();
     const used = new Set(docs.map((d) => d.paidTransactionId?.toHexString()).filter((x): x is string => !!x));
     const out: Bill[] = [];
@@ -133,6 +138,12 @@ export const billRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
       set.status = b.dueDate < todayIn(await tzOf(ctx, userId), now) ? 'overdue' : 'pending';
     }
     const updated = await col.bills.findOneAndUpdate({ _id: doc._id, userId }, { $set: set }, { returnDocument: 'after' });
+    // Boleto de divida: o pagamento conciliado e dividido entre as compras (cada uma na sua categoria).
+    if (b.status === 'paid' && set.paidTransactionId && doc.items?.length) {
+      const tx = await col.transactions.findOne({ _id: set.paidTransactionId });
+      if (tx) await splitPayment(ctx, tx, doc.items, now);
+    }
+    if (b.status === 'pending' && doc.paidTransactionId) await unsplitPayment(ctx, doc.paidTransactionId, now);
     await audit(col, 'bill.updated', userId, { billId: doc._id.toHexString(), status: set.status ?? doc.status, reconciled: !!b.transactionId }, req.ip);
     return toBill(updated!);
   });
@@ -140,7 +151,7 @@ export const billRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
   /** Cadastro errado. Boleto pago fica no historico (RN-G07). */
   app.delete('/bills/:id', { schema: { params: IdParam } }, async (req, reply) => {
     const userId = userOf(req).id;
-    const r = await col.bills.deleteOne({ _id: new ObjectId(req.params.id), userId, status: { $ne: 'paid' } });
+    const r = await col.bills.deleteOne({ _id: new ObjectId(req.params.id), userId, status: { $ne: 'paid' }, sourceId: { $in: [null] } });
     if (!r.deletedCount) throw notFound('Boleto em aberto');
     await audit(col, 'bill.deleted', userId, { billId: req.params.id }, req.ip);
     return reply.status(204).send();

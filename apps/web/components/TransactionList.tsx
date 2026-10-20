@@ -392,6 +392,7 @@ export function LiveTransactionList({
         ...(t.installment ? [`Parcela ${t.installment.n}/${t.installment.total}`] : []),
         ...(t.recurring ? ['Recorrente'] : []),
         ...(t.outlier ? ['Fora do normal'] : []),
+        ...(t.tags.includes('dividido') ? [t.categoryKey === 'pago-dividido' ? 'Dividido entre compras' : 'Parte de pagamento'] : []),
         ...(t.suggestion ? [`Sugestão: ${categoryOf(t.suggestion.categoryKey).label}`] : []),
       ],
       dayKey: day,

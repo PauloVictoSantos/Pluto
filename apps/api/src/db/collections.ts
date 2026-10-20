@@ -172,6 +172,8 @@ export interface TransactionDoc {
   categoryId: ObjectId | null;
   categorySource: CategorySource | null;
   categoryConfidence: number | null;
+  /** Parte de um pagamento dividido: aponta a transacao original do banco. */
+  splitOf?: ObjectId | null;
   /** Sugestao do Naive Bayes com confianca entre 0,60 e 0,90: o usuario confirma (RN-D01). */
   aiSuggestion?: { categoryKey: string; p: number } | null;
   invoiceId: ObjectId | null;
@@ -373,6 +375,59 @@ export interface BillDoc {
   monthlyInterest: number;
   paidAt: Date | null;
   paidTransactionId: ObjectId | null;
+  /** Boleto do mes de uma divida manual (forma de pagamento + mes): itens que compoem o valor. */
+  sourceId?: ObjectId | null;
+  month?: string | null;
+  items?: BillItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BillItem {
+  commitmentId: ObjectId;
+  label: string;
+  categoryKey: string;
+  amountMinor: number;
+  n: number | null;
+  total: number | null;
+}
+
+/** Forma de pagamento que o Open Finance nao ve (ex.: cartao de um parente, pago a ele por boleto). */
+export interface DebtSourceDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  method: 'third_party_card' | 'boleto' | 'pix';
+  holder: string | null;
+  bank: string | null;
+  cardProduct: string | null;
+  brand: string | null;
+  /** So os 4 ultimos digitos (secao 6.6). */
+  last4: string | null;
+  dueDay: number;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Compra parcelada ou mensalidade paga por uma DebtSource. */
+export interface CommitmentDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  sourceId: ObjectId;
+  merchant: string;
+  categoryKey: string;
+  /** "YYYY-MM-DD" */
+  approvedAt: string;
+  kind: 'installments' | 'monthly';
+  totalMinor: number | null;
+  installments: number | null;
+  monthlyMinor: number | null;
+  /** "YYYY-MM" da 1a parcela/mensalidade. */
+  firstMonth: string;
+  lastMonth: string | null;
+  notes: string | null;
+  active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -474,6 +529,8 @@ export interface Collections {
   budgets: Collection<BudgetDoc>;
   shoppingItems: Collection<ShoppingItemDoc>;
   bills: Collection<BillDoc>;
+  debtSources: Collection<DebtSourceDoc>;
+  commitments: Collection<CommitmentDoc>;
   alerts: Collection<AlertDoc>;
   pushSubscriptions: Collection<PushSubscriptionDoc>;
   jobRuns: Collection<JobRunDoc>;
@@ -499,6 +556,8 @@ export const collections = (db: Db): Collections => ({
   budgets: db.collection<BudgetDoc>('budgets'),
   shoppingItems: db.collection<ShoppingItemDoc>('shopping_items'),
   bills: db.collection<BillDoc>('bills'),
+  debtSources: db.collection<DebtSourceDoc>('debt_sources'),
+  commitments: db.collection<CommitmentDoc>('commitments'),
   alerts: db.collection<AlertDoc>('alerts'),
   pushSubscriptions: db.collection<PushSubscriptionDoc>('push_subscriptions'),
   jobRuns: db.collection<JobRunDoc>('job_runs'),

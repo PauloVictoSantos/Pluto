@@ -44,7 +44,8 @@ export async function refreshRecurrences(col: Collections, userId: ObjectId, now
   const since = new Date(now.getTime() - RECURRENCE_WINDOW_DAYS * DAY);
   const txs = await col.transactions
     .find(
-      { userId, deletedAt: null, installment: null, type: { $in: ['INCOME', 'EXPENSE'] }, date: { $gte: since } },
+      // Partes de pagamento dividido ja entram pelo boleto do mes da divida: nao viram "conta fixa".
+      { userId, deletedAt: null, installment: null, splitOf: null, type: { $in: ['INCOME', 'EXPENSE'] }, date: { $gte: since } },
       { projection: { date: 1, amountMinor: 1, matchKey: 1, counterpartyKey: 1, descriptionNorm: 1, merchant: 1, description: 1, categoryKey: 1, accountId: 1 } },
     )
     .toArray();

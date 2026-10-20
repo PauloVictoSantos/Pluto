@@ -10,6 +10,7 @@ import {
   BillSchema,
   BudgetSuggestionSchema,
   ForecastSchema,
+  DebtSourceSchema,
   AlertSchema,
   AlertSettingsSchema,
   PatternsSchema,
@@ -171,6 +172,17 @@ export const api = {
   goalInsights: () => request('/analytics/goals', {}, GoalInsightsSchema),
   paymentPlan: () => request('/analytics/payments', {}, PaymentPlanSchema),
   patterns: () => request('/analytics/patterns', {}, PatternsSchema),
+
+  // Dividas manuais (cartao de terceiro, boleto ou Pix fora do Open Finance).
+  debts: () => request('/debts', {}, z.array(DebtSourceSchema)),
+  createDebtSource: (b: Record<string, unknown>) => request('/debts/sources', post(b), z.array(DebtSourceSchema)),
+  updateDebtSource: (id: string, b: Record<string, unknown>) =>
+    request(`/debts/sources/${id}`, { method: 'PATCH', body: JSON.stringify(b) }, z.array(DebtSourceSchema)),
+  deleteDebtSource: (id: string) => request(`/debts/sources/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
+  createCommitment: (b: Record<string, unknown>) => request('/debts/commitments', post(b), z.array(DebtSourceSchema)),
+  updateCommitment: (id: string, b: Record<string, unknown>) =>
+    request(`/debts/commitments/${id}`, { method: 'PATCH', body: JSON.stringify(b) }, z.array(DebtSourceSchema)),
+  deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
 
   // Alertas: painel do sino, canais e Web Push.
   alerts: () => request('/alerts', {}, z.array(AlertSchema)),

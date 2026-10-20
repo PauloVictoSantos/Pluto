@@ -57,6 +57,11 @@ export const BillSchema = z.object({
   paidAt: z.coerce.date().nullable(),
   /** Pago por conciliacao com uma transacao confirmada pelo usuario. */
   paidTransactionId: z.string().nullable(),
+  /** Boleto gerado por uma divida manual: as compras que compoem o valor do mes. */
+  sourceId: z.string().nullable().default(null),
+  items: z
+    .array(z.object({ label: z.string(), categoryKey: z.string(), amountMinor: z.number().int(), n: z.number().int().nullable(), total: z.number().int().nullable() }))
+    .default([]),
   /** Transacao do banco que parece ser o pagamento (mesmo valor, data proxima): o usuario confirma. */
   match: z.object({ transactionId: z.string(), date: z.coerce.date(), label: z.string() }).nullable(),
 });

@@ -74,9 +74,11 @@ const isRecurring = (b: Base, t: Pick<TransactionDoc, 'amountMinor' | 'counterpa
 
 /** Gasto variavel por dia (positivo): debito/Pix fora do cartao, sem parcelas nem recorrentes. */
 async function dailyVariable(ctx: AppContext, userId: ObjectId, b: Base, from: Date): Promise<Map<string, number>> {
+  // Pagamentos de boletos (e as partes das dividas) ja entram como "boletos" na projecao: fora do variavel.
+  const paid = (await ctx.col.bills.find({ userId, paidTransactionId: { $ne: null } }, { projection: { paidTransactionId: 1 } }).toArray()).map((x) => x.paidTransactionId!);
   const txs = await ctx.col.transactions
     .find(
-      { userId, deletedAt: null, type: 'EXPENSE', installment: null, date: { $gte: from } },
+      { userId, deletedAt: null, type: 'EXPENSE', installment: null, splitOf: null, _id: { $nin: paid }, date: { $gte: from } },
       { projection: { date: 1, amountMinor: 1, accountId: 1, matchKey: 1, counterpartyKey: 1, descriptionNorm: 1 } },
     )
     .toArray();

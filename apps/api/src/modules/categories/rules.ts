@@ -5,7 +5,13 @@ import type { CategoryRuleDoc, Collections, TransactionDoc } from '../../db/coll
 /** Categoria definida pelo usuario: sincronizacao e migracoes nunca sobrescrevem (RN-12). */
 export const USER_SOURCES = ['MANUAL', 'RULE'] as const;
 
-const INTERNAL_TYPE: Record<string, TransactionType> = { fatura: 'CARD_PAYMENT', 'entre-contas': 'TRANSFER', investimentos: 'INVESTMENT' };
+const INTERNAL_TYPE: Record<string, TransactionType> = {
+  fatura: 'CARD_PAYMENT',
+  'entre-contas': 'TRANSFER',
+  investimentos: 'INVESTMENT',
+  // Saiu da conta, mas o gasto esta nas partes (uma por compra da divida).
+  'pago-dividido': 'TRANSFER',
+};
 
 /**
  * Tipo coerente com a categoria: "Entre minhas contas", "Pagamento de fatura" e "Investimentos"

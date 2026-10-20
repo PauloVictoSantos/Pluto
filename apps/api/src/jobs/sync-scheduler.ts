@@ -3,6 +3,7 @@ import type { AppContext } from '../context';
 import { processCharges } from '../modules/charges/service';
 import { tickAlerts } from '../modules/alerts/service';
 import { markOverdueBills } from '../modules/bills/routes';
+import { syncDebtBills } from '../modules/debts/service';
 import { rollShoppingLists } from '../modules/shopping/service';
 import { syncConnection } from '../modules/sync/service';
 
@@ -80,6 +81,8 @@ export function startPlannerScheduler(ctx: AppContext, log: FastifyBaseLogger) {
     try {
       const n = await rollShoppingLists(ctx);
       if (n) log.info({ lists: n }, 'listas de compras do mês abertas');
+      // Boleto do mes das dividas manuais (vira o mes sozinho).
+      for (const userId of await ctx.col.debtSources.distinct('userId')) await syncDebtBills(ctx, userId);
       const overdue = await markOverdueBills(ctx);
       if (overdue) log.info({ bills: overdue }, 'boletos marcados como vencidos');
     } catch (err) {

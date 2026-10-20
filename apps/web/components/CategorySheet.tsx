@@ -19,7 +19,7 @@ const groupsFor = (amountMinor: number) =>
     : [
         { title: 'Essenciais', items: CATEGORIES.filter((c) => c.group === 'essential') },
         { title: 'Estilo de vida', items: CATEGORIES.filter((c) => c.group === 'lifestyle') },
-        { title: 'Não é gasto', items: CATEGORIES.filter((c) => c.group === 'internal') },
+        { title: 'Não é gasto', items: CATEGORIES.filter((c) => c.group === 'internal' && c.key !== 'pago-dividido') },
       ];
 
 /** Trocar a categoria de uma transacao (RN-12), opcionalmente criando uma regra para as parecidas. */

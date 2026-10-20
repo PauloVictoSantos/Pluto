@@ -26,6 +26,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1, accountId: 1, date: -1 } },
     { key: { userId: 1, matchKey: 1 } },
     { key: { userId: 1, counterpartyKey: 1 }, sparse: true },
+    { key: { splitOf: 1 }, sparse: true },
   ],
   recurrences: [{ key: { userId: 1, key: 1, direction: 1 }, unique: true }],
   category_rules: [{ key: { userId: 1, matchKey: 1, direction: 1 }, unique: true }],
@@ -40,7 +41,14 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   investment_snapshots: [{ key: { investmentId: 1, month: 1 }, unique: true }],
   shopping_items: [{ key: { userId: 1, nameNorm: 1 }, unique: true }, { key: { userId: 1, aliases: 1 } }],
   shopping_lists: [{ key: { userId: 1, month: 1 }, unique: true }, { key: { status: 1 } }],
-  bills: [{ key: { userId: 1, dueDate: 1 } }, { key: { status: 1, dueDate: 1 } }],
+  bills: [
+    { key: { userId: 1, dueDate: 1 } },
+    { key: { status: 1, dueDate: 1 } },
+    // Um boleto por forma de pagamento por mes.
+    { key: { userId: 1, sourceId: 1, month: 1 }, unique: true, partialFilterExpression: { sourceId: { $type: 'objectId' } }, name: 'bills_source_month' },
+  ],
+  debt_sources: [{ key: { userId: 1 } }],
+  commitments: [{ key: { userId: 1, sourceId: 1 } }],
   alerts: [
     { key: { userId: 1, createdAt: -1 } },
     { key: { userId: 1, type: 1, target: 1, createdAt: -1 } },

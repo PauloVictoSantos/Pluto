@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { AddBillSheet } from '@/components/AddBillSheet';
 import { BankLogo } from '@/components/BankLogo';
 import { CommitmentsCard } from '@/components/CommitmentsCard';
+import { DebtsCard } from '@/components/DebtsCard';
 import { PaymentPlanCard } from '@/components/PaymentPlanCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
@@ -96,7 +97,7 @@ export default function ContasPage() {
   for (const b of userBills.data ?? []) {
     if (b.dueDate.slice(0, 7) !== month) continue;
     const kind: Kind = b.status === 'paid' ? 'PAID' : b.status === 'overdue' ? 'OVERDUE' : 'OPEN';
-    bills.push({ id: `bill-${b.id}`, name: b.payee, sub: 'Boleto', bank: '', date: b.dueDate, amount: b.amountMinor, kind, boleto: b });
+    bills.push({ id: `bill-${b.id}`, name: b.payee, sub: b.items.length ? b.items.map((i) => i.label).join(' + ') : 'Boleto', bank: '', date: b.dueDate, amount: b.amountMinor, kind, boleto: b });
   }
   bills.sort((a, b) => a.date.localeCompare(b.date));
 
@@ -277,6 +278,7 @@ export default function ContasPage() {
           )}
         </div>
       </div>
+      <DebtsCard />
       <CommitmentsCard />
 
       {error && (

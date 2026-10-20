@@ -38,6 +38,8 @@ export const CATEGORIES: CategoryDef[] = [
   { key: 'entre-contas', label: 'Entre minhas contas', icon: 'arrow-left-right', color: '#A1A1AA', group: 'internal' },
   { key: 'fatura', label: 'Pagamento de fatura', icon: 'credit-card', color: '#A1A1AA', group: 'internal' },
   { key: 'investimentos', label: 'Investimentos', icon: 'piggy-bank', color: '#7D39EB', group: 'internal' },
+  // Pagamento que foi dividido entre as compras de uma divida (as partes e que contam como gasto).
+  { key: 'pago-dividido', label: 'Pagamento dividido', icon: 'layout-grid', color: '#A1A1AA', group: 'internal' },
 ];
 
 export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
