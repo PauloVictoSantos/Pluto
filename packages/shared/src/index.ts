@@ -14,3 +14,4 @@ export * from './schemas/shopping';
 export * from './schemas/bills';
 export * from './schemas/alerts';
 export * from './schemas/debts';
+export * from './schemas/merchants';

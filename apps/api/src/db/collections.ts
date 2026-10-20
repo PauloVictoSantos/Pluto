@@ -172,6 +172,8 @@ export interface TransactionDoc {
   categoryId: ObjectId | null;
   categorySource: CategorySource | null;
   categoryConfidence: number | null;
+  /** Grupo de estabelecimento ("Uber") a que a descricao pertence. */
+  merchantGroupId?: ObjectId | null;
   /** Parte de um pagamento dividido: aponta a transacao original do banco. */
   splitOf?: ObjectId | null;
   /** Sugestao do Naive Bayes com confianca entre 0,60 e 0,90: o usuario confirma (RN-D01). */
@@ -432,6 +434,21 @@ export interface CommitmentDoc {
   updatedAt: Date;
 }
 
+/** Grupo de estabelecimento: descricoes diferentes do mesmo lugar com uma categoria. */
+export interface MerchantGroupDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  categoryKey: string | null;
+  source: 'ai' | 'user';
+  /** matchKey das transacoes do grupo. */
+  keys: string[];
+  /** Descricoes que o usuario tirou do grupo: a IA nao coloca de volta. */
+  blocked: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -529,6 +546,7 @@ export interface Collections {
   budgets: Collection<BudgetDoc>;
   shoppingItems: Collection<ShoppingItemDoc>;
   bills: Collection<BillDoc>;
+  merchantGroups: Collection<MerchantGroupDoc>;
   debtSources: Collection<DebtSourceDoc>;
   commitments: Collection<CommitmentDoc>;
   alerts: Collection<AlertDoc>;
@@ -556,6 +574,7 @@ export const collections = (db: Db): Collections => ({
   budgets: db.collection<BudgetDoc>('budgets'),
   shoppingItems: db.collection<ShoppingItemDoc>('shopping_items'),
   bills: db.collection<BillDoc>('bills'),
+  merchantGroups: db.collection<MerchantGroupDoc>('merchant_groups'),
   debtSources: db.collection<DebtSourceDoc>('debt_sources'),
   commitments: db.collection<CommitmentDoc>('commitments'),
   alerts: db.collection<AlertDoc>('alerts'),

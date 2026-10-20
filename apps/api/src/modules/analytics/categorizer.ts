@@ -87,6 +87,8 @@ export async function autoCategorize(col: Collections, userId: ObjectId, now = n
         deletedAt: null,
         type: { $in: ['INCOME', 'EXPENSE'] },
         categorySource: { $nin: ['MANUAL', 'RULE'] },
+        // Estabelecimento agrupado: a categoria vem do grupo (merchants/service).
+        merchantGroupId: null,
         date: { $gte: new Date(now.getTime() - WINDOW_DAYS * 86_400_000) },
       },
       { projection: { amountMinor: 1, matchKey: 1, descriptionNorm: 1, counterpartyKey: 1, categoryKey: 1, categorySource: 1, pluggyCategory: 1, type: 1, aiSuggestion: 1 } },

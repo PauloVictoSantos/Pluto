@@ -33,6 +33,8 @@ export const TransactionSchema = z.object({
   hasCounterparty: z.boolean().default(false),
   /** Gasto fora do normal na categoria (z-score modificado > 3,5). So sinaliza (RN-D05). */
   outlier: z.object({ medianMinor: z.number().int(), z: z.number() }).nullable().default(null),
+  /** Nome do grupo de estabelecimento ("Uber" para "UBER *TRIP SP"). */
+  merchantGroup: z.string().nullable().default(null),
   /** Categoria sugerida pelo modelo (confianca 0,60-0,90): o usuario confirma (RN-D01). */
   suggestion: z.object({ categoryKey: z.string(), p: z.number() }).nullable().default(null),
 });

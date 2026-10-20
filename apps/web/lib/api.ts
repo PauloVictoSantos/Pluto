@@ -10,6 +10,7 @@ import {
   BillSchema,
   BudgetSuggestionSchema,
   ForecastSchema,
+  MerchantGroupsSchema,
   DebtSourceSchema,
   AlertSchema,
   AlertSettingsSchema,
@@ -183,6 +184,15 @@ export const api = {
   updateCommitment: (id: string, b: Record<string, unknown>) =>
     request(`/debts/commitments/${id}`, { method: 'PATCH', body: JSON.stringify(b) }, z.array(DebtSourceSchema)),
   deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
+
+  // Estabelecimentos agrupados (similaridade + IA), editaveis.
+  merchantGroups: () => request('/merchant-groups', {}, MerchantGroupsSchema),
+  refreshMerchantGroups: () => request('/merchant-groups/refresh', post(), MerchantGroupsSchema),
+  updateMerchantGroup: (id: string, body: { name?: string; categoryKey?: string | null }) =>
+    request(`/merchant-groups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, MerchantGroupsSchema),
+  mergeMerchantGroup: (id: string, intoId: string) => request(`/merchant-groups/${id}/merge`, post({ intoId }), MerchantGroupsSchema),
+  removeMerchantKey: (id: string, key: string) =>
+    request(`/merchant-groups/${id}/keys`, { method: 'DELETE', body: JSON.stringify({ key }) }, MerchantGroupsSchema),
 
   // Alertas: painel do sino, canais e Web Push.
   alerts: () => request('/alerts', {}, z.array(AlertSchema)),

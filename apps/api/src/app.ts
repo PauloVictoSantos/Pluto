@@ -13,6 +13,7 @@ import { alertRoutes } from './modules/alerts/routes';
 import { assistantRoutes } from './modules/assistant/routes';
 import { billRoutes } from './modules/bills/routes';
 import { debtRoutes } from './modules/debts/routes';
+import { merchantRoutes } from './modules/merchants/routes';
 import { shoppingRoutes } from './modules/shopping/routes';
 import { chargeRoutes, stripeWebhookRoutes } from './modules/charges/routes';
 import { authRoutes } from './modules/auth/routes';
@@ -62,6 +63,7 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(shoppingRoutes, { ctx });
       await v1.register(billRoutes, { ctx });
       await v1.register(debtRoutes, { ctx });
+      await v1.register(merchantRoutes, { ctx });
       await v1.register(alertRoutes, { ctx });
       await v1.register(assistantRoutes, { ctx });
       await v1.register(chargeRoutes, { ctx });

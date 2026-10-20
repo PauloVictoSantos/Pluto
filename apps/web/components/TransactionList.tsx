@@ -379,7 +379,8 @@ export function LiveTransactionList({
       day = ymdIn(t.date, tz);
     return {
       id: t.id,
-      name: t.merchant ?? t.description,
+      // Nome do grupo ("Uber") no lugar de "UBER *TRIP SP" quando a descricao foi agrupada.
+      name: t.merchantGroup ?? t.merchant ?? t.description,
       account: accName[t.accountId] ?? '',
       icon: cat.icon,
       category: cat.label,

@@ -41,7 +41,7 @@ const toAccountDTO = (a: AccountDoc): Account => ({
 });
 
 type Outlier = Transaction['outlier'];
-const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outliers = new Map<string, Outlier>()): Transaction => ({
+const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outliers = new Map<string, Outlier>(), groups = new Map<string, string>()): Transaction => ({
   id: t._id.toHexString(),
   accountId: t.accountId.toHexString(),
   date: t.date,
@@ -64,6 +64,7 @@ const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outl
   hasCounterparty: !!t.counterpartyKey,
   outlier: outliers.get(t._id.toHexString()) ?? null,
   suggestion: t.aiSuggestion ?? null,
+  merchantGroup: t.merchantGroupId ? (groups.get(t.merchantGroupId.toHexString()) ?? null) : null,
 });
 
 const OUTLIER_WINDOW = 180 * 86_400_000;
@@ -130,7 +131,10 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const page = docs.slice(0, q.limit);
     const recurring = await recurringKeys(ctx.col, userOf(req).id);
     const outliers = await outliersOf(userOf(req).id, page);
-    return { items: page.map((t) => toTransactionDTO(t, recurring, outliers)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
+    const groups = new Map(
+      (await ctx.col.merchantGroups.find({ userId: userOf(req).id }, { projection: { name: 1 } }).toArray()).map((g) => [g._id.toHexString(), g.name]),
+    );
+    return { items: page.map((t) => toTransactionDTO(t, recurring, outliers, groups)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
   });
 
   /**

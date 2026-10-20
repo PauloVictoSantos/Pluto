@@ -1,17 +1,21 @@
 import type { SyncResult } from '@pluto/shared';
 import type { AnyBulkWriteOperation, ObjectId } from 'mongodb';
 import type { AccountDoc, Collections, ConnectionDoc, TransactionDoc } from '../../db/collections';
+import type { Llm } from '../../integrations/llm/gemini';
 import type { FieldCrypto } from '../../lib/crypto';
 import type { PluggyGateway } from '../../integrations/pluggy/gateway';
 import { USER_SOURCES, applyUserRules } from '../categories/rules';
 import { counterpartyRef, institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
 import { autoCategorize } from '../analytics/categorizer';
+import { groupMerchants } from '../merchants/service';
 import { dedupPending, refreshRecurrences } from '../analytics/service';
 
 export interface SyncDeps {
   col: Collections;
   pluggy: PluggyGateway;
   crypto: FieldCrypto;
+  /** Gemini para agrupar estabelecimentos (opcional: sem ele, so similaridade local). */
+  llm?: Llm | null;
   now?: () => Date;
   log?: { warn: (obj: object, msg: string) => void };
 }
@@ -118,6 +122,11 @@ export async function syncConnection(deps: SyncDeps, connectionId: ObjectId, opt
   // Categorizacao aprendida nas transacoes novas: falha aqui nao invalida a sincronizacao.
   await autoCategorize(col, conn.userId, now).catch((e) =>
     deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha na categorização aprendida'),
+  );
+
+  // Estabelecimentos agrupados (similaridade + IA): a categoria do grupo vale sobre a do modelo.
+  await groupMerchants({ col, llm: deps.llm ?? null }, conn.userId, now).catch((e) =>
+    deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha no agrupamento de estabelecimentos'),
   );
 
   // Series recorrentes do usuario: falha aqui nao invalida a sincronizacao.

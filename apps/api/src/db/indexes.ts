@@ -48,6 +48,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
     { key: { userId: 1, sourceId: 1, month: 1 }, unique: true, partialFilterExpression: { sourceId: { $type: 'objectId' } }, name: 'bills_source_month' },
   ],
   debt_sources: [{ key: { userId: 1 } }],
+  merchant_groups: [{ key: { userId: 1, keys: 1 } }, { key: { userId: 1, name: 1 } }],
   commitments: [{ key: { userId: 1, sourceId: 1 } }],
   alerts: [
     { key: { userId: 1, createdAt: -1 } },

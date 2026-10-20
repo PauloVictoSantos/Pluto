@@ -18,6 +18,7 @@ export const CATEGORIES: CategoryDef[] = [
   { key: 'contas-casa', label: 'Contas da casa', icon: 'zap', color: '#B18CF7', group: 'essential' },
   { key: 'telefone', label: 'Telefone e internet', icon: 'smartphone', color: '#9A68F2', group: 'essential' },
   { key: 'transporte', label: 'Transporte', icon: 'car', color: '#E2FF94', group: 'essential' },
+  { key: 'transporte-app', label: 'Transporte por app', icon: 'car', color: '#0F172A', group: 'essential' },
   { key: 'combustivel', label: 'Combustível', icon: 'fuel', color: '#5A22B8', group: 'essential' },
   { key: 'saude', label: 'Saúde', icon: 'heart-pulse', color: '#A1E3B5', group: 'essential' },
   { key: 'educacao', label: 'Educação', icon: 'file-text', color: '#6A2AD6', group: 'essential' },

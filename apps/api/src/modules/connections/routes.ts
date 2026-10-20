@@ -18,7 +18,7 @@ const IdParams = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
 
 export const connectionRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app, { ctx }) => {
   app.addHook('preHandler', requireAuth(ctx));
-  const syncDeps = () => ({ col: ctx.col, pluggy: pluggyOf(ctx), crypto: ctx.crypto, log: app.log });
+  const syncDeps = () => ({ col: ctx.col, pluggy: pluggyOf(ctx), crypto: ctx.crypto, llm: ctx.llm, log: app.log });
 
   app.post(
     '/token',

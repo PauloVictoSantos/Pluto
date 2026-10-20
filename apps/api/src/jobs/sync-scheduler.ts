@@ -27,7 +27,7 @@ export function startSyncScheduler(ctx: AppContext, log: FastifyBaseLogger) {
     try {
       const conns = await ctx.col.connections.find({ active: true, needsAction: false, removedAt: null }, { projection: { _id: 1 } }).toArray();
       for (const { _id } of conns) {
-        const r = await syncConnection({ col: ctx.col, pluggy, crypto: ctx.crypto, log }, _id).catch((err) => {
+        const r = await syncConnection({ col: ctx.col, pluggy, crypto: ctx.crypto, llm: ctx.llm, log }, _id).catch((err) => {
           log.error({ err, connectionId: String(_id) }, 'falha na sincronização');
           return null;
         });
