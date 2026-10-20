@@ -36,7 +36,22 @@ export function CreditCard({ card: c, selected = false }: { card: CardLook; sele
         {c.tag && <span className="shrink-0 rounded-full bg-white/20 px-[9px] py-[3px] text-[11px] font-semibold">{c.tag}</span>}
       </div>
       <div className="flex items-center gap-2.5">
-        <span className="h-[25px] w-[34px] rounded-md bg-white/25" />
+        {/* Chip EMV: placa dourada com os contatos. */}
+        <svg width="38" height="28" viewBox="0 0 38 28" aria-hidden className="block shrink-0">
+          <defs>
+            <linearGradient id="chip-gold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#F4E2A1" />
+              <stop offset="0.45" stopColor="#D4AF55" />
+              <stop offset="1" stopColor="#A9822F" />
+            </linearGradient>
+          </defs>
+          <rect x="0.5" y="0.5" width="37" height="27" rx="5" fill="url(#chip-gold)" stroke="#8C6B22" strokeOpacity="0.6" />
+          <g fill="none" stroke="#7A5C1B" strokeOpacity="0.75" strokeWidth="1">
+            <path d="M0.5 9.5H12M0.5 18.5H12M26 9.5H37.5M26 18.5H37.5" />
+            <path d="M12 0.5V27.5M26 0.5V27.5" />
+            <rect x="12" y="7" width="14" height="14" rx="3" />
+          </g>
+        </svg>
         <span className="flex opacity-80">
           <Icon icon="nfc" size={18} />
         </span>

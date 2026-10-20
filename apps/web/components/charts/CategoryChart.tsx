@@ -94,7 +94,13 @@ export function CategoryChart({ spending, loading = false, tip }: { spending?: S
                 className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-[10px] border-0 px-2 text-left text-sm text-foreground"
                 style={{ background: hover === s.i ? 'var(--muted)' : 'transparent' }}
               >
-                <span className="size-2.5 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: s.color }} />
+                {/* Icone da categoria na cor dela: a cor liga a linha a fatia do grafico. */}
+                <span
+                  className="grid size-7 shrink-0 place-items-center rounded-full"
+                  style={{ background: `color-mix(in srgb, ${s.color} 22%, transparent)`, color: 'var(--foreground)', boxShadow: `inset 0 0 0 2px ${s.color}` }}
+                >
+                  <Icon icon={s.icon} size={14} />
+                </span>
                 <span className="min-w-0 flex-1 truncate">{s.label}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">{s.pct.toFixed(0)}%</span>
                 <span className="min-w-[86px] text-right font-semibold tabular-nums">{money(s.spentMinor)}</span>
