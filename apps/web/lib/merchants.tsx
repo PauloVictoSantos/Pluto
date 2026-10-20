@@ -49,15 +49,15 @@ const SIMPLE: Record<string, SimpleIcon> = {
 };
 
 /**
- * Logos oficiais colocados pelo usuario em apps/web/public/logos/<slug>.svg|png|webp (lidos pelo
- * next.config ao iniciar). Tem prioridade sobre o simple-icons. TODO (sem logo no simple-icons):
- *   amazon, shein, mercadolivre, 99, ingresso, sporty, aliancasmanaus
+ * Logos oficiais colocados pelo usuario em apps/web/public/icon ou public/logos, com o nome da marca
+ * (Amazon.png, ifood.jpeg...; lidos pelo next.config ao iniciar). Tem prioridade sobre o simple-icons.
+ * TODO (sem logo no simple-icons): shein, mercadolivre, sporty, aliancasmanaus
  */
 const LOCAL_FILES = new Map(
   (process.env.NEXT_PUBLIC_LOCAL_LOGOS ?? '')
     .split(',')
     .filter(Boolean)
-    .map((f) => [f.replace(/\.[a-z]+$/i, '').toLowerCase(), f] as const),
+    .map((path) => [path.split('/').pop()!.replace(/\.[a-z]+$/i, '').toLowerCase(), path] as const),
 );
 
 /** Categorias genericas (nao sao marca): icone de categoria do app. */
@@ -88,7 +88,7 @@ export function MerchantLogo({ brand, categoryKey, size = 42 }: { brand: Merchan
   const box = { width: size, height: size };
   const file = brand ? LOCAL_FILES.get(brand.slug) : undefined;
   if (file)
-    return <img src={`/logos/${file}`} alt={brand!.name} width={size} height={size} className="shrink-0 rounded-full bg-white object-contain" style={box} />;
+    return <img src={`/${file}`} alt={brand!.name} width={size} height={size} className="shrink-0 rounded-full bg-white object-contain" style={box} />;
   const si = brand ? SIMPLE[brand.slug] : undefined;
   if (si) {
     const bg = `#${si.hex}`;

@@ -2,10 +2,13 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NextConfig } from 'next';
 
-// Logos oficiais que o usuario colocou em public/logos (<marca>.svg|png|webp). Lidos ao iniciar o
-// next dev/build: arquivo novo pede reiniciar. Vao para o app como lista (sem 404 por logo ausente).
-const logosDir = join(process.cwd(), 'public', 'logos');
-const localLogos = existsSync(logosDir) ? readdirSync(logosDir).filter((f) => /^[a-z0-9-]+\.(svg|png|webp)$/i.test(f)) : [];
+// Logos oficiais que o usuario colocou em public/icon ou public/logos (<marca>.png, Amazon.png...).
+// Lidos ao iniciar o next dev/build: arquivo novo pede reiniciar. Vao para o app como lista de caminhos
+// (sem 404 por logo ausente).
+const localLogos = ['icon', 'logos'].flatMap((dir) => {
+  const full = join(process.cwd(), 'public', dir);
+  return existsSync(full) ? readdirSync(full).filter((f) => /^[a-z0-9-]+\.(svg|png|webp|jpe?g)$/i.test(f)).map((f) => `${dir}/${f}`) : [];
+});
 
 // Secao 3.6: mobile usa build estatico exportado para o Capacitor.
 const isMobile = process.env.BUILD_TARGET === 'mobile';

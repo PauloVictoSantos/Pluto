@@ -1,10 +1,11 @@
 Logos oficiais das marcas (aparecem na lista, no detalhe e na busca).
 
-Nome do arquivo = identificador da marca, em minusculas, .svg, .png ou .webp:
+Pasta: public/icon ou public/logos. Nome do arquivo = nome da marca (maiuscula ou minuscula),
+em .svg, .png, .webp, .jpg ou .jpeg:
   uber, ubereats, 99, ifood, shopee, shein, amazon, aliexpress, mercadolivre, sporty, ingresso,
   aliancasmanaus, netflix, spotify, youtube, max, paramountplus, crunchyroll, deezer, steam,
   playstation, mcdonalds, burgerking, kfc, starbucks, mercadopago, restaurante, fatura, iof
-Exemplo: amazon.png, shein.svg, 99.png
+Exemplo: Amazon.png, Ifood.jpeg, 99.png
 
 Depois de colocar o arquivo, pare e inicie o pnpm dev (a lista e lida ao iniciar).
 O seu arquivo tem prioridade sobre o logo do pacote simple-icons.
