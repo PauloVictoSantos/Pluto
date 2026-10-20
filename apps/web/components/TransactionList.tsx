@@ -12,6 +12,7 @@ import { useApp } from '@/lib/store';
 import type { Mode } from '@/lib/viewport';
 import { PlutoLogo } from './brand/PlutoLogo';
 import { CategorySheet } from './CategorySheet';
+import { TransactionDetailSheet } from './TransactionDetailSheet';
 import { Icon } from './ui/Icon';
 import { Segmented } from './ui/Segmented';
 
@@ -95,8 +96,10 @@ interface ViewProps {
   onStatus: (s: StatusFilter) => void;
   empty: ReactNode;
   footer?: ReactNode;
-  /** Abre a transacao para trocar a categoria. */
+  /** Abre o detalhe da transacao. */
   onOpen: (id: string) => void;
+  /** Abre a troca de categoria direto (coluna Categoria no desktop). */
+  onCategory: (id: string) => void;
 }
 
 /** Visual da lista (design "Lista Transacoes"): tabela no desktop, grupos por dia no celular. */
@@ -114,6 +117,7 @@ function TransactionListView({
   empty,
   footer,
   onOpen,
+  onCategory,
 }: ViewProps) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const root = useRef<HTMLDivElement>(null);
@@ -185,7 +189,7 @@ function TransactionListView({
                     type="button"
                     data-anim=""
                     onClick={() => onOpen(t.id)}
-                    aria-label={`${t.name}, ${t.category}. Trocar categoria`}
+                    aria-label={`${t.name}, ${t.category}. Ver detalhes`}
                     className="flex min-h-16 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border bg-transparent p-0 text-left text-foreground"
                   >
                     <MerchantLogo brand={t.brand} categoryKey={t.categoryKey} size={42} />
@@ -278,7 +282,7 @@ function TransactionListView({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpen(t.id);
+                          onCategory(t.id);
                         }}
                         aria-label={`Trocar categoria de ${t.name}`}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap text-foreground hover:border-brand"
@@ -358,6 +362,7 @@ export function LiveTransactionList({
   const [status, setStatus] = useState<StatusFilter>('ALL');
   const q = useDebounced(query.trim());
   const [openId, setOpenId] = useState<string | null>(null);
+  const [catId, setCatId] = useState<string | null>(null);
 
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: api.accounts });
   const tx = useInfiniteQuery({
@@ -463,11 +468,13 @@ export function LiveTransactionList({
   );
 
   const open = openId ? items.find((t) => t.id === openId) : undefined;
+  const catTx = catId ? items.find((t) => t.id === catId) : undefined;
   return (
     <>
       <TransactionListView
         mode={mode}
         onOpen={setOpenId}
+        onCategory={setCatId}
         title={title}
         summary={summary}
         rows={rows}
@@ -490,7 +497,20 @@ export function LiveTransactionList({
           )
         }
       />
-      {open && <CategorySheet key={open.id} tx={open} tz={tz} onClose={() => setOpenId(null)} />}
+      {open && (
+        <TransactionDetailSheet
+          key={open.id}
+          tx={open}
+          tz={tz}
+          account={accName[open.accountId] ?? ''}
+          onClose={() => setOpenId(null)}
+          onCategory={() => {
+            setOpenId(null);
+            setCatId(open.id);
+          }}
+        />
+      )}
+      {catTx && <CategorySheet key={catTx.id} tx={catTx} tz={tz} onClose={() => setCatId(null)} />}
     </>
   );
 }
