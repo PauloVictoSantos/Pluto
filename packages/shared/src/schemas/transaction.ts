@@ -35,6 +35,8 @@ export const TransactionSchema = z.object({
   outlier: z.object({ medianMinor: z.number().int(), z: z.number() }).nullable().default(null),
   /** Nome do grupo de estabelecimento ("Uber" para "UBER *TRIP SP"). */
   merchantGroup: z.string().nullable().default(null),
+  /** Nome dado pelo usuario ("Renomear"): vence o nome automatico. */
+  nameOverride: z.string().nullable().default(null),
   /** Categoria sugerida pelo modelo (confianca 0,60-0,90): o usuario confirma (RN-D01). */
   suggestion: z.object({ categoryKey: z.string(), p: z.number() }).nullable().default(null),
 });
@@ -94,6 +96,9 @@ export const SimilarSchema = z.object({
   /** Nome exibido do destinatario/descricao. */
   label: z.string().default(''),
 });
+
+/** Renomear o estabelecimento (vale para todas as transacoes com a mesma descricao). null volta ao automatico. */
+export const RenameTransactionSchema = z.object({ name: z.string().trim().min(1).max(40).nullable() });
 
 export const CategoryRuleSchema = z.object({
   id: z.string(),

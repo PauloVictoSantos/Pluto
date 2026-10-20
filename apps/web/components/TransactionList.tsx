@@ -1,11 +1,12 @@
 'use client';
 
-import { categoryOf, type Transaction } from '@pluto/shared';
+import { categoryOf, type MerchantBrand, type Transaction } from '@pluto/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { fmtDateTimeIn, fmtTimeIn, ymdIn } from '@/lib/datetime';
 import { daysBetween, fmt, fmtDay } from '@/lib/format';
+import { MerchantLogo, merchantInfo } from '@/lib/merchants';
 import { useEnter } from '@/lib/motion';
 import { useApp } from '@/lib/store';
 import type { Mode } from '@/lib/viewport';
@@ -41,8 +42,13 @@ interface Row {
   id: string;
   name: string;
   account: string;
-  icon: string;
+  brand: MerchantBrand | null;
+  categoryKey: string;
   category: string;
+  /** "Cartao ·final · Parcela x/y · Categoria" */
+  subline: string;
+  /** "de R$ total" quando parcelado. */
+  totalText: string | null;
   amountText: string;
   amountFg: string;
   st: StatusStyle;
@@ -182,13 +188,11 @@ function TransactionListView({
                     aria-label={`${t.name}, ${t.category}. Trocar categoria`}
                     className="flex min-h-16 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border bg-transparent p-0 text-left text-foreground"
                   >
-                    <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-muted">
-                      <Icon icon={t.icon} size={18} />
-                    </span>
+                    <MerchantLogo brand={t.brand} categoryKey={t.categoryKey} size={42} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-semibold">{t.name}</div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {t.category}
+                        {t.subline}
                         {t.timeText && ` · ${t.timeText}`}
                         <Marks marks={t.marks} />
                       </div>
@@ -200,6 +204,7 @@ function TransactionListView({
                       >
                         {t.amountText}
                       </span>
+                      {t.totalText && <span className="text-[11px] text-muted-foreground tabular-nums">{t.totalText}</span>}
                       <span className="badge" style={badge(t.st)}>
                         {t.st.label}
                       </span>
@@ -258,13 +263,11 @@ function TransactionListView({
                     </td>
                     <td className="border-b border-border px-2 py-3">
                       <div className="flex items-center gap-3">
-                        <span className="grid size-[38px] shrink-0 place-items-center rounded-full bg-muted">
-                          <Icon icon={t.icon} size={17} />
-                        </span>
+                        <MerchantLogo brand={t.brand} categoryKey={t.categoryKey} size={38} />
                         <div className="min-w-0">
                           <div className="max-w-[340px] truncate font-semibold">{t.name}</div>
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            {t.account}
+                            {t.subline.replace(` · ${t.category}`, '')}
                             <Marks marks={t.marks} />
                           </div>
                         </div>
@@ -289,6 +292,7 @@ function TransactionListView({
                       style={{ color: t.amountFg }}
                     >
                       {t.amountText}
+                      {t.totalText && <div className="text-[11px] font-normal text-muted-foreground">{t.totalText}</div>}
                     </td>
                     <td className="border-b border-border px-2 py-3">
                       <span className="badge px-2.5 py-1 text-xs" style={badge(t.st)}>
@@ -377,20 +381,27 @@ export function LiveTransactionList({
   const rows: Row[] = items.map((t) => {
     const cat = categoryOf(t.categoryKey),
       day = ymdIn(t.date, tz);
+    // Nome facil e logo da marca ("MP *GUICHEWEB" -> Ingresso); senao grupo, nome do banco ou descricao.
+    const m = merchantInfo(t);
+    const account = accName[t.accountId] ?? '';
+    const isBill = t.categoryKey === 'fatura' || m.brand?.slug === 'fatura';
     return {
       id: t.id,
-      // Nome do grupo ("Uber") no lugar de "UBER *TRIP SP" quando a descricao foi agrupada.
-      name: t.merchantGroup ?? t.merchant ?? t.description,
-      account: accName[t.accountId] ?? '',
-      icon: cat.icon,
+      name: m.name,
+      account,
+      brand: m.brand,
+      categoryKey: t.categoryKey,
       category: cat.label,
+      subline: [account, t.installment ? `Parcela ${t.installment.n}/${t.installment.total}` : null, cat.label].filter(Boolean).join(' · '),
+      totalText: t.installment ? `de ${fmt(Math.abs(t.amountMinor * t.installment.total) / 100)}` : null,
       ...amount(t.amountMinor / 100, t.amountMinor > 0),
+      // Pagamento de fatura em verde: dinheiro saindo para quitar, nao gasto novo.
+      ...(isBill ? { amountFg: '#16A34A' } : {}),
       st: STATUS[t.status]!,
       // RN-D03: sem horario real o banco manda hora redonda; mostrar so a data.
       dateText: t.hasTime ? fmtDateTimeIn(t.date, tz) : fmtDay(day),
       timeText: t.hasTime ? fmtTimeIn(t.date, tz) : '',
       marks: [
-        ...(t.installment ? [`Parcela ${t.installment.n}/${t.installment.total}`] : []),
         ...(t.recurring ? ['Recorrente'] : []),
         ...(t.outlier ? ['Fora do normal'] : []),
         ...(t.tags.includes('dividido') ? [t.categoryKey === 'pago-dividido' ? 'Dividido entre compras' : 'Parte de pagamento'] : []),

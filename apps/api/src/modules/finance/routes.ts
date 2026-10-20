@@ -1,6 +1,8 @@
 import {
   AccountSchema,
+  brandKeysFor,
   CategoryRuleSchema,
+  RenameTransactionSchema,
   SetCategoryResultSchema,
   SetCategorySchema,
   SimilarSchema,
@@ -41,7 +43,8 @@ const toAccountDTO = (a: AccountDoc): Account => ({
 });
 
 type Outlier = Transaction['outlier'];
-const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outliers = new Map<string, Outlier>(), groups = new Map<string, string>()): Transaction => ({
+type GroupName = { name: string; user: boolean };
+const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outliers = new Map<string, Outlier>(), groups = new Map<string, GroupName>()): Transaction => ({
   id: t._id.toHexString(),
   accountId: t.accountId.toHexString(),
   date: t.date,
@@ -64,7 +67,8 @@ const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outl
   hasCounterparty: !!t.counterpartyKey,
   outlier: outliers.get(t._id.toHexString()) ?? null,
   suggestion: t.aiSuggestion ?? null,
-  merchantGroup: t.merchantGroupId ? (groups.get(t.merchantGroupId.toHexString()) ?? null) : null,
+  merchantGroup: t.merchantGroupId ? (groups.get(t.merchantGroupId.toHexString())?.name ?? null) : null,
+  nameOverride: t.merchantGroupId && groups.get(t.merchantGroupId.toHexString())?.user ? groups.get(t.merchantGroupId.toHexString())!.name : null,
 });
 
 const OUTLIER_WINDOW = 180 * 86_400_000;
@@ -120,7 +124,9 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     if (q.from || q.to) filter.date = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lte: q.to } : {}) };
     if (q.q) {
       const term = normalizeDescription(q.q);
-      if (term) filter.descriptionNorm = { $regex: escapeRegex(term) };
+      // O nome facil tambem acha a descricao original: "Ingresso" encontra "MP *GUICHEWEB".
+      const brand = brandKeysFor(q.q).map((k) => ({ descriptionNorm: { $regex: k.split('').map(escapeRegex).join('\\s?') } }));
+      if (term || brand.length) filter.$and = [{ $or: [...(term ? [{ descriptionNorm: { $regex: escapeRegex(term) } }] : []), ...brand] }];
     }
     if (q.cursor) {
       const c = decodeCursor(q.cursor);
@@ -132,7 +138,10 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const recurring = await recurringKeys(ctx.col, userOf(req).id);
     const outliers = await outliersOf(userOf(req).id, page);
     const groups = new Map(
-      (await ctx.col.merchantGroups.find({ userId: userOf(req).id }, { projection: { name: 1 } }).toArray()).map((g) => [g._id.toHexString(), g.name]),
+      (await ctx.col.merchantGroups.find({ userId: userOf(req).id }, { projection: { name: 1, source: 1 } }).toArray()).map((g) => [
+        g._id.toHexString(),
+        { name: g.name, user: g.source === 'user' },
+      ]),
     );
     return { items: page.map((t) => toTransactionDTO(t, recurring, outliers, groups)), nextCursor: docs.length > q.limit ? encodeCursor(page[page.length - 1]!) : null };
   });
@@ -216,6 +225,32 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
       return { updated, ruleId };
     },
   );
+
+  /**
+   * Renomear: o nome vale para todas as transacoes da mesma descricao (grupo do usuario). Se a descricao
+   * ja esta num grupo, renomeia o grupo. null volta ao nome automatico.
+   */
+  app.post('/transactions/:id/rename', { schema: { params: IdParam, body: RenameTransactionSchema, response: { 200: z.object({ name: z.string().nullable() }) } } }, async (req) => {
+    const userId = userOf(req).id, t = await ownTx(userId, req.params.id), now = new Date();
+    const { name } = req.body;
+    const group = t.merchantGroupId ? await ctx.col.merchantGroups.findOne({ _id: t.merchantGroupId, userId }) : null;
+    if (name === null) {
+      // So desfaz o nome de um grupo criado so para renomear (sem categoria e com uma descricao).
+      if (group && group.source === 'user' && !group.categoryKey && group.keys.length === 1) {
+        await ctx.col.merchantGroups.deleteOne({ _id: group._id });
+        await ctx.col.transactions.updateMany({ userId, merchantGroupId: group._id }, { $set: { merchantGroupId: null } });
+      } else if (group) await ctx.col.merchantGroups.updateOne({ _id: group._id }, { $set: { source: 'ai', updatedAt: now } });
+      return { name: null };
+    }
+    if (group) await ctx.col.merchantGroups.updateOne({ _id: group._id }, { $set: { name, source: 'user', updatedAt: now } });
+    else {
+      const _id = new ObjectId();
+      await ctx.col.merchantGroups.insertOne({ _id, userId, name, categoryKey: null, source: 'user', keys: [t.matchKey], blocked: [], createdAt: now, updatedAt: now });
+      await ctx.col.transactions.updateMany({ userId, matchKey: t.matchKey, deletedAt: null, splitOf: null }, { $set: { merchantGroupId: _id } });
+    }
+    await audit(ctx.col, 'transaction.renamed', userId, { transactionId: req.params.id }, req.ip);
+    return { name };
+  });
 
   const toRuleDTO = (r: CategoryRuleDoc) => ({
     id: r._id.toHexString(),

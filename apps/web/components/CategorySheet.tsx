@@ -4,6 +4,7 @@ import { CATEGORIES, categoryOf, type Transaction } from '@pluto/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { api } from '@/lib/api';
+import { MerchantLogo, merchantInfo } from '@/lib/merchants';
 import { fmtDateTimeIn } from '@/lib/datetime';
 import { money } from '@/lib/queries';
 import { Icon } from './ui/Icon';
@@ -30,6 +31,19 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
   const [similarToo, setSimilarToo] = useState(true);
   const [done, setDone] = useState(false);
   const similar = useQuery({ queryKey: ['similar', tx.id], queryFn: () => api.similar(tx.id) });
+  const info = merchantInfo(tx);
+  const [name, setName] = useState(info.name);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
+  const rename = useMutation({
+    mutationFn: (n: string | null) => api.renameTransaction(tx.id, n),
+    onSuccess: (r) => {
+      setName(r.name ?? merchantInfo({ ...tx, nameOverride: null }).name);
+      setRenaming(false);
+      void qc.invalidateQueries({ queryKey: ['transactions'] });
+      void qc.invalidateQueries({ queryKey: ['merchant-groups'] });
+    },
+  });
   const others = Math.max(0, (similar.data?.count ?? 1) - 1);
 
   const save = useMutation({
@@ -50,11 +64,49 @@ export function CategorySheet({ tx, tz, onClose }: { tx: Transaction; tz: string
   return (
     <Sheet onClose={onClose} label="Categoria da transação" width={520} top="8vh" gap={14} onSubmit={submit}>
       <div className="flex items-start gap-3">
-        <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-muted">
-          <Icon icon={categoryOf(key).icon} size={18} />
-        </span>
+        <MerchantLogo brand={info.brand} categoryKey={key} size={42} />
         <div className="min-w-0 flex-1">
-          <div className="text-[17px] font-bold tracking-[-0.01em] break-words">{tx.merchant ?? tx.description}</div>
+          {renaming ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                // Dentro do formulario da categoria: Enter salva so o nome.
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newName.trim()) rename.mutate(newName.trim());
+                  }
+                  if (e.key === 'Escape') setRenaming(false);
+                }}
+                maxLength={40}
+                aria-label="Novo nome do estabelecimento"
+                className="input h-10 min-w-0 flex-1"
+              />
+              <button type="button" onClick={() => newName.trim() && rename.mutate(newName.trim())} disabled={rename.isPending} className="btn btn-primary h-10 px-3 text-[13px]">
+                Salvar
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 text-[17px] font-bold tracking-[-0.01em] break-words">{name}</div>
+              <button type="button" onClick={() => (setNewName(name), setRenaming(true))} aria-label="Renomear estabelecimento" className="icon-btn size-8 shrink-0 border-0">
+                <Icon icon="pencil" size={14} />
+              </button>
+            </div>
+          )}
+          {renaming && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              Vale para todas as compras de “{tx.description}”.{' '}
+              {tx.nameOverride && (
+                <button type="button" onClick={() => rename.mutate(null)} className="cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-brand-text underline">
+                  Voltar ao nome automático
+                </button>
+              )}
+            </div>
+          )}
+          {name !== tx.description && !renaming && <div className="mt-0.5 truncate text-xs text-muted-foreground">{tx.description}</div>}
           <div className="mt-0.5 text-xs text-muted-foreground">
             {fmtDateTimeIn(tx.date, tz)} · {tx.amountMinor > 0 ? '+ ' : '− '}
             {money(Math.abs(tx.amountMinor))}

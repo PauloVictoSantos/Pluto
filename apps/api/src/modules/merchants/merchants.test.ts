@@ -109,6 +109,20 @@ describe('agrupamento de estabelecimentos', () => {
     expect(tlist.items.find((t: { description: string }) => t.description === 'UBER TRIP SP').merchantGroup).toBe('Uber e 99');
   });
 
+  it('renomear vale para todas as compras da mesma descricao e pode voltar ao automatico', async () => {
+    const t = await h.ctx.col.transactions.findOne({ userId, matchKey: 'ifood restaurante' });
+    expect((await req('POST', `/v1/transactions/${t!._id.toHexString()}/rename`, { name: 'Restaurante da Ana' })).json()).toEqual({ name: 'Restaurante da Ana' });
+    const list = (await req('GET', '/v1/transactions')).json();
+    expect(list.items.find((x: { id: string }) => x.id === t!._id.toHexString()).nameOverride).toBe('Restaurante da Ana');
+    // A IA nao mexe no nome dado pelo usuario.
+    await groupMerchants(h.ctx, userId, NOW);
+    expect(await groupOf('ifood restaurante')).toMatchObject({ group: 'Restaurante da Ana' });
+
+    await req('POST', `/v1/transactions/${t!._id.toHexString()}/rename`, { name: null });
+    const after = (await req('GET', '/v1/transactions')).json();
+    expect(after.items.find((x: { id: string }) => x.id === t!._id.toHexString()).nameOverride).toBeNull();
+  });
+
   it('com a IA desligada nas configuracoes, so similaridade local', async () => {
     await h.ctx.col.users.updateOne({ _id: userId }, { $set: { 'settings.aiEnabled': false } });
     expect(await groupMerchants(h.ctx, userId, NOW)).toEqual({ local: 0, ai: 0 });

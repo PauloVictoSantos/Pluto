@@ -256,6 +256,7 @@ export const api = {
   similar: (id: string) => request(`/transactions/${id}/similar`, {}, SimilarSchema),
   setCategory: (id: string, categoryKey: string, applyToSimilar: boolean) =>
     request(`/transactions/${id}/category`, { method: 'PATCH', body: JSON.stringify({ categoryKey, applyToSimilar }) }, SetCategoryResultSchema),
+  renameTransaction: (id: string, name: string | null) => request(`/transactions/${id}/rename`, post({ name }), z.object({ name: z.string().nullable() })),
   categoryRules: () => request('/category-rules', {}, z.array(CategoryRuleSchema)),
   deleteCategoryRule: (id: string) => request<void>(`/category-rules/${id}`, { method: 'DELETE' }),
   ask: (question: string, history: { role: 'user' | 'pluto'; text: string }[]) =>
