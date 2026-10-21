@@ -135,6 +135,23 @@ button {
     font-weight: 600;
     letter-spacing: -0.02em;
   }
+  /* Visao geral: os 7 blocos em destaque (titulo 16px, cantos 24px). */
+  .hero-card {
+    border-radius: 24px;
+    padding: clamp(18px, 3vw, 24px);
+  }
+  .hero-card .card-title {
+    font-size: 16px;
+  }
+  /* Secao Analises: secundaria, cards menores e mais apagados. */
+  .analises .card {
+    border-radius: 20px;
+    padding: 16px;
+    background: color-mix(in srgb, var(--card) 70%, var(--muted));
+  }
+  .analises .card-title {
+    font-size: 14px;
+  }
   .btn {
     display: inline-flex;
     align-items: center;
