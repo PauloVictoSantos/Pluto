@@ -1,8 +1,9 @@
-import { BudgetSuggestionSchema, CommitmentsSchema, ForecastSchema, GoalInsightsSchema, PatternsSchema, PaymentPlanSchema } from '@pluto/shared';
+import { BudgetSuggestionSchema, CommitmentsSchema, ForecastSchema, GoalInsightsSchema, FinancialHealthQuerySchema, FinancialHealthSchema, PatternsSchema, PaymentPlanSchema } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import type { AppContext } from '../../context';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { budgetSuggestion, forecast, goalInsights, paymentPlan } from './forecast';
+import { financialHealth } from './health';
 import { patterns } from './patterns';
 import { commitments, refreshRecurrences } from './service';
 
@@ -27,6 +28,11 @@ export const analyticsRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async
 
   /** Mapa dia x horario, mudancas de habito, tendencia e explicacao da variacao (Relatorios). */
   app.get('/analytics/patterns', { schema: { response: { 200: PatternsSchema } } }, async (req) => patterns(ctx, userOf(req).id));
+
+  /** Saude financeira (300 a 850) do periodo, com a nota do periodo anterior. */
+  app.get('/analytics/health', { schema: { querystring: FinancialHealthQuerySchema, response: { 200: FinancialHealthSchema } } }, async (req) =>
+    financialHealth(ctx, userOf(req).id, req.query.period),
+  );
 
   app.get('/analytics/payments', { schema: { response: { 200: PaymentPlanSchema } } }, async (req) => paymentPlan(ctx, userOf(req).id));
 };

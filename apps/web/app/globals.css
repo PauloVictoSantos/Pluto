@@ -10,6 +10,9 @@
 /* Tokens do design "Pluto App". Tema alternado por data-theme no <html>. */
 :root,
 [data-theme='light'] {
+  /* Saude financeira: azul-ceu -> branco -> verde-limao claro. */
+  --health-bg: linear-gradient(135deg, #dcefff 0%, #ffffff 48%, #eef9d2 100%);
+  --health-card: rgba(255, 255, 255, 0.72);
   --background: #ffffff;
   --foreground: #000000;
   --card: #ffffff;
@@ -34,6 +37,9 @@
 }
 
 [data-theme='dark'] {
+  /* Saude financeira: brilho sutil nas mesmas cores do tema claro. */
+  --health-bg: radial-gradient(120% 90% at 0% 0%, rgba(90, 160, 255, 0.16), transparent 60%), radial-gradient(110% 90% at 100% 100%, rgba(198, 244, 50, 0.12), transparent 60%), #0b0b0e;
+  --health-card: rgba(255, 255, 255, 0.06);
   --background: #000000;
   --foreground: #fafafa;
   --card: #0f0f11;

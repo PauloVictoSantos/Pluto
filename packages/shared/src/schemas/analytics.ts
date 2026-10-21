@@ -127,6 +127,24 @@ export const PaymentPlanSchema = z.object({
 });
 export type PaymentPlan = z.infer<typeof PaymentPlanSchema>;
 
+/** Saude financeira (300 a 850) calculada com os dados do usuario; nao e score de birô. */
+export const HEALTH_PERIODS = ['month', '3m', '12m'] as const;
+export const FinancialHealthQuerySchema = z.object({ period: z.enum(HEALTH_PERIODS).default('month') });
+export const FinancialHealthSchema = z.object({
+  period: z.enum(HEALTH_PERIODS),
+  score: z.number().int(),
+  /** Nota do periodo anterior de mesmo tamanho (null sem historico). */
+  prevScore: z.number().int().nullable(),
+  band: z.object({ label: z.string(), from: z.number().int(), to: z.number().int() }),
+  onTime: z.object({ pct: z.number().nullable(), paid: z.number().int(), due: z.number().int() }),
+  limitUse: z.object({ pct: z.number().nullable(), usedMinor: Money, limitMinor: Money, trend: z.enum(['up', 'down', 'flat']).nullable() }),
+  negatives: z.object({ count: z.number().int(), overdue: z.number().int(), fees: z.number().int() }),
+  historyMonths: z.number().int(),
+  installments: z.object({ count: z.number().int(), monthlyMinor: Money, incomeMinor: Money }),
+  purchases: z.number().int(),
+});
+export type FinancialHealth = z.infer<typeof FinancialHealthSchema>;
+
 /** Categorizacao aprendida: ligada so com F1 macro >= 0,85 nas correcoes reservadas (RN-I04). */
 export const CategorizerStatusSchema = z.object({
   enabled: z.boolean(),
