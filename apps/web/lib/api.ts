@@ -26,6 +26,7 @@ import {
   type Unit,
   ConnectionSchema,
   DashboardSummarySchema,
+  DashboardSeriesSchema,
   GoalSchema,
   InvestmentsSchema,
   InvoiceSchema,
@@ -235,6 +236,7 @@ export const api = {
 
   accounts: () => request('/accounts', {}, z.array(AccountSchema)),
   summary: () => request('/dashboard/summary', {}, DashboardSummarySchema),
+  series: () => request('/dashboard/series', {}, DashboardSeriesSchema),
   spending: (month?: string) => request(`/dashboard/spending${month ? `?month=${month}` : ''}`, {}, SpendingSchema),
   investments: () => request('/dashboard/investments', {}, InvestmentsSchema),
   cards: () => request('/cards', {}, z.array(CardSchema)),

@@ -1,6 +1,9 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type CSSProperties } from 'react';
+import { Sparkline } from '@/components/Sparkline';
+import { api } from '@/lib/api';
 import { PlutoMascot } from '@/components/brand/PlutoMascot';
 import { CategoryChart, PlutoTip } from '@/components/charts/CategoryChart';
 import { RevenueChart } from '@/components/charts/RevenueChart';
@@ -42,6 +45,9 @@ export default function OverviewPage() {
   useEnter(root);
 
   const summary = useSummary();
+  // Series dos sparklines (30 dias, calculadas no servidor).
+  const series = useQuery({ queryKey: ['dashboard', 'series'], queryFn: api.series, staleTime: 5 * 60_000 });
+  const sr = series.data;
   const spending = useSpending();
   const budget = useBudget(month);
   const cards = useCards();
@@ -59,15 +65,15 @@ export default function OverviewPage() {
   const s = summary.data;
   const cur = s?.current, prev = s?.previous;
   const kpis = [
-    { label: 'Receitas', v: cur?.incomeMinor, c: cur && prev ? change(cur.incomeMinor, prev.incomeMinor) : null, icon: 'arrow-down-left', featured: true, invert: false },
-    { label: 'Despesas', v: cur?.expensesMinor, c: cur && prev ? change(cur.expensesMinor, prev.expensesMinor) : null, icon: 'arrow-up-right', featured: false, invert: true },
+    { label: 'Receitas', v: cur?.incomeMinor, c: cur && prev ? change(cur.incomeMinor, prev.incomeMinor) : null, icon: 'arrow-down-left', featured: true, invert: false, series: sr?.incomeMinor },
+    { label: 'Despesas', v: cur?.expensesMinor, c: cur && prev ? change(cur.expensesMinor, prev.expensesMinor) : null, icon: 'arrow-up-right', featured: false, invert: true, series: sr?.expensesMinor },
     {
       label: 'Saldo do mês',
       v: cur ? cur.incomeMinor - cur.expensesMinor : undefined,
       c: cur && prev ? change(cur.incomeMinor - cur.expensesMinor, prev.incomeMinor - prev.expensesMinor) : null,
-      icon: 'wallet', featured: false, invert: false,
+      icon: 'wallet', featured: false, invert: false, series: sr?.netMinor,
     },
-    { label: 'Investido', v: cur?.investedMinor, c: cur && prev ? change(cur.investedMinor, prev.investedMinor) : null, icon: 'piggy-bank', featured: false, invert: false },
+    { label: 'Investido', v: cur?.investedMinor, c: cur && prev ? change(cur.investedMinor, prev.investedMinor) : null, icon: 'piggy-bank', featured: false, invert: false, series: sr?.investedMinor },
   ];
 
   const limitTotal = (budget.data?.items ?? []).reduce((t, b) => t + b.limitMinor, 0);
@@ -170,6 +176,11 @@ export default function OverviewPage() {
                     <span className="truncate text-sm font-semibold">{bankBrand(b.institutionName).label}</span>
                   </div>
                   <div className="text-[17px] font-bold tracking-[-0.02em] whitespace-nowrap tabular-nums">{money(b.balanceMinor)}</div>
+                  {sr?.banks.find((x) => x.connectionId === b.connectionId) && (
+                    <div className="h-7 text-muted-foreground">
+                      <Sparkline data={sr.banks.find((x) => x.connectionId === b.connectionId)!.balanceMinor} height={28} interactive={false} label={`Saldo ${bankBrand(b.institutionName).label}`} color="var(--brand)" />
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="size-[7px] rounded-full" style={{ background: b.needsAction ? '#EF4444' : '#22C55E' }} />
                     {b.needsAction ? 'Reconectar' : 'Conectada'}
@@ -211,6 +222,21 @@ export default function OverviewPage() {
                       <Icon icon={up ? 'arrow-up-right' : 'arrow-down-right'} size={13} />
                       {pctText(k.c)}
                     </span>
+                  )}
+                </div>
+                {/* Sparkline no espaco do meio: cor igual a do badge (favoravel = verde-limao). */}
+                <div className="-my-1 h-12" style={{ color: k.featured ? '#fff' : 'var(--muted-foreground)' }}>
+                  {k.series ? (
+                    <Sparkline
+                      data={k.series}
+                      days={sr?.days}
+                      height={48}
+                      filled
+                      label={k.label}
+                      color={k.featured ? 'rgba(255,255,255,.9)' : good ? '#c6f432' : '#F87171'}
+                    />
+                  ) : (
+                    <div className="h-full animate-pulse rounded-lg" style={{ background: k.featured ? 'rgba(255,255,255,.12)' : 'var(--muted)' }} />
                   )}
                 </div>
                 <div className="min-w-0">

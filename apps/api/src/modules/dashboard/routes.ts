@@ -1,5 +1,6 @@
 import {
   CardSchema,
+  DashboardSeriesSchema,
   DashboardSummarySchema,
   InvestmentsSchema,
   InvoiceQuerySchema,
@@ -13,7 +14,7 @@ import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
 import type { AccountDoc, ConnectionDoc, InvoiceDoc } from '../../db/collections';
-import { addMonth, monthOf, monthRange, monthStart } from '../../lib/time';
+import { addMonth, monthOf, monthRange, monthStart, tzOffsetMs } from '../../lib/time';
 import { requireAuth, userOf } from '../../plugins/auth';
 
 // Secao 7: GET /dashboard/spending, /dashboard/investments + resumo da visao geral, cartoes e faturas.
@@ -79,6 +80,66 @@ export const dashboardRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async
       current: monthly[5]!,
       previous: monthly[4]!,
       monthly,
+    };
+  });
+
+  /** Series dos sparklines: 30 dias no fuso do usuario (doc. tarefa 6: dados reais, nunca fixos). */
+  app.get('/dashboard/series', { schema: { response: { 200: DashboardSeriesSchema } } }, async (req) => {
+    const userId = userOf(req).id, tz = await tzOf(userId), now = new Date();
+    const DAY = 86_400_000, N = 30;
+    const local = (d: Date) => new Date(d.getTime() + tzOffsetMs(d, tz)).toISOString().slice(0, 10);
+    const today = local(now);
+    const days = Array.from({ length: N }, (_, i) => new Date(Date.parse(`${today}T12:00:00Z`) - (N - 1 - i) * DAY).toISOString().slice(0, 10));
+    const idx = new Map(days.map((d, i) => [d, i]));
+    const from = new Date(Date.parse(`${days[0]}T00:00:00Z`) - tzOffsetMs(now, tz) - DAY);
+
+    const conns = await connectionsOf(userId);
+    const accounts = (await col.accounts.find({ userId }).toArray()).filter((a) => !conns.get(a.connectionId.toHexString())?.removedAt);
+    const accById = new Map(accounts.map((a) => [a._id.toHexString(), a]));
+    const txs = await col.transactions
+      .find({ userId, deletedAt: null, date: { $gte: from } }, { projection: { date: 1, amountMinor: 1, type: 1, accountId: 1 } })
+      .toArray();
+
+    const income = Array<number>(N).fill(0), expenses = Array<number>(N).fill(0), investFlow = Array<number>(N).fill(0);
+    const bankFlow = new Map<string, number[]>();
+    for (const t of txs) {
+      const i = idx.get(local(t.date));
+      if (i === undefined) continue;
+      if (t.type === 'INCOME') income[i]! += t.amountMinor;
+      if (t.type === 'EXPENSE') expenses[i]! -= t.amountMinor;
+      // Aplicacao sai da conta (negativa) e entra no investido.
+      if (t.type === 'INVESTMENT') investFlow[i]! -= t.amountMinor;
+      const acc = accById.get(t.accountId.toHexString());
+      if (acc && acc.type !== 'CREDIT_CARD') {
+        const k = acc.connectionId.toHexString(), arr = bankFlow.get(k) ?? Array<number>(N).fill(0);
+        arr[i]! += t.amountMinor;
+        bankFlow.set(k, arr);
+      }
+    }
+    let acc = 0;
+    const net = days.map((_, i) => (acc += income[i]! - expenses[i]!));
+    /** Valor de hoje voltando no tempo: valor no fim do dia i = hoje - movimentos depois de i. */
+    const backwards = (todayValue: number, flow: number[]) => {
+      const out = Array<number>(N).fill(0);
+      let v = todayValue;
+      for (let i = N - 1; i >= 0; i--) {
+        out[i] = v;
+        v -= flow[i]!;
+      }
+      return out;
+    };
+    const investedToday = (await col.investments.find({ userId }, { projection: { currentValueMinor: 1, connectionId: 1 } }).toArray())
+      .filter((x) => !conns.get(x.connectionId.toHexString())?.removedAt)
+      .reduce((s, x) => s + x.currentValueMinor, 0);
+    const balances = new Map<string, number>();
+    for (const a of accounts) if (a.type === 'CHECKING' || a.type === 'SAVINGS') balances.set(a.connectionId.toHexString(), (balances.get(a.connectionId.toHexString()) ?? 0) + a.balanceMinor);
+    return {
+      days,
+      incomeMinor: income,
+      expensesMinor: expenses,
+      netMinor: net,
+      investedMinor: backwards(investedToday, investFlow),
+      banks: [...balances].map(([connectionId, b]) => ({ connectionId, balanceMinor: backwards(b, bankFlow.get(connectionId) ?? Array<number>(N).fill(0)) })),
     };
   });
 

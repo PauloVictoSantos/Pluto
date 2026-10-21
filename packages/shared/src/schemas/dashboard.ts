@@ -33,6 +33,22 @@ export const DashboardSummarySchema = z.object({
 });
 export type DashboardSummary = z.infer<typeof DashboardSummarySchema>;
 
+/**
+ * Series diarias dos ultimos 30 dias para os sparklines (um ponto por dia, do mais antigo a hoje).
+ * Investido e saldo das contas sao reconstruidos a partir do valor de hoje e das movimentacoes (sem
+ * rendimento no meio do caminho).
+ */
+export const DashboardSeriesSchema = z.object({
+  days: z.array(z.string()),
+  incomeMinor: z.array(z.number().int()),
+  expensesMinor: z.array(z.number().int()),
+  /** Receitas - despesas acumuladas no periodo. */
+  netMinor: z.array(z.number().int()),
+  investedMinor: z.array(z.number().int()),
+  banks: z.array(z.object({ connectionId: z.string(), balanceMinor: z.array(z.number().int()) })),
+});
+export type DashboardSeries = z.infer<typeof DashboardSeriesSchema>;
+
 export const SpendingSchema = z.object({
   month: z.string(),
   totalMinor: z.number().int(),
