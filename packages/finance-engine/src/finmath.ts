@@ -92,3 +92,62 @@ export function monthsToReach(targetMinor: number, savedMinor: number, monthlyMi
   }
   return null;
 }
+
+/** MT-07: divida acima de 2% a.m. vem antes de qualquer meta de compra. */
+export const HIGH_INTEREST_MONTHLY = 0.02;
+
+export interface DebtTerms {
+  balanceMinor: number;
+  monthlyRate: number;
+  /** Parcela mensal; null = sem parcela fixa (rotativo, cheque especial). */
+  installmentMinor: number | null;
+}
+
+export interface DebtPayoff {
+  /** Meses ate quitar; null se a parcela nao cobre os juros (a divida nunca acaba). */
+  months: number | null;
+  totalInterestMinor: number | null;
+  /** Juros do proximo mes sobre o saldo atual. */
+  monthlyInterestMinor: number;
+}
+
+/** Amortizacao mes a mes: juros (half-even) sobre o saldo, depois a parcela. */
+export function debtPayoff(d: DebtTerms, maxMonths = 600): DebtPayoff {
+  const monthlyInterestMinor = roundHalfEven(d.balanceMinor * d.monthlyRate);
+  if (d.balanceMinor <= 0) return { months: 0, totalInterestMinor: 0, monthlyInterestMinor: 0 };
+  if (!d.installmentMinor || d.installmentMinor <= monthlyInterestMinor) return { months: null, totalInterestMinor: null, monthlyInterestMinor };
+  let bal = d.balanceMinor, interest = 0;
+  for (let m = 1; m <= maxMonths; m++) {
+    const j = roundHalfEven(bal * d.monthlyRate);
+    interest += j;
+    bal += j - d.installmentMinor;
+    // Centavos que sobram do arredondamento da parcela entram na ultima.
+    if (bal <= d.installmentMinor * 0.005) return { months: m, totalInterestMinor: interest, monthlyInterestMinor };
+  }
+  return { months: null, totalInterestMinor: null, monthlyInterestMinor };
+}
+
+/** Saldo depois de pagar `months` parcelas (estimativa entre atualizacoes do usuario). */
+export function balanceAfter(d: DebtTerms, months: number): number {
+  let bal = d.balanceMinor;
+  for (let m = 0; m < months && bal > 0; m++) bal = bal + roundHalfEven(bal * d.monthlyRate) - (d.installmentMinor ?? 0);
+  return Math.max(0, bal);
+}
+
+/** Taxa mensal implicita de um parcelamento (saldo hoje, n parcelas iguais). */
+export const impliedMonthlyRate = (balanceMinor: number, installmentMinor: number, n: number) =>
+  installmentMinor * n <= balanceMinor ? 0 : cetMonthly([balanceMinor, ...Array<number>(n).fill(-installmentMinor)], 0.03);
+
+/** Juros evitados e meses a menos amortizando `extraMinor` hoje. */
+export function extraPaymentEffect(d: DebtTerms, extraMinor: number) {
+  const base = debtPayoff(d), after = debtPayoff({ ...d, balanceMinor: Math.max(0, d.balanceMinor - extraMinor) });
+  if (base.totalInterestMinor === null || after.totalInterestMinor === null) {
+    // Sem fim previsto: o ganho imediato e o juro do mes que deixa de incidir sobre o valor amortizado.
+    return { interestSavedMinor: null, monthsSaved: null, monthlyInterestSavedMinor: roundHalfEven(Math.min(extraMinor, d.balanceMinor) * d.monthlyRate) };
+  }
+  return { interestSavedMinor: base.totalInterestMinor - after.totalInterestMinor, monthsSaved: base.months! - after.months!, monthlyInterestSavedMinor: roundHalfEven(Math.min(extraMinor, d.balanceMinor) * d.monthlyRate) };
+}
+
+/** Ordem de quitacao (avalanche): maior taxa primeiro; empate, menor saldo. */
+export const payoffOrder = <T extends DebtTerms>(debts: readonly T[]) =>
+  [...debts].sort((a, b) => b.monthlyRate - a.monthlyRate || a.balanceMinor - b.balanceMinor);

@@ -17,4 +17,5 @@ export * from './schemas/debts';
 export * from './schemas/merchants';
 export * from './schemas/agent';
 export * from './schemas/fixed';
+export * from './schemas/loans';
 export * from './merchants';

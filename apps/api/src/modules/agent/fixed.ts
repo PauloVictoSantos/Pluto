@@ -6,6 +6,7 @@ import type { FixedExpenseDoc } from '../../db/collections';
 import { AppError, notFound } from '../../lib/errors';
 import { addMonth, monthOf, monthStart, tzOffsetMs } from '../../lib/time';
 import { listDebts } from '../debts/service';
+import { listLoans } from './loans';
 import { readProfile, suggestIncome } from './profile';
 
 // Gastos fixos (doc. Pluton 3.1). As mesmas funcoes atendem a tela e, na etapa 8, as ferramentas do
@@ -77,6 +78,29 @@ async function debtItems(ctx: AppContext, userId: ObjectId, now: Date): Promise<
   );
 }
 
+/** GF-06: parcelas das dividas com juros, ate a ultima prevista. */
+async function loanItems(ctx: AppContext, userId: ObjectId, now: Date): Promise<FixedExpense[]> {
+  const { items } = await listLoans(ctx, userId, now);
+  return items
+    .filter((l) => l.installmentMinor && l.balanceMinor > 0)
+    .map((l) => ({
+      id: `juros:${l.id}`,
+      name: l.creditor,
+      categoryKey: 'dividas',
+      amountMinor: l.installmentMinor!,
+      isVariable: false,
+      amountStdMinor: null,
+      dueDay: l.dueDay,
+      dueMonth: null,
+      recurrence: 'monthly' as const,
+      endsOn: l.endsOn,
+      source: 'divida' as const,
+      matchKey: null,
+      monthlyMinor: l.installmentMinor!,
+      installment: null,
+    }));
+}
+
 const PERIOD: Partial<Record<number, FixedRecurrence>> = { 7: 'weekly', 30: 'monthly', 365: 'yearly' };
 
 /** Recorrencias de saida detectadas no extrato que ainda nao sao fixos (o usuario confirma). */
@@ -114,7 +138,7 @@ export async function listFixed(ctx: AppContext, userId: ObjectId, now = new Dat
       await ctx.col.fixedExpenses.updateOne({ _id: d._id }, { $set: { amountMinor: s.meanMinor, amountStdMinor: s.stdMinor } });
     }
   }
-  const items = [...docs.map(toDto), ...(await debtItems(ctx, userId, now))];
+  const items = [...docs.map(toDto), ...(await debtItems(ctx, userId, now)), ...(await loanItems(ctx, userId, now))];
   const active = items.filter((i) => !i.endsOn || i.endsOn >= month);
   const monthlyTotalMinor = active.reduce((t, i) => t + i.monthlyMinor, 0);
   const { profile } = await readProfile(ctx, userId);

@@ -2,6 +2,7 @@ import type {
   ALERT_PAGES,
   YearObjective,
   FixedRecurrence,
+  LoanKind,
   AlertType,
   AccountType,
   ChargeDestination,
@@ -485,6 +486,27 @@ export interface FixedExpenseDoc {
   deletedAt: Date | null;
 }
 
+/** Divida com juros do agente (doc. Pluton, tabela debts); saldo e parcela criptografados. */
+export interface LoanDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  creditor: string;
+  kind: LoanKind;
+  /** Saldo devedor em centavos, criptografado, na data balanceAsOf. */
+  balanceEnc: string;
+  /** "YYYY-MM" em que o saldo foi informado; depois disso o saldo e estimado. */
+  balanceAsOf: string;
+  /** Taxa ao mes informada; null = calculada pela parcela e prazo. */
+  monthlyRate: number | null;
+  installmentEnc: string | null;
+  /** Parcelas restantes em balanceAsOf. */
+  installmentsLeft: number | null;
+  dueDay: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -592,6 +614,7 @@ export interface Collections {
   goals: Collection<GoalDoc>;
   financialProfiles: Collection<FinancialProfileDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
+  loans: Collection<LoanDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -622,5 +645,6 @@ export const collections = (db: Db): Collections => ({
   goals: db.collection<GoalDoc>('goals'),
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
+  loans: db.collection<LoanDoc>('loans'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

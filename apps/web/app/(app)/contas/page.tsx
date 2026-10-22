@@ -7,6 +7,7 @@ import { AddBillSheet } from '@/components/AddBillSheet';
 import { BankLogo } from '@/components/BankLogo';
 import { CommitmentsCard } from '@/components/CommitmentsCard';
 import { DebtsCard } from '@/components/DebtsCard';
+import { LoansCard } from '@/components/LoansCard';
 import { PaymentPlanCard } from '@/components/PaymentPlanCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
@@ -278,6 +279,7 @@ export default function ContasPage() {
           )}
         </div>
       </div>
+      <LoansCard />
       <DebtsCard />
       <CommitmentsCard />
 

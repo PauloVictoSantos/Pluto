@@ -1,4 +1,15 @@
-import { CreateFixedExpenseSchema, FinancialProfileSchema, FixedExpensesSchema, UpdateFinancialProfileSchema, UpdateFixedExpenseSchema } from '@pluto/shared';
+import {
+  CreateFixedExpenseSchema,
+  CreateLoanSchema,
+  FinancialProfileSchema,
+  FixedExpensesSchema,
+  LoanExtraQuerySchema,
+  LoanExtraSchema,
+  LoansSchema,
+  UpdateFinancialProfileSchema,
+  UpdateFixedExpenseSchema,
+  UpdateLoanSchema,
+} from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
@@ -6,10 +17,12 @@ import { audit } from '../../lib/audit';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
 import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
+import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { getProfile, updateProfile } from './profile';
 
 const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
 const FIXED = { response: { 200: FixedExpensesSchema } };
+const LOANS = { response: { 200: LoansSchema } };
 
 // Agente Plutao (doc. Pluton): perfil financeiro e gastos fixos que alimentam os calculos.
 export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app, { ctx }) => {
@@ -48,4 +61,33 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     await audit(ctx.col, 'fixed_expense.deleted', userId, { before: removed }, req.ip);
     return listFixed(ctx, userId);
   });
+
+  // Dividas com juros: a auditoria registra credor, tipo e taxa, nunca saldo e parcela (criptografados).
+  app.get('/agent/loans', { schema: LOANS }, async (req) => listLoans(ctx, userOf(req).id));
+
+  app.post('/agent/loans', { config: { rateLimit: perUser(30) }, schema: { body: CreateLoanSchema, ...LOANS } }, async (req) => {
+    const userId = userOf(req).id;
+    const created = await createLoan(ctx, userId, req.body);
+    await audit(ctx.col, 'loan.created', userId, { after: created }, req.ip);
+    return listLoans(ctx, userId);
+  });
+
+  app.patch('/agent/loans/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, body: UpdateLoanSchema, ...LOANS } }, async (req) => {
+    const userId = userOf(req).id;
+    const change = await updateLoan(ctx, userId, req.params.id, req.body);
+    await audit(ctx.col, 'loan.updated', userId, change, req.ip);
+    return listLoans(ctx, userId);
+  });
+
+  app.delete('/agent/loans/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...LOANS } }, async (req) => {
+    const userId = userOf(req).id;
+    const removed = await removeLoan(ctx, userId, req.params.id);
+    await audit(ctx.col, 'loan.deleted', userId, { before: removed }, req.ip);
+    return listLoans(ctx, userId);
+  });
+
+  /** Simula amortizar um valor hoje: juros evitados e meses a menos. */
+  app.get('/agent/loans/:id/extra', { schema: { params: IdParam, querystring: LoanExtraQuerySchema, response: { 200: LoanExtraSchema } } }, async (req) =>
+    loanExtra(ctx, userOf(req).id, req.params.id, req.query.amountMinor),
+  );
 };

@@ -134,6 +134,18 @@ export const VALIDATORS: Record<string, Document> = {
     paidAt: dateOrNull,
     paidTransactionId: oidOrNull,
   }),
+  loans: schema(['userId', 'creditor', 'kind', 'balanceEnc', 'balanceAsOf', 'dueDay', 'createdAt'], {
+    userId: oid,
+    creditor: { bsonType: 'string', maxLength: 60 },
+    kind: enumOf(['emprestimo', 'financiamento', 'cartao-rotativo', 'cheque-especial', 'outro']),
+    balanceEnc: { bsonType: 'string', pattern: '^v1\\.' },
+    installmentEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },
+    balanceAsOf: { bsonType: 'string', pattern: '^\\d{4}-\\d{2}$' },
+    monthlyRate: { bsonType: ['int', 'long', 'double', 'null'], minimum: 0, maximum: 0.5 },
+    installmentsLeft: { ...intOrNull, minimum: 0, maximum: 600 },
+    dueDay: { ...int, minimum: 1, maximum: 31 },
+    deletedAt: dateOrNull,
+  }),
   fixed_expenses: schema(['userId', 'name', 'categoryKey', 'amountMinor', 'isVariable', 'dueDay', 'recurrence', 'source', 'createdAt'], {
     userId: oid,
     name: { bsonType: 'string', maxLength: 60 },

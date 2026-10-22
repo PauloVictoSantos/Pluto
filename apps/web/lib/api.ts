@@ -14,6 +14,10 @@ import {
   MerchantGroupsSchema,
   FinancialProfileSchema,
   FixedExpensesSchema,
+  LoansSchema,
+  LoanExtraSchema,
+  type CreateLoan,
+  type UpdateLoan,
   type CreateFixedExpense,
   type UpdateFixedExpense,
   type UpdateFinancialProfile,
@@ -194,6 +198,11 @@ export const api = {
   deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
 
   // Estabelecimentos agrupados (similaridade + IA), editaveis.
+  loans: () => request('/agent/loans', {}, LoansSchema),
+  createLoan: (body: CreateLoan) => request('/agent/loans', post(body), LoansSchema),
+  updateLoan: (id: string, body: UpdateLoan) => request(`/agent/loans/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, LoansSchema),
+  deleteLoan: (id: string) => request(`/agent/loans/${id}`, { method: 'DELETE' }, LoansSchema),
+  loanExtra: (id: string, amountMinor: number) => request(`/agent/loans/${id}/extra?amountMinor=${amountMinor}`, {}, LoanExtraSchema),
   fixedExpenses: () => request('/agent/fixed-expenses', {}, FixedExpensesSchema),
   createFixedExpense: (body: CreateFixedExpense) => request('/agent/fixed-expenses', post(body), FixedExpensesSchema),
   updateFixedExpense: (id: string, body: UpdateFixedExpense) =>
