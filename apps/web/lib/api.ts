@@ -185,7 +185,7 @@ export const api = {
   goalInsights: () => request('/analytics/goals', {}, GoalInsightsSchema),
   paymentPlan: () => request('/analytics/payments', {}, PaymentPlanSchema),
   patterns: () => request('/analytics/patterns', {}, PatternsSchema),
-  financialHealth: (period: 'month' | '3m' | '12m') => request(`/analytics/health?period=${period}`, {}, FinancialHealthSchema),
+  financialHealth: () => request('/analytics/health', {}, FinancialHealthSchema),
 
   // Dividas manuais (cartao de terceiro, boleto ou Pix fora do Open Finance).
   debts: () => request('/debts', {}, z.array(DebtSourceSchema)),

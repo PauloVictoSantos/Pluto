@@ -21,7 +21,7 @@ const VARIABLE_KEYS = CATEGORIES.filter((c) => (c.group === 'essential' || c.gro
  * Gasto variavel por mes no intervalo: saidas de consumo, menos o que ja esta nos fixos (descricoes
  * vinculadas) e as partes de pagamento dividido (parcelas de Contas a pagar, ja contadas nos fixos).
  */
-async function variableByMonth(ctx: AppContext, userId: ObjectId, tz: string, from: Date, to: Date, fixedKeys: string[]) {
+export async function variableByMonth(ctx: AppContext, userId: ObjectId, tz: string, from: Date, to: Date, fixedKeys: string[]) {
   const rows = await ctx.col.transactions
     .aggregate<{ _id: string; total: number }>([
       {

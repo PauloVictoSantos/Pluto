@@ -523,6 +523,15 @@ export interface SpendingLimitDoc {
   createdAt: Date;
 }
 
+/** Nota mensal da saude financeira (0-100), para comparar com o mes anterior. */
+export interface HealthSnapshotDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  month: string;
+  score: number;
+  at: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -632,6 +641,7 @@ export interface Collections {
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
+  healthSnapshots: Collection<HealthSnapshotDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -664,5 +674,6 @@ export const collections = (db: Db): Collections => ({
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),
+  healthSnapshots: db.collection<HealthSnapshotDoc>('health_snapshots'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });
