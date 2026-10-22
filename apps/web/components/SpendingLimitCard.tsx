@@ -82,6 +82,7 @@ export function SpendingLimitCard() {
       <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(l.usedPct, 1) * 100)}>
         <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(l.usedPct, 1) * 100}%`, background: tone.bar }} />
       </div>
+      {l.plannedMinor > 0 && <div className="text-[12.5px] text-muted-foreground">{money(l.plannedMinor)} reservados para compras planejadas.</div>}
       {l.remainingMinor > 0 && (
         <div className="text-[13px]">
           Para chegar ao fim do mês: <strong className="tabular-nums">{money(l.weekMinor)}</strong> por semana · <strong className="tabular-nums">{money(l.dayMinor)}</strong> por dia

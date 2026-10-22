@@ -78,10 +78,12 @@ export async function getLimit(ctx: AppContext, userId: ObjectId, now = new Date
   const spentMinor = spentMap.get(month) ?? 0;
   const history = await variableByMonth(ctx, userId, tz, monthStart(addMonth(month, -6), tz), monthStart(month, tz), doc.fixedKeys);
   const limitMinor = doc.overrideMinor ?? doc.computedMinor;
-  const remainingMinor = limitMinor - spentMinor;
+  const plannedMinor = (await ctx.col.purchaseEvaluations.find({ userId, status: 'planejada', month }, { projection: { monthImpactMinor: 1 } }).toArray()).reduce((t, p) => t + p.monthImpactMinor, 0);
+  const remainingMinor = limitMinor - spentMinor - plannedMinor;
   const local = new Date(now.getTime() + tzOffsetMs(now, tz));
   const daysInMonth = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + 1, 0)).getUTCDate();
-  const w = weeklyAllowance(remainingMinor, daysInMonth - local.getUTCDate() + 1);
+  const daysLeft = daysInMonth - local.getUTCDate() + 1;
+  const w = weeklyAllowance(remainingMinor, daysLeft);
   const t = usageThreshold(spentMinor, limitMinor);
   const { incomeMinor, fixedMinor, goalsMinor, marginMinor, deficitMinor } = doc.inputs;
   const breakdown = { incomeMinor, fixedMinor, goalsMinor, marginMinor, deficitMinor };
@@ -91,7 +93,9 @@ export async function getLimit(ctx: AppContext, userId: ObjectId, now = new Date
     overrideMinor: doc.overrideMinor,
     limitMinor,
     spentMinor,
+    plannedMinor,
     remainingMinor,
+    daysLeft,
     usedPct: limitMinor > 0 ? Math.round((spentMinor / limitMinor) * 1000) / 1000 : spentMinor > 0 ? 1 : 0,
     weekMinor: w.weekMinor,
     dayMinor: w.dayMinor,

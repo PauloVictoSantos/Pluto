@@ -20,4 +20,5 @@ export * from './schemas/fixed';
 export * from './schemas/loans';
 export * from './schemas/limit';
 export * from './schemas/agentGoals';
+export * from './schemas/purchases';
 export * from './merchants';

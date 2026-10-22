@@ -5,6 +5,8 @@ import type {
   GoalAnswers,
   GoalDiagnosis,
   GoalKindV2,
+  PurchaseEvaluation,
+  PurchaseRequest,
   LoanKind,
   AlertType,
   AccountType,
@@ -550,6 +552,24 @@ export interface GoalDraftDoc {
   updatedAt: Date;
 }
 
+/** Avaliacao de compra (doc. Pluton 3.4): pedido, veredito e o que o usuario fez depois. */
+export interface PurchaseEvaluationDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** "YYYY-MM" da avaliacao (compra planejada pesa no limite deste mes). */
+  month: string;
+  request: PurchaseRequest;
+  verdict: PurchaseEvaluation['verdict'];
+  reason: PurchaseEvaluation['reason'];
+  result: Omit<PurchaseEvaluation, 'id' | 'status' | 'holdUntil' | 'canPlan' | 'consequence' | 'createdAt'>;
+  monthImpactMinor: number;
+  status: Exclude<PurchaseEvaluation['status'], 'simulada'>;
+  holdUntil: Date | null;
+  consequence: string[] | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -671,6 +691,7 @@ export interface Collections {
   spendingLimits: Collection<SpendingLimitDoc>;
   healthSnapshots: Collection<HealthSnapshotDoc>;
   goalDrafts: Collection<GoalDraftDoc>;
+  purchaseEvaluations: Collection<PurchaseEvaluationDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -705,5 +726,6 @@ export const collections = (db: Db): Collections => ({
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),
   healthSnapshots: db.collection<HealthSnapshotDoc>('health_snapshots'),
   goalDrafts: db.collection<GoalDraftDoc>('goal_drafts'),
+  purchaseEvaluations: db.collection<PurchaseEvaluationDoc>('purchase_evaluations'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

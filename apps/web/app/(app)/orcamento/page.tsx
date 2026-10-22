@@ -5,6 +5,7 @@ import { useRef } from 'react';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { BudgetSuggestionCard } from '@/components/BudgetSuggestionCard';
 import { SpendingLimitCard } from '@/components/SpendingLimitCard';
+import { PurchaseCheckCard } from '@/components/PurchaseCheckCard';
 import { CategoryChart } from '@/components/charts/CategoryChart';
 import { useShell } from '@/components/shell/ShellContext';
 import { CountUp } from '@/components/ui/CountUp';
@@ -53,6 +54,7 @@ export default function OrcamentoPage() {
       </div>
 
       <SpendingLimitCard />
+      <PurchaseCheckCard />
 
       <div data-anim="" className="flex flex-col gap-3.5 rounded-2xl bg-brand p-[clamp(18px,4vw,24px)] text-white">
         <div className="flex flex-wrap items-center justify-between gap-3">

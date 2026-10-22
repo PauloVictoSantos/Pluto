@@ -13,7 +13,11 @@ export const SpendingLimitSchema = z.object({
   limitMinor: z.number().int(),
   /** Gasto variavel do mes ate agora (sem fixos vinculados ao extrato nem parcelas). */
   spentMinor: z.number().int(),
+  /** Compras avaliadas e planejadas para este mes (ainda nao feitas). */
+  plannedMinor: z.number().int(),
   remainingMinor: z.number().int(),
+  /** Dias ate o fim do mes, contando hoje. */
+  daysLeft: z.number().int(),
   usedPct: z.number(),
   /** LG-06: quanto cabe por semana e por dia daqui ate o fim do mes. */
   weekMinor: z.number().int(),

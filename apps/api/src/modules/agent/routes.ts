@@ -6,6 +6,9 @@ import {
   GoalDraftSchema,
   GoalStatusChangeSchema,
   GoalsPlanSchema,
+  PurchaseEvaluationSchema,
+  PurchaseRequestSchema,
+  PurchasesSchema,
   CreateFixedExpenseSchema,
   CreateLoanSchema,
   FinancialProfileSchema,
@@ -28,6 +31,7 @@ import { perUser } from '../../plugins/security';
 import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
 import { answerDraft, confirmDraft, createDraft, diagnoseDraft, discardDraft, getDraft, goalsPlan, listDrafts, setGoalStatus } from './goals';
 import { getLimit, overrideLimit } from './limit';
+import { boughtPurchase, evaluateAndSave, giveUpPurchase, listPurchases, planPurchase, purchaseToGoal, simulatePurchase } from './purchases';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { getProfile, updateProfile } from './profile';
 
@@ -151,6 +155,37 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     await audit(ctx.col, 'goal.status_changed', userId, { goalId: req.params.id, ...change }, req.ip);
     return goalsPlan(ctx, userId);
   });
+
+  // Avaliacao de compra (doc. Pluton 3.4). "simulate" e a ferramenta simular_compra: so calcula.
+  const PURCHASE = { response: { 200: PurchaseEvaluationSchema } };
+  app.get('/agent/purchases', { schema: { response: { 200: PurchasesSchema } } }, async (req) => listPurchases(ctx, userOf(req).id));
+  app.post('/agent/purchases/simulate', { config: { rateLimit: perUser(30) }, schema: { body: PurchaseRequestSchema, ...PURCHASE } }, async (req) => simulatePurchase(ctx, userOf(req).id, req.body));
+  app.post('/agent/purchases', { config: { rateLimit: perUser(30) }, schema: { body: PurchaseRequestSchema, ...PURCHASE } }, async (req) => {
+    const userId = userOf(req).id;
+    const e = await evaluateAndSave(ctx, userId, req.body);
+    await audit(ctx.col, 'purchase.evaluated', userId, { purchaseId: e.id, verdict: e.verdict, reason: e.reason }, req.ip);
+    return e;
+  });
+  app.post('/agent/purchases/:id/plan', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...PURCHASE } }, async (req) => {
+    const userId = userOf(req).id;
+    const e = await planPurchase(ctx, userId, req.params.id);
+    await audit(ctx.col, 'purchase.planned', userId, { purchaseId: e.id, verdict: e.verdict }, req.ip);
+    return e;
+  });
+  app.post('/agent/purchases/:id/bought', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...PURCHASE } }, async (req) => {
+    const userId = userOf(req).id;
+    const e = await boughtPurchase(ctx, userId, req.params.id);
+    await audit(ctx.col, e.status === 'desvio' ? 'purchase.deviation' : 'purchase.bought', userId, { purchaseId: e.id, verdict: e.verdict }, req.ip);
+    return e;
+  });
+  app.post('/agent/purchases/:id/give-up', { schema: { params: IdParam, ...PURCHASE } }, async (req) => {
+    const userId = userOf(req).id;
+    const e = await giveUpPurchase(ctx, userId, req.params.id);
+    await audit(ctx.col, 'purchase.given_up', userId, { purchaseId: e.id }, req.ip);
+    return e;
+  });
+  /** RECUSAR oferece o plano como meta: abre um rascunho ja com as respostas da compra. */
+  app.post('/agent/purchases/:id/to-goal', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...DRAFT } }, async (req) => purchaseToGoal(ctx, userOf(req).id, req.params.id));
 
   /** Simula amortizar um valor hoje: juros evitados e meses a menos. */
   app.get('/agent/loans/:id/extra', { schema: { params: IdParam, querystring: LoanExtraQuerySchema, response: { 200: LoanExtraSchema } } }, async (req) =>
