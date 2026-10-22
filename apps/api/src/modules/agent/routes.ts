@@ -9,6 +9,8 @@ import {
   PurchaseEvaluationSchema,
   PurchaseRequestSchema,
   PurchasesSchema,
+  AgentChatRequestSchema,
+  AgentChatStateSchema,
   CreateFixedExpenseSchema,
   CreateLoanSchema,
   FinancialProfileSchema,
@@ -31,6 +33,7 @@ import { perUser } from '../../plugins/security';
 import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
 import { answerDraft, confirmDraft, createDraft, diagnoseDraft, discardDraft, getDraft, goalsPlan, listDrafts, setGoalStatus } from './goals';
 import { getLimit, overrideLimit } from './limit';
+import { chatState, resetChat, sendMessage } from './plutao/orchestrator';
 import { boughtPurchase, evaluateAndSave, giveUpPurchase, listPurchases, planPurchase, purchaseToGoal, simulatePurchase } from './purchases';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { getProfile, updateProfile } from './profile';
@@ -155,6 +158,13 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     await audit(ctx.col, 'goal.status_changed', userId, { goalId: req.params.id, ...change }, req.ip);
     return goalsPlan(ctx, userId);
   });
+
+  // Chat com o Plutao (doc. Pluton 7): substitui o "Perguntar a Pluto". Cada mensagem pode custar
+  // algumas chamadas ao provedor.
+  const CHAT = { response: { 200: AgentChatStateSchema } };
+  app.get('/agent/chat', { schema: CHAT }, async (req) => chatState(ctx, userOf(req).id));
+  app.post('/agent/chat', { config: { rateLimit: perUser(20) }, schema: { body: AgentChatRequestSchema, ...CHAT } }, async (req) => sendMessage(ctx, userOf(req).id, req.body.message, req.ip));
+  app.post('/agent/chat/reset', { schema: CHAT }, async (req) => resetChat(ctx, userOf(req).id));
 
   // Avaliacao de compra (doc. Pluton 3.4). "simulate" e a ferramenta simular_compra: so calcula.
   const PURCHASE = { response: { 200: PurchaseEvaluationSchema } };

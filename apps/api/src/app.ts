@@ -10,7 +10,6 @@ import {
 import type { AppContext } from './context';
 import { analyticsRoutes } from './modules/analytics/routes';
 import { alertRoutes } from './modules/alerts/routes';
-import { assistantRoutes } from './modules/assistant/routes';
 import { billRoutes } from './modules/bills/routes';
 import { debtRoutes } from './modules/debts/routes';
 import { merchantRoutes } from './modules/merchants/routes';
@@ -77,7 +76,6 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(merchantRoutes, { ctx });
       await v1.register(agentRoutes, { ctx });
       await v1.register(alertRoutes, { ctx });
-      await v1.register(assistantRoutes, { ctx });
       await v1.register(chargeRoutes, { ctx });
       await v1.register(stripeWebhookRoutes, { ctx });
     },

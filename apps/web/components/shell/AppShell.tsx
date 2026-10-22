@@ -390,7 +390,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }}
           >
             <PlutoLogo size={40} />
-            {!isMobile && <span className="whitespace-nowrap">Pergunte à Pluto</span>}
+            {!isMobile && <span className="whitespace-nowrap">Fale com o Plutão</span>}
           </button>
         )}
 
@@ -443,8 +443,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <PlutoLogo size={34} />
                 </span>
                 <span className="flex flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-bold">Pergunte à Pluto</span>
-                  <span className="text-xs opacity-85">“Quanto gastei com delivery este mês?”</span>
+                  <span className="text-[15px] font-bold">Fale com o Plutão</span>
+                  <span className="text-xs opacity-85">“Posso comprar um celular de R$ 2.000?”</span>
                 </span>
                 <Icon icon="chevron-right" size={18} />
               </button>

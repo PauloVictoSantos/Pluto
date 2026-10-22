@@ -35,7 +35,7 @@ export default function AjudaPage() {
           <PlutoLogo size={44} />
         </span>
         <span className="flex flex-1 flex-col gap-[3px]">
-          <span className="text-[17px] font-bold">Fale com a Pluto</span>
+          <span className="text-[17px] font-bold">Fale com o Plutão</span>
           <span className="text-sm opacity-90">Respostas na hora, 24h por dia.</span>
         </span>
         <Icon icon="chevron-right" size={20} />

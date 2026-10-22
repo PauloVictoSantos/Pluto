@@ -570,6 +570,25 @@ export interface PurchaseEvaluationDoc {
   updatedAt: Date;
 }
 
+/** Sessao de chat do Plutao: conversa, referencias e acao pendente, tudo criptografado. */
+export interface AgentSessionDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  stateEnc: string;
+  promptVersion: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Contestacao de um veredito do Plutao (registrar_contestacao), para revisao. */
+export interface AgentContestationDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  subject: string;
+  text: string;
+  createdAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -692,6 +711,8 @@ export interface Collections {
   healthSnapshots: Collection<HealthSnapshotDoc>;
   goalDrafts: Collection<GoalDraftDoc>;
   purchaseEvaluations: Collection<PurchaseEvaluationDoc>;
+  agentSessions: Collection<AgentSessionDoc>;
+  agentContestations: Collection<AgentContestationDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -727,5 +748,7 @@ export const collections = (db: Db): Collections => ({
   healthSnapshots: db.collection<HealthSnapshotDoc>('health_snapshots'),
   goalDrafts: db.collection<GoalDraftDoc>('goal_drafts'),
   purchaseEvaluations: db.collection<PurchaseEvaluationDoc>('purchase_evaluations'),
+  agentSessions: db.collection<AgentSessionDoc>('agent_sessions'),
+  agentContestations: db.collection<AgentContestationDoc>('agent_contestations'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

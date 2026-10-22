@@ -127,9 +127,9 @@ export default function OverviewPage() {
           {greeting}, {userName}!
         </h1>
         {!isMobile && <span className="text-sm whitespace-nowrap text-muted-foreground">{hydrated ? `${fmtDay(today)} ${today.slice(0, 4)}` : ''}</span>}
-        <button onClick={openChat} className="btn btn-accent shrink-0" aria-label="Perguntar à Pluto">
+        <button onClick={openChat} className="btn btn-accent shrink-0" aria-label="Falar com o Plutão">
           <Icon icon="sparkles" size={16} />
-          {!isMobile && 'Perguntar à Pluto'}
+          {!isMobile && 'Falar com o Plutão'}
         </button>
       </section>
 

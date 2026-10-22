@@ -143,7 +143,7 @@ export default function OrcamentoPage() {
           <div className="min-w-[200px] flex-1 text-sm leading-normal text-pretty">{spendingTip(spending.data, budget.data)}</div>
           <button onClick={openChat} className="btn btn-accent">
             <Icon icon="sparkles" size={16} />
-            Perguntar à Pluto
+            Falar com o Plutão
           </button>
         </div>
       )}

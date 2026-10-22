@@ -1,31 +1,48 @@
 'use client';
 
+import type { AgentChatState } from '@pluto/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { askPluto } from '@/lib/assistant';
-import { ymdIn } from '@/lib/datetime';
-import { useTz } from '@/lib/queries';
+import { ApiRequestError, api } from '@/lib/api';
 import { EASE_DRAWER, play } from '@/lib/motion';
 import { PlutoLogo } from '../brand/PlutoLogo';
 import { PlutoMascot } from '../brand/PlutoMascot';
 import { Icon } from '../ui/Icon';
 
-const SUGGESTIONS = ['Onde eu mais gastei?', 'Como estou comparado ao mês passado?', 'Quais faturas vencem?', 'Qual meu saldo?', 'Quanto sobrou este mês?'];
+// Chat com o Plutao (doc. Pluton 7): o agente le o plano, calcula e propoe. Nada e gravado sem um
+// "sim" explicito; enquanto ha acao pendente, aparecem os botoes Sim / Nao.
 
-interface Msg {
-  role: 'pluto' | 'user';
-  text: string;
-}
+const SUGGESTIONS = ['Como está meu mês?', 'Posso comprar um celular de R$ 2.000?', 'Quero criar uma meta', 'Quais dívidas quito primeiro?', 'Cadastrar um gasto fixo'];
+const GREETING = 'Sou o Plutão. Cuido dos seus gastos fixos, metas e do limite do mês. Me diga o que quer comprar ou planejar e eu calculo se cabe.';
 
 /** Gaveta lateral do chat. Fica montada para manter o historico entre aberturas. */
 export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose: () => void; fullWidth: boolean }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: 'pluto', text: 'Oi! Pergunte sobre seu saldo, gastos do mês, categorias, faturas, orçamento e metas. Eu respondo com base nos dados do seu Open Finance.' },
-  ]);
-  const tz = useTz();
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['agent-chat'], queryFn: api.agentChat, enabled: open });
   const [input, setInput] = useState('');
-  const [thinking, setThinking] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const panel = useRef<HTMLElement>(null);
   const list = useRef<HTMLDivElement>(null);
+
+  const apply = (s: AgentChatState) => {
+    qc.setQueryData(['agent-chat'], s);
+    setSent(null);
+    setError('');
+    // Escritas pelo chat mudam fixos, metas e o limite nas telas.
+    for (const k of ['fixed-expenses', 'goals', 'goals-plan', 'goal-drafts', 'agent-limit', 'loans', 'analytics']) void qc.invalidateQueries({ queryKey: [k] });
+  };
+  const send = useMutation({
+    mutationFn: (text: string) => api.sendAgentMessage(text),
+    onSuccess: apply,
+    onError: (e) => {
+      setSent(null);
+      setError(e instanceof ApiRequestError ? e.message : 'O Plutão não respondeu agora. Tente de novo.');
+    },
+  });
+  const reset = useMutation({ mutationFn: api.resetAgentChat, onSuccess: apply });
+  const thinking = send.isPending;
+  const s = q.data;
 
   useEffect(() => {
     if (open) play(panel.current, [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], { duration: 500, easing: EASE_DRAWER });
@@ -42,32 +59,25 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
     const msgs = el.querySelectorAll('[data-msg]'), last = msgs[msgs.length - 1];
     // Feedback de que a mensagem chegou.
     play(last, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200 });
-  }, [messages, open]);
+  }, [s, sent, open, thinking]);
 
-  useEffect(() => {
-    if (thinking && list.current) list.current.scrollTop = list.current.scrollHeight;
-  }, [thinking]);
-
-  const ask = async (text: string) => {
-    const q = text.trim();
-    if (!q || thinking) return;
-    setMessages((m) => [...m, { role: 'user', text: q }]);
+  const ask = (text: string) => {
+    const t = text.trim();
+    if (!t || thinking) return;
+    setSent(t);
     setInput('');
-    setThinking(true);
-    // Historico sem a saudacao inicial.
-    const answer = await askPluto(q, ymdIn(new Date(), tz), messages.slice(1));
-    setMessages((m) => [...m, { role: 'pluto', text: answer }]);
-    setThinking(false);
+    send.mutate(t);
   };
 
   if (!open) return null;
+  const messages = [{ role: 'plutao' as const, text: GREETING }, ...(s?.messages ?? []), ...(sent ? [{ role: 'user' as const, text: sent }] : [])];
   return (
     <>
       <div onClick={onClose} className="fixed inset-0 z-55 bg-overlay" />
       <aside
         ref={panel}
         role="dialog"
-        aria-label="Chat com a Pluto"
+        aria-label="Chat com o Plutão"
         className="fixed inset-y-0 right-0 z-56 flex max-w-full flex-col border-l border-border bg-card text-foreground"
         style={{ width: fullWidth ? '100%' : 420 }}
       >
@@ -76,9 +86,14 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
             <PlutoMascot mood={thinking ? 'think' : ''} talk={false} />
           </span>
           <div className="flex-1">
-            <div className="text-base font-bold">Pluto</div>
-            <div className="text-xs text-muted-foreground">Sua assistente financeira</div>
+            <div className="text-base font-bold">Plutão</div>
+            <div className="text-xs text-muted-foreground">Seu agente financeiro</div>
           </div>
+          {!!s?.messages.length && (
+            <button onClick={() => reset.mutate()} disabled={reset.isPending || thinking} className="btn btn-outline h-9 px-3 text-[12.5px]">
+              Nova conversa
+            </button>
+          )}
           <button onClick={onClose} aria-label="Fechar" className="icon-btn size-11">
             <Icon icon="x" size={18} />
           </button>
@@ -101,22 +116,47 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
           {thinking && (
             <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
               <PlutoLogo size={26} />
-              <span className="inline-flex gap-1" aria-label="Pluto está digitando">
+              <span className="inline-flex gap-1" aria-label="Plutão está pensando">
                 {[0, 1, 2].map((i) => (
                   <span key={i} className="size-1.5 rounded-full bg-brand" style={{ animation: `plutoDot 1s ${i * 0.15}s infinite` }} />
                 ))}
               </span>
             </div>
           )}
+          {s?.pending && !thinking && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-brand bg-brand-soft p-3" role="group" aria-label="Confirmar ação">
+              <div className="text-[13px] font-semibold">Confirma esta ação?</div>
+              <div className="text-[13px]">{s.pending.summary}</div>
+              <div className="flex gap-2">
+                <button onClick={() => ask('não')} className="btn btn-outline h-10 flex-1 bg-card text-[14px]">
+                  Não
+                </button>
+                <button onClick={() => ask('sim')} className="btn btn-primary h-10 flex-1 text-[14px]">
+                  Sim, pode gravar
+                </button>
+              </div>
+            </div>
+          )}
+          {error && (
+            <div role="alert" className="flex items-center gap-2 text-[13px] text-danger-text">
+              <Icon icon="circle-alert" size={16} />
+              {error}
+            </div>
+          )}
+          {s && !s.available && !s.pending && (
+            <div className="text-[13px] text-muted-foreground">O Plutão precisa da IA ligada. Ative a opção de IA em Configurações.</div>
+          )}
         </div>
         <div className="flex flex-col gap-2.5 border-t border-border px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
-          <div className="no-scrollbar flex gap-2 overflow-x-auto">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => ask(s)} className="btn btn-outline h-9 shrink-0 px-3 text-[13px] font-normal">
-                {s}
-              </button>
-            ))}
-          </div>
+          {!s?.messages.length && (
+            <div className="no-scrollbar flex gap-2 overflow-x-auto">
+              {SUGGESTIONS.map((t) => (
+                <button key={t} onClick={() => ask(t)} className="btn btn-outline h-9 shrink-0 px-3 text-[13px] font-normal">
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
@@ -127,11 +167,12 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Pergunte algo à Pluto…"
-              aria-label="Mensagem para a Pluto"
+              placeholder={s?.pending ? 'Responda sim ou não…' : 'Fale com o Plutão…'}
+              aria-label="Mensagem para o Plutão"
+              maxLength={1000}
               className="input h-12 flex-1 rounded-full px-4"
             />
-            <button type="submit" aria-label="Enviar" className="grid size-12 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-brand text-white">
+            <button type="submit" aria-label="Enviar" disabled={thinking} className="grid size-12 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-brand text-white">
               <Icon icon="send-horizontal" size={18} />
             </button>
           </form>

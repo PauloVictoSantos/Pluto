@@ -55,6 +55,9 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   health_snapshots: [{ key: { userId: 1, month: 1 }, unique: true }],
   goal_drafts: [{ key: { userId: 1, status: 1, updatedAt: -1 } }],
   purchase_evaluations: [{ key: { userId: 1, createdAt: -1 } }, { key: { userId: 1, status: 1, month: 1 } }],
+  // Conversa do Plutao some 30 dias depois da ultima mensagem.
+  agent_sessions: [{ key: { userId: 1, updatedAt: -1 } }, { key: { updatedAt: 1 }, expireAfterSeconds: 30 * 86_400, name: 'agent_sessions_ttl' }],
+  agent_contestations: [{ key: { userId: 1, createdAt: -1 } }],
   merchant_groups: [{ key: { userId: 1, keys: 1 } }, { key: { userId: 1, name: 1 } }],
   commitments: [{ key: { userId: 1, sourceId: 1 } }],
   alerts: [

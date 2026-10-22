@@ -1,6 +1,5 @@
 import {
   AccountSchema,
-  AnswerSchema,
   CategoryRuleSchema,
   SetCategoryResultSchema,
   SimilarSchema,
@@ -20,6 +19,7 @@ import {
   GoalsPlanSchema,
   PurchaseEvaluationSchema,
   PurchasesSchema,
+  AgentChatStateSchema,
   type PurchaseRequest,
   type GoalAnswers,
   type GoalKindV2,
@@ -308,8 +308,9 @@ export const api = {
   renameTransaction: (id: string, name: string | null) => request(`/transactions/${id}/rename`, post({ name }), z.object({ name: z.string().nullable() })),
   categoryRules: () => request('/category-rules', {}, z.array(CategoryRuleSchema)),
   deleteCategoryRule: (id: string) => request<void>(`/category-rules/${id}`, { method: 'DELETE' }),
-  ask: (question: string, history: { role: 'user' | 'pluto'; text: string }[]) =>
-    request('/assistant/ask', post({ question, history }), AnswerSchema),
+  agentChat: () => request('/agent/chat', {}, AgentChatStateSchema),
+  sendAgentMessage: (message: string) => request('/agent/chat', post({ message }), AgentChatStateSchema),
+  resetAgentChat: () => request('/agent/chat/reset', post(), AgentChatStateSchema),
   transactionSummary: (from: Date, to?: Date) =>
     request(`/transactions/summary?from=${from.toISOString()}${to ? `&to=${to.toISOString()}` : ''}`, {}, TransactionSummarySchema),
   transactions: (q: Partial<Omit<TransactionQuery, 'from' | 'to' | 'limit'>> & { from?: Date; to?: Date; limit?: number } = {}) => {

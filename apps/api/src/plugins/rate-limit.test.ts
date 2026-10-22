@@ -40,8 +40,8 @@ describe('limites por cliente atras do proxy', () => {
     const ask = async (userId: typeof a.id) =>
       app.inject({
         method: 'POST',
-        url: '/v1/assistant/ask',
-        payload: { question: 'oi' },
+        url: '/v1/agent/chat',
+        payload: { message: 'oi' },
         remoteAddress: '127.0.0.1',
         headers: { authorization: `Bearer ${await h.token(userId)}` },
       });

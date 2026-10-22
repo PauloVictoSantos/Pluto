@@ -162,11 +162,3 @@ export const UpdateGoalSchema = z.object({
   priority: z.number().int().min(1).max(5).optional(),
 });
 
-// Assistente (secao 5.7): a API calcula, o LLM so explica.
-export const AskSchema = z.object({
-  question: z.string().trim().min(1).max(500),
-  /** Ultimas mensagens da conversa, para perguntas de seguimento. */
-  history: z.array(z.object({ role: z.enum(['user', 'pluto']), text: z.string().max(1500) })).max(8).default([]),
-});
-export type Ask = z.infer<typeof AskSchema>;
-export const AnswerSchema = z.object({ answer: z.string() });
