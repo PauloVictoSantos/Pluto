@@ -1,5 +1,6 @@
 import type {
   ALERT_PAGES,
+  YearObjective,
   AlertType,
   AccountType,
   ChargeDestination,
@@ -449,6 +450,19 @@ export interface MerchantGroupDoc {
   updatedAt: Date;
 }
 
+/** Perfil financeiro do agente Plutao (um por usuario); a renda fica criptografada. */
+export interface FinancialProfileDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** Renda liquida mensal em centavos, criptografada; null = nao informada. */
+  netIncomeEnc: string | null;
+  safetyMarginPct: number;
+  yearObjective: YearObjective | null;
+  referenceRateMonthly: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -554,6 +568,7 @@ export interface Collections {
   jobRuns: Collection<JobRunDoc>;
   shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
+  financialProfiles: Collection<FinancialProfileDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -582,5 +597,6 @@ export const collections = (db: Db): Collections => ({
   jobRuns: db.collection<JobRunDoc>('job_runs'),
   shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
+  financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

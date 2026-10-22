@@ -9,3 +9,4 @@ export * from './patterns';
 export * from './alerts';
 export * from './similarity';
 export * from './health';
+export * from './finmath';

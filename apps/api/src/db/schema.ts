@@ -134,6 +134,12 @@ export const VALIDATORS: Record<string, Document> = {
     paidAt: dateOrNull,
     paidTransactionId: oidOrNull,
   }),
+  financial_profiles: schema(['userId', 'safetyMarginPct', 'referenceRateMonthly', 'createdAt'], {
+    userId: oid,
+    netIncomeEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },
+    safetyMarginPct: { bsonType: ['int', 'long', 'double'], minimum: 0, maximum: 15 },
+    referenceRateMonthly: { bsonType: ['int', 'long', 'double'], minimum: 0, maximum: 0.05 },
+  }),
   shopping_items: schema(['userId', 'name', 'nameNorm', 'aliases', 'category', 'unit', 'createdAt'], {
     userId: oid,
     name: { bsonType: 'string', maxLength: 60 },

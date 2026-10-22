@@ -6,6 +6,7 @@ import { CategoryRulesCard } from '@/components/CategoryRulesCard';
 import { ConnectionsCard } from '@/components/ConnectionsCard';
 import { AlertsCard } from '@/components/AlertsCard';
 import { MerchantGroupsCard } from '@/components/MerchantGroupsCard';
+import { FinancialProfileCard } from '@/components/FinancialProfileCard';
 import { PasskeysCard } from '@/components/PasskeysCard';
 import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
@@ -106,6 +107,7 @@ export default function ConfiguracoesPage() {
         )}
       </div>
 
+      <FinancialProfileCard />
       <PasskeysCard />
       <AlertsCard />
       <ConnectionsCard />

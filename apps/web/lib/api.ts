@@ -12,6 +12,8 @@ import {
   ForecastSchema,
   FinancialHealthSchema,
   MerchantGroupsSchema,
+  FinancialProfileSchema,
+  type UpdateFinancialProfile,
   DebtSourceSchema,
   AlertSchema,
   AlertSettingsSchema,
@@ -189,6 +191,8 @@ export const api = {
   deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
 
   // Estabelecimentos agrupados (similaridade + IA), editaveis.
+  financialProfile: () => request('/agent/profile', {}, FinancialProfileSchema),
+  updateFinancialProfile: (body: UpdateFinancialProfile) => request('/agent/profile', { method: 'PUT', body: JSON.stringify(body) }, FinancialProfileSchema),
   merchantGroups: () => request('/merchant-groups', {}, MerchantGroupsSchema),
   refreshMerchantGroups: () => request('/merchant-groups/refresh', post(), MerchantGroupsSchema),
   updateMerchantGroup: (id: string, body: { name?: string; categoryKey?: string | null }) =>
