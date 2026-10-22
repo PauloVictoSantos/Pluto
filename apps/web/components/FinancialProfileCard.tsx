@@ -101,7 +101,7 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
       <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
         Rendimento do dinheiro guardado (% ao mês)
         <input value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d,.]/g, '').slice(0, 5))} inputMode="decimal" className="input" aria-invalid={!rateOk} />
-        <span className={`text-[12px] font-normal ${rateOk ? 'text-muted-foreground' : 'text-danger'}`}>
+        <span className={`text-[12px] font-normal ${rateOk ? 'text-muted-foreground' : 'text-danger-text'}`}>
           {rateOk ? 'Usado para comparar à vista com desconto e parcelado sem juros.' : 'Use um valor entre 0 e 5% ao mês.'}
         </span>
       </label>
@@ -111,7 +111,7 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
           {save.isPending ? 'Salvando…' : 'Salvar perfil'}
         </button>
         {msg && (
-          <span role="status" className={`flex items-center gap-1.5 text-[13px] ${msg.ok ? 'text-brand-text' : 'text-danger'}`}>
+          <span role="status" className={`flex items-center gap-1.5 text-[13px] ${msg.ok ? 'text-brand-text' : 'text-danger-text'}`}>
             {msg.ok && <Icon icon="circle-check" size={16} />}
             {msg.text}
           </span>

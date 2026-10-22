@@ -134,6 +134,18 @@ export const VALIDATORS: Record<string, Document> = {
     paidAt: dateOrNull,
     paidTransactionId: oidOrNull,
   }),
+  fixed_expenses: schema(['userId', 'name', 'categoryKey', 'amountMinor', 'isVariable', 'dueDay', 'recurrence', 'source', 'createdAt'], {
+    userId: oid,
+    name: { bsonType: 'string', maxLength: 60 },
+    amountMinor: { ...int, minimum: 1 },
+    isVariable: bool,
+    dueDay: { ...int, minimum: 1, maximum: 31 },
+    dueMonth: { ...intOrNull, minimum: 1, maximum: 12 },
+    recurrence: enumOf(['weekly', 'monthly', 'yearly']),
+    endsOn: { bsonType: ['string', 'null'], pattern: '^\\d{4}-\\d{2}$' },
+    source: enumOf(['manual', 'chat']),
+    deletedAt: dateOrNull,
+  }),
   financial_profiles: schema(['userId', 'safetyMarginPct', 'referenceRateMonthly', 'createdAt'], {
     userId: oid,
     netIncomeEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },

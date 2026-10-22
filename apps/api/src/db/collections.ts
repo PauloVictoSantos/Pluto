@@ -1,6 +1,7 @@
 import type {
   ALERT_PAGES,
   YearObjective,
+  FixedRecurrence,
   AlertType,
   AccountType,
   ChargeDestination,
@@ -463,6 +464,27 @@ export interface FinancialProfileDoc {
   updatedAt: Date;
 }
 
+/** Gasto fixo do agente (doc. Pluton 3.1); exclusao logica para manter o historico. */
+export interface FixedExpenseDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  categoryKey: string;
+  amountMinor: number;
+  isVariable: boolean;
+  amountStdMinor: number | null;
+  dueDay: number;
+  dueMonth: number | null;
+  recurrence: FixedRecurrence;
+  /** "YYYY-MM" do ultimo mes (fixo temporario). */
+  endsOn: string | null;
+  source: 'manual' | 'chat';
+  matchKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -569,6 +591,7 @@ export interface Collections {
   shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
   financialProfiles: Collection<FinancialProfileDoc>;
+  fixedExpenses: Collection<FixedExpenseDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -598,5 +621,6 @@ export const collections = (db: Db): Collections => ({
   shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
+  fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

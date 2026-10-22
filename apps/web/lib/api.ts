@@ -13,6 +13,9 @@ import {
   FinancialHealthSchema,
   MerchantGroupsSchema,
   FinancialProfileSchema,
+  FixedExpensesSchema,
+  type CreateFixedExpense,
+  type UpdateFixedExpense,
   type UpdateFinancialProfile,
   DebtSourceSchema,
   AlertSchema,
@@ -191,6 +194,11 @@ export const api = {
   deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
 
   // Estabelecimentos agrupados (similaridade + IA), editaveis.
+  fixedExpenses: () => request('/agent/fixed-expenses', {}, FixedExpensesSchema),
+  createFixedExpense: (body: CreateFixedExpense) => request('/agent/fixed-expenses', post(body), FixedExpensesSchema),
+  updateFixedExpense: (id: string, body: UpdateFixedExpense) =>
+    request(`/agent/fixed-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema),
+  deleteFixedExpense: (id: string) => request(`/agent/fixed-expenses/${id}`, { method: 'DELETE' }, FixedExpensesSchema),
   financialProfile: () => request('/agent/profile', {}, FinancialProfileSchema),
   updateFinancialProfile: (body: UpdateFinancialProfile) => request('/agent/profile', { method: 'PUT', body: JSON.stringify(body) }, FinancialProfileSchema),
   merchantGroups: () => request('/merchant-groups', {}, MerchantGroupsSchema),
