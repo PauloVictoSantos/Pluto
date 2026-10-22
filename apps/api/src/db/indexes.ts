@@ -51,6 +51,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   financial_profiles: [{ key: { userId: 1 }, unique: true }],
   fixed_expenses: [{ key: { userId: 1, deletedAt: 1 } }],
   loans: [{ key: { userId: 1, deletedAt: 1 } }],
+  spending_limits: [{ key: { userId: 1, month: 1 }, unique: true }],
   merchant_groups: [{ key: { userId: 1, keys: 1 } }, { key: { userId: 1, name: 1 } }],
   commitments: [{ key: { userId: 1, sourceId: 1 } }],
   alerts: [

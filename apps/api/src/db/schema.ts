@@ -134,6 +134,13 @@ export const VALIDATORS: Record<string, Document> = {
     paidAt: dateOrNull,
     paidTransactionId: oidOrNull,
   }),
+  spending_limits: schema(['userId', 'month', 'computedMinor', 'computedAt'], {
+    userId: oid,
+    month: { bsonType: 'string', pattern: '^\\d{4}-\\d{2}$' },
+    computedMinor: { ...int, minimum: 0 },
+    overrideMinor: { ...intOrNull, minimum: 0 },
+    computedAt: date,
+  }),
   loans: schema(['userId', 'creditor', 'kind', 'balanceEnc', 'balanceAsOf', 'dueDay', 'createdAt'], {
     userId: oid,
     creditor: { bsonType: 'string', maxLength: 60 },

@@ -15,6 +15,8 @@ const ICON: Record<Alert['type'], string> = {
   category_anomaly: 'trending-up',
   peak_goal: 'target',
   weekly_summary: 'file-text',
+  limit_usage: 'pie-chart',
+  limit_override: 'pie-chart',
 };
 const PAGE: Record<NonNullable<Alert['action']>['page'], PageId> = {
   overview: 'overview',

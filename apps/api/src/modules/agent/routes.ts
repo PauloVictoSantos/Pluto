@@ -6,6 +6,8 @@ import {
   LoanExtraQuerySchema,
   LoanExtraSchema,
   LoansSchema,
+  OverrideLimitSchema,
+  SpendingLimitSchema,
   UpdateFinancialProfileSchema,
   UpdateFixedExpenseSchema,
   UpdateLoanSchema,
@@ -17,6 +19,7 @@ import { audit } from '../../lib/audit';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
 import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
+import { getLimit, overrideLimit } from './limit';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { getProfile, updateProfile } from './profile';
 
@@ -84,6 +87,15 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     const removed = await removeLoan(ctx, userId, req.params.id);
     await audit(ctx.col, 'loan.deleted', userId, { before: removed }, req.ip);
     return listLoans(ctx, userId);
+  });
+
+  // Limite de gasto do mes (LG-01..06). O recalculo apos mudancas fica no hook do app (onPlanChange).
+  app.get('/agent/limit', { schema: { response: { 200: SpendingLimitSchema } } }, async (req) => getLimit(ctx, userOf(req).id));
+
+  app.put('/agent/limit/override', { config: { rateLimit: perUser(20) }, schema: { body: OverrideLimitSchema, response: { 200: SpendingLimitSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    await overrideLimit(ctx, userId, req.body.amountMinor, req.ip);
+    return getLimit(ctx, userId);
   });
 
   /** Simula amortizar um valor hoje: juros evitados e meses a menos. */

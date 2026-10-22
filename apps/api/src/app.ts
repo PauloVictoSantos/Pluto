@@ -14,7 +14,11 @@ import { assistantRoutes } from './modules/assistant/routes';
 import { billRoutes } from './modules/bills/routes';
 import { debtRoutes } from './modules/debts/routes';
 import { merchantRoutes } from './modules/merchants/routes';
+import { recalcLimit } from './modules/agent/limit';
 import { agentRoutes } from './modules/agent/routes';
+
+/** Mudancas que alteram o plano (renda, fixos, dividas, metas). */
+const PLAN_ROUTES = /\/(agent\/(profile|fixed-expenses|loans)|goals|debts)(\/|$)/;
 import { shoppingRoutes } from './modules/shopping/routes';
 import { chargeRoutes, stripeWebhookRoutes } from './modules/charges/routes';
 import { authRoutes } from './modules/auth/routes';
@@ -54,6 +58,12 @@ export async function buildApp(ctx: AppContext) {
 
   await app.register(
     async (v1) => {
+      v1.addHook('onSend', async (req, reply, payload) => {
+        if (req.method !== 'GET' && reply.statusCode < 300 && req.user && PLAN_ROUTES.test(req.routeOptions.url ?? '')) {
+          await recalcLimit(ctx, req.user.id, `${req.method} ${req.routeOptions.url}`).catch((err) => req.log.error({ err }, 'falha ao recalcular o limite'));
+        }
+        return payload;
+      });
       await v1.register(healthRoutes, { ping: ctx.pingDb });
       await v1.register(authRoutes, { ctx });
       await v1.register(connectionRoutes, { prefix: '/connections', ctx });

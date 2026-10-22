@@ -15,6 +15,7 @@ import {
   FinancialProfileSchema,
   FixedExpensesSchema,
   LoansSchema,
+  SpendingLimitSchema,
   LoanExtraSchema,
   type CreateLoan,
   type UpdateLoan,
@@ -198,6 +199,8 @@ export const api = {
   deleteCommitment: (id: string) => request(`/debts/commitments/${id}`, { method: 'DELETE' }, z.array(DebtSourceSchema)),
 
   // Estabelecimentos agrupados (similaridade + IA), editaveis.
+  spendingLimit: () => request('/agent/limit', {}, SpendingLimitSchema),
+  overrideLimit: (amountMinor: number | null) => request('/agent/limit/override', { method: 'PUT', body: JSON.stringify({ amountMinor }) }, SpendingLimitSchema),
   loans: () => request('/agent/loans', {}, LoansSchema),
   createLoan: (body: CreateLoan) => request('/agent/loans', post(body), LoansSchema),
   updateLoan: (id: string, body: UpdateLoan) => request(`/agent/loans/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, LoansSchema),

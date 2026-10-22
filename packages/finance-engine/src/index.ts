@@ -10,3 +10,4 @@ export * from './alerts';
 export * from './similarity';
 export * from './health';
 export * from './finmath';
+export * from './limit';

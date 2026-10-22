@@ -507,6 +507,22 @@ export interface LoanDoc {
   deletedAt: Date | null;
 }
 
+/** Limite de gasto variavel do mes (doc. Pluton, spending_limits): snapshot do calculo + sobrescrita. */
+export interface SpendingLimitDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** "YYYY-MM" */
+  month: string;
+  computedMinor: number;
+  /** Sobrescrita manual (LG-04): so para este mes. */
+  overrideMinor: number | null;
+  inputs: { incomeMinor: number; incomeKnown: boolean; fixedMinor: number; goalsMinor: number; marginMinor: number; deficitMinor: number };
+  /** Descricoes do extrato ja contadas nos fixos (nao entram no gasto variavel). */
+  fixedKeys: string[];
+  computedAt: Date;
+  createdAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -615,6 +631,7 @@ export interface Collections {
   financialProfiles: Collection<FinancialProfileDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
+  spendingLimits: Collection<SpendingLimitDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -646,5 +663,6 @@ export const collections = (db: Db): Collections => ({
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
+  spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

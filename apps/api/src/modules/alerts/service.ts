@@ -1,4 +1,4 @@
-import { alertScore, inQuietHours, median, modifiedZ, pUseful, pickPush, threshold, trainLogistic } from '@pluto/finance-engine';
+import { alertScore, inQuietHours, median, modifiedZ, pUseful, pickPush, threshold, trainLogistic, usageThreshold } from '@pluto/finance-engine';
 import { CATEGORY_BY_KEY, categoryOf, type Alert, type AlertType } from '@pluto/shared';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import type { AlertDoc } from '../../db/collections';
 import { addMonth, monthOf, monthStart, tzOffsetMs } from '../../lib/time';
 import { forecast, goalInsights } from '../analytics/forecast';
 import { patterns } from '../analytics/patterns';
+import { getLimit } from '../agent/limit';
 
 // Alertas inteligentes (doc. "Alertas" e "Alertas inteligentes e avaliacao"). Um alerta so vai para
 // push/e-mail se A = P(evento) x impacto x prioridade x P(util) passar do limiar tau; ate 3 por dia
@@ -116,6 +117,35 @@ async function billDue(ctx: AppContext, userId: ObjectId, tz: string, now: Date)
     });
   }
   return out;
+}
+
+/** LG-05: consumo do limite do mes em 50%, 80% e 100%; cada faixa avisa uma vez no mes. */
+export async function limitUsage(ctx: AppContext, userId: ObjectId, now: Date): Promise<AlertCandidate[]> {
+  if (!(await ctx.col.financialProfiles.findOne({ userId }, { projection: { _id: 1 } }))) return [];
+  const l = await getLimit(ctx, userId, now);
+  const t = usageThreshold(l.spentMinor, l.limitMinor);
+  if (!t || l.status === 'sem-renda') return [];
+  const target = `limit:${l.month}:${t}`;
+  if (await ctx.col.alerts.findOne({ userId, type: 'limit_usage', target }, { projection: { _id: 1 } })) return [];
+  const pct = Math.round(t * 100);
+  return [
+    {
+      type: 'limit_usage',
+      target,
+      title: t === 1 ? 'Você chegou ao limite de gasto do mês' : `Você já usou ${pct}% do limite do mês`,
+      body:
+        t === 1
+          ? `Os gastos variáveis somam ${brl(l.spentMinor)} de ${brl(l.limitMinor)}. Daqui em diante, cada real sai das metas ou da margem de segurança.`
+          : `Faltam ${brl(l.remainingMinor)} até o fim do mês: cerca de ${brl(l.weekMinor)} por semana para chegar lá sem apertar.`,
+      pushText: t === 1 ? 'Você chegou ao limite do mês. Toque para ver.' : `Você já usou ${pct}% do limite do mês.`,
+      action: { label: 'Ver limite', page: 'budget' },
+      why: [`Limite do mês: ${brl(l.limitMinor)}`, `Gasto variável até hoje: ${brl(l.spentMinor)}`, 'Regra LG-05: avisos em 50%, 80% e 100% do limite.'],
+      pEvent: 1,
+      impactMinor: Math.max(l.spentMinor - l.limitMinor, l.remainingMinor, 0),
+      priorityWeight: t === 1 ? 0.9 : t === 0.8 ? 0.7 : 0.4,
+      group: 'limit',
+    },
+  ];
 }
 
 /** Chance de fechar o mes no vermelho acima de 50% (modelo ligado, RN-I04). */
@@ -348,7 +378,12 @@ export async function candidatesFor(ctx: AppContext, userId: ObjectId, kind: Ale
   if (kind === 'weekly') return weeklySummary(ctx, userId, tz, now);
   if (kind === 'peak') return peak ? peakGoal(ctx, userId, now, peak) : [];
   const { shifted } = await peakOf(ctx, userId, now);
-  return [...(await billDue(ctx, userId, tz, now)), ...(await monthNegative(ctx, userId, now)), ...(await categoryAnomaly(ctx, userId, tz, now, shifted))];
+  return [
+    ...(await billDue(ctx, userId, tz, now)),
+    ...(await monthNegative(ctx, userId, now)),
+    ...(await categoryAnomaly(ctx, userId, tz, now, shifted)),
+    ...(await limitUsage(ctx, userId, now)),
+  ];
 }
 
 /** Envia por push (todos os aparelhos) e e-mail, conforme as preferencias. Retorna os canais que funcionaram. */

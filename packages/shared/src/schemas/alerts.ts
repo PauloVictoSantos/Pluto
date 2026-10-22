@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // Alertas (doc. "Alertas", RN-A01..A05): painel do sino, push e e-mail.
 
-export const ALERT_TYPES = ['bill_due', 'month_negative', 'category_anomaly', 'peak_goal', 'weekly_summary'] as const;
+export const ALERT_TYPES = ['bill_due', 'month_negative', 'category_anomaly', 'peak_goal', 'weekly_summary', 'limit_usage', 'limit_override'] as const;
 export type AlertType = (typeof ALERT_TYPES)[number];
 
 /** Telas para onde a acao do alerta leva. */
