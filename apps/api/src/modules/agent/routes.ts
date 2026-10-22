@@ -1,4 +1,11 @@
 import {
+  ConfirmGoalDraftSchema,
+  CreateGoalDraftSchema,
+  DiscardGoalDraftSchema,
+  GoalAnswersSchema,
+  GoalDraftSchema,
+  GoalStatusChangeSchema,
+  GoalsPlanSchema,
   CreateFixedExpenseSchema,
   CreateLoanSchema,
   FinancialProfileSchema,
@@ -19,6 +26,7 @@ import { audit } from '../../lib/audit';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
 import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
+import { answerDraft, confirmDraft, createDraft, diagnoseDraft, discardDraft, getDraft, goalsPlan, listDrafts, setGoalStatus } from './goals';
 import { getLimit, overrideLimit } from './limit';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { getProfile, updateProfile } from './profile';
@@ -26,6 +34,7 @@ import { getProfile, updateProfile } from './profile';
 const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
 const FIXED = { response: { 200: FixedExpensesSchema } };
 const LOANS = { response: { 200: LoansSchema } };
+const DRAFT = { response: { 200: GoalDraftSchema } };
 
 // Agente Plutao (doc. Pluton): perfil financeiro e gastos fixos que alimentam os calculos.
 export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app, { ctx }) => {
@@ -96,6 +105,51 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     const userId = userOf(req).id;
     await overrideLimit(ctx, userId, req.body.amountMinor, req.ip);
     return getLimit(ctx, userId);
+  });
+
+  // Metas v2 (doc. Pluton 4): intencao -> entrevista -> diagnostico -> proposta -> confirmacao.
+  app.get('/agent/goal-drafts', { schema: { response: { 200: z.array(GoalDraftSchema) } } }, async (req) => listDrafts(ctx, userOf(req).id));
+  app.get('/agent/goal-drafts/:id', { schema: { params: IdParam, ...DRAFT } }, async (req) => getDraft(ctx, userOf(req).id, req.params.id));
+
+  app.post('/agent/goal-drafts', { config: { rateLimit: perUser(30) }, schema: { body: CreateGoalDraftSchema, ...DRAFT } }, async (req) => {
+    const userId = userOf(req).id;
+    const d = await createDraft(ctx, userId, req.body.kind, req.body.title);
+    await audit(ctx.col, 'goal_draft.created', userId, { draftId: d.id, kind: d.kind }, req.ip);
+    return d;
+  });
+
+  app.patch('/agent/goal-drafts/:id', { config: { rateLimit: perUser(60) }, schema: { params: IdParam, body: GoalAnswersSchema, ...DRAFT } }, async (req) =>
+    answerDraft(ctx, userOf(req).id, req.params.id, req.body),
+  );
+
+  app.post('/agent/goal-drafts/:id/diagnose', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...DRAFT } }, async (req) => {
+    const userId = userOf(req).id;
+    const d = await diagnoseDraft(ctx, userId, req.params.id);
+    await audit(ctx.col, 'goal_draft.diagnosed', userId, { draftId: d.id, verdict: d.diagnosis?.verdict, score: d.diagnosis?.score }, req.ip);
+    return d;
+  });
+
+  app.post('/agent/goal-drafts/:id/confirm', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, body: ConfirmGoalDraftSchema, ...DRAFT } }, async (req) => {
+    const userId = userOf(req).id;
+    const r = await confirmDraft(ctx, userId, req.params.id, req.body.scenario);
+    await audit(ctx.col, 'goal.created', userId, { draftId: r.draft.id, goalId: r.goalId, scenario: r.scenario, pausedGoalId: r.pausedGoalId }, req.ip);
+    return r.draft;
+  });
+
+  app.post('/agent/goal-drafts/:id/discard', { schema: { params: IdParam, body: DiscardGoalDraftSchema, ...DRAFT } }, async (req) => {
+    const userId = userOf(req).id;
+    const d = await discardDraft(ctx, userId, req.params.id, req.body.reason);
+    await audit(ctx.col, 'goal_draft.discarded', userId, { draftId: d.id, reason: req.body.reason }, req.ip);
+    return d;
+  });
+
+  app.get('/agent/goals/plan', { schema: { response: { 200: GoalsPlanSchema } } }, async (req) => goalsPlan(ctx, userOf(req).id));
+
+  app.patch('/agent/goals/:id/status', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, body: GoalStatusChangeSchema, response: { 200: GoalsPlanSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    const change = await setGoalStatus(ctx, userId, req.params.id, req.body.status);
+    await audit(ctx.col, 'goal.status_changed', userId, { goalId: req.params.id, ...change }, req.ip);
+    return goalsPlan(ctx, userId);
   });
 
   /** Simula amortizar um valor hoje: juros evitados e meses a menos. */

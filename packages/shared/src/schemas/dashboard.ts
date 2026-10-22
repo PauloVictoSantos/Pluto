@@ -131,6 +131,11 @@ export const GoalSchema = z.object({
   monthlyContributionMinor: z.number().int(),
   /** 1 (mais importante) a 5 (RN-M02); metas antigas valem 3. */
   priority: z.number().int().min(1).max(5),
+  /** Metas v2 do Plutao (MT-03); metas antigas valem "ativa". */
+  status: z.enum(['ativa', 'pausada', 'concluida', 'cancelada']),
+  kind: z.enum(['purchase', 'fixed', 'debt_payoff', 'experience']).nullable(),
+  /** Score de prioridade S (0 a 1); null em metas antigas. */
+  score: z.number().nullable(),
 });
 export type Goal = z.infer<typeof GoalSchema>;
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

@@ -11,3 +11,4 @@ export * from './similarity';
 export * from './health';
 export * from './finmath';
 export * from './limit';
+export * from './goals';

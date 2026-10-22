@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Agente Plutao (doc. Pluton): perfil financeiro que alimenta os calculos (renda liquida, margem de
 // seguranca, objetivo do ano). A renda e criptografada no banco; o resto e configuracao.
 
-export const YEAR_OBJECTIVES = ['quitar-dividas', 'reserva-emergencia', 'investir', 'comprar-bem', 'organizar'] as const;
+export const YEAR_OBJECTIVES = ['quitar-dividas', 'reserva-emergencia', 'investir', 'comprar-bem', 'viajar', 'organizar'] as const;
 export type YearObjective = (typeof YEAR_OBJECTIVES)[number];
 
 export const YEAR_OBJECTIVE_LABEL: Record<YearObjective, string> = {
@@ -11,6 +11,7 @@ export const YEAR_OBJECTIVE_LABEL: Record<YearObjective, string> = {
   'reserva-emergencia': 'Montar reserva de emergência',
   investir: 'Investir mais',
   'comprar-bem': 'Comprar um bem',
+  viajar: 'Viajar',
   organizar: 'Organizar as contas',
 };
 

@@ -2,6 +2,9 @@ import type {
   ALERT_PAGES,
   YearObjective,
   FixedRecurrence,
+  GoalAnswers,
+  GoalDiagnosis,
+  GoalKindV2,
   LoanKind,
   AlertType,
   AccountType,
@@ -532,6 +535,21 @@ export interface HealthSnapshotDoc {
   at: Date;
 }
 
+/** Rascunho de meta (entrevista do doc. Pluton 4): respostas brutas, diagnostico e desfecho. */
+export interface GoalDraftDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  kind: GoalKindV2;
+  title: string;
+  status: 'rascunho' | 'em-analise' | 'confirmada' | 'descartada';
+  answers: GoalAnswers;
+  diagnosis: GoalDiagnosis | null;
+  goalId: ObjectId | null;
+  discardReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -599,6 +617,16 @@ export interface GoalDoc {
   monthlyContributionMinor: number;
   /** 1 (mais importante) a 5 (RN-M02). Ausente em metas antigas: vale 3. */
   priority?: number;
+  /** Metas v2 (MT-03). Ausente em metas antigas: ativa. */
+  status?: 'ativa' | 'pausada' | 'concluida' | 'cancelada';
+  kind?: GoalKindV2;
+  /** Score de prioridade S e fatores (doc. 5.4). */
+  score?: number;
+  factors?: { U: number; E: number; F: number; R: number; A: number };
+  rationale?: string[];
+  /** "YYYY-MM-DD" do inicio do cronograma. */
+  startDate?: string;
+  draftId?: ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -642,6 +670,7 @@ export interface Collections {
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
   healthSnapshots: Collection<HealthSnapshotDoc>;
+  goalDrafts: Collection<GoalDraftDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -675,5 +704,6 @@ export const collections = (db: Db): Collections => ({
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),
   healthSnapshots: db.collection<HealthSnapshotDoc>('health_snapshots'),
+  goalDrafts: db.collection<GoalDraftDoc>('goal_drafts'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

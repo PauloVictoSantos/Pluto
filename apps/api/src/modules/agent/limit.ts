@@ -47,7 +47,7 @@ export async function recalcLimit(ctx: AppContext, userId: ObjectId, reason: str
   const [{ profile }, fixed, goals] = await Promise.all([
     readProfile(ctx, userId),
     listFixed(ctx, userId, now),
-    ctx.col.goals.find({ userId }, { projection: { targetMinor: 1, savedMinor: 1, monthlyContributionMinor: 1 } }).toArray(),
+    ctx.col.goals.find({ userId, status: { $nin: ['pausada', 'concluida', 'cancelada'] } }, { projection: { targetMinor: 1, savedMinor: 1, monthlyContributionMinor: 1 } }).toArray(),
   ]);
   const incomeMinor = profile.netIncomeMinor ?? fixed.incomeMinor ?? 0;
   const goalsMinor = goals.filter((g) => g.savedMinor < g.targetMinor).reduce((t, g) => t + (g.monthlyContributionMinor ?? 0), 0);

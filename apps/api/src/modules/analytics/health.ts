@@ -60,7 +60,7 @@ export async function financialHealth(ctx: AppContext, userId: ObjectId, now = n
     ])
     .toArray();
   const realSavings = Math.max(0, -(inv[0]?.total ?? 0)) / 3;
-  const plannedSavings = goals.filter((g) => g.savedMinor < g.targetMinor).reduce((s, g) => s + (g.monthlyContributionMinor ?? 0), 0);
+  const plannedSavings = goals.filter((g) => g.savedMinor < g.targetMinor && (!g.status || g.status === 'ativa')).reduce((s, g) => s + (g.monthlyContributionMinor ?? 0), 0);
   const savingsMinor = Math.round(realSavings || plannedSavings);
 
   const fixedKeys = fixed.items.map((i) => i.matchKey).filter((k): k is string => !!k);

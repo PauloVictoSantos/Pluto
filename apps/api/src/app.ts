@@ -18,7 +18,7 @@ import { recalcLimit } from './modules/agent/limit';
 import { agentRoutes } from './modules/agent/routes';
 
 /** Mudancas que alteram o plano (renda, fixos, dividas, metas). */
-const PLAN_ROUTES = /\/(agent\/(profile|fixed-expenses|loans)|goals|debts)(\/|$)/;
+const PLAN_ROUTES = /\/(agent\/(profile|fixed-expenses|loans|goal-drafts\/:id\/confirm)|goals|debts)(\/|$)/;
 import { shoppingRoutes } from './modules/shopping/routes';
 import { chargeRoutes, stripeWebhookRoutes } from './modules/charges/routes';
 import { authRoutes } from './modules/auth/routes';

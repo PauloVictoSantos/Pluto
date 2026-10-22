@@ -22,6 +22,9 @@ const toGoal = (g: GoalDoc): Goal => ({
   deadline: g.deadline,
   monthlyContributionMinor: g.monthlyContributionMinor ?? 0,
   priority: g.priority ?? 3,
+  status: g.status ?? 'ativa',
+  kind: g.kind ?? null,
+  score: g.score ?? null,
 });
 
 export const planningRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app, { ctx }) => {
