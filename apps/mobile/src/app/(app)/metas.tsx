@@ -31,7 +31,7 @@ export default function Metas() {
     onSuccess: (p) => {
       setError('');
       qc.setQueryData(['goals-plan'], p);
-      for (const k of ['goals', 'agent-limit', 'overview-lite']) void qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['goals', 'agent-limit', 'analytics']) void qc.invalidateQueries({ queryKey: [k] });
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Não foi possível alterar a meta.'),
   });

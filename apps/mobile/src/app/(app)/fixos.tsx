@@ -70,7 +70,7 @@ export default function Fixos() {
     },
     onSuccess: (next) => {
       qc.setQueryData(['fixed-expenses'], next);
-      for (const k of ['agent-limit', 'overview-lite']) void qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['agent-limit', 'analytics', 'dashboard']) void qc.invalidateQueries({ queryKey: [k] });
       setForm(null);
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Não foi possível salvar.'),

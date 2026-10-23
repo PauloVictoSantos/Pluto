@@ -1,11 +1,12 @@
 import { Redirect, Stack, router, usePathname } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '@/auth/session';
 import { PlutoLogo } from '@/components/brand';
 import { BottomBar } from '@/components/shell/BottomBar';
 import { ChatPanel } from '@/components/shell/ChatPanel';
+import { ShellContext } from '@/components/shell/ShellContext';
 import { Header } from '@/components/shell/Header';
 import { AccountSheet, AlertsSheet, LogoutSheet, MoreSheet, useAlerts } from '@/components/shell/Sheets';
 import { api } from '@/api';
@@ -36,6 +37,7 @@ export default function AppLayout() {
     },
     [path],
   );
+  const shell = useMemo(() => ({ nav, openChat: () => setChat(true) }), [nav]);
   const openBell = () => {
     setSheet('alerts');
     // Abrir o painel marca os avisos como lidos (o destaque fica ate a proxima atualizacao).
@@ -51,6 +53,7 @@ export default function AppLayout() {
     );
 
   return (
+    <ShellContext.Provider value={shell}>
     <View style={{ flex: 1, backgroundColor: t.background }}>
       <Header onHome={() => nav('overview')} onBell={openBell} onAccount={() => setSheet('account')} unread={unread} />
       {/* Ocultar/mostrar valores remonta as paginas: todo dinheiro e formatado de novo. */}
@@ -92,5 +95,6 @@ export default function AppLayout() {
       <LogoutSheet visible={sheet === 'logout'} onClose={() => setSheet(null)} onConfirm={() => (setSheet(null), void signOut())} />
       <ChatPanel open={chat} onClose={() => setChat(false)} />
     </View>
+    </ShellContext.Provider>
   );
 }
