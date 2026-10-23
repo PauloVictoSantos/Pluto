@@ -8,12 +8,16 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "build:android": "npx eas-cli@latest build --platform android --profile preview",
+    "build:android:prod": "npx eas-cli@latest build --platform android --profile production"
   },
   "dependencies": {
+    "@expo-google-fonts/geist": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
     "@pluto/shared": "workspace:*",
     "@react-navigation/elements": "^2.9.45",
+    "@tanstack/react-query": "^5.104.4",
     "expo": "~58.0.17",
     "expo-constants": "~58.0.13",
     "expo-font": "~58.0.9",
@@ -31,6 +35,7 @@
     "react-native-reanimated": "4.7.1",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
+    "react-native-svg": "15.16.0",
     "react-native-worklets": "0.13.0",
     "zod": "^4.6.7"
   },

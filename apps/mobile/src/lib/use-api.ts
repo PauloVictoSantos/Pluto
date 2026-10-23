@@ -1,41 +1,60 @@
+import { QueryClient, focusManager, useQuery, type QueryKey } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { ApiError } from '@/api';
 import { useSession } from '@/auth/session';
 
+// Dados da API com TanStack Query, como no site (mesmas chaves de cache). So em memoria: nada de
+// dados financeiros salvo no aparelho (guia, secao 7).
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, refetchOnReconnect: true },
+    mutations: { retry: 0 },
+  },
+});
+
+// Volta para o app = "janela em foco": refaz as consultas vencidas.
+focusManager.setEventListener((setFocused) => {
+  const sub = AppState.addEventListener('change', (s) => setFocused(s === 'active'));
+  return () => sub.remove();
+});
+
+/** Mensagem pronta para a tela a partir de qualquer erro. */
+export const errorText = (e: unknown, fallback = 'Não foi possível carregar. Puxe para tentar de novo.') => (e instanceof ApiError ? e.message : e ? fallback : null);
+
 /**
- * Carrega dados da API sempre que a tela ganha foco (voltar para a aba ja atualiza) e no "puxar
- * para atualizar". So depois do desbloqueio: bloqueado, nada e buscado. Nada fica salvo no
- * aparelho: dados financeiros so em memoria (guia, secao 7). O `load` deve ser estavel
- * (funcao de modulo), senao recarrega a cada render.
+ * Consulta da API que so roda depois do desbloqueio e recarrega ao voltar para a tela.
+ * `refresh` serve para o "puxar para atualizar".
  */
-export function useApi<T>(load: () => Promise<T>) {
+export function useApiQuery<T>(key: QueryKey, fn: () => Promise<T>, opts: { enabled?: boolean } = {}) {
   const { status } = useSession();
-  const [data, setData] = useState<T | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchNow = useCallback(async () => {
-    try {
-      const d = await load();
-      setData(d);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Não foi possível carregar. Puxe para tentar de novo.');
-    }
-  }, [load]);
-
+  const q = useQuery({ queryKey: key, queryFn: fn, enabled: status === 'signedIn' && opts.enabled !== false });
+  const first = useRef(true);
   useFocusEffect(
     useCallback(() => {
-      if (status === 'signedIn') void fetchNow();
-    }, [fetchNow, status]),
+      if (first.current) {
+        first.current = false;
+        return;
+      }
+      if (status === 'signedIn') void q.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status]),
   );
+  return { ...q, error: errorText(q.error), refresh: q.refetch, refreshing: q.isRefetching && !q.isLoading };
+}
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchNow();
-    setRefreshing(false);
-  }, [fetchNow]);
+/** Consulta fora de uma tela (cabecalho, paineis): so liga depois do desbloqueio. */
+export function useQueryLite<T>(fn: () => Promise<T>, key: QueryKey = [fn.name || 'lite']) {
+  const { status } = useSession();
+  return useQuery({ queryKey: key, queryFn: fn, enabled: status === 'signedIn' });
+}
 
-  return { data, setData, error, refreshing, refresh, loading: data === undefined && !error };
+/** Apaga o cache ao sair da conta (outro usuario no mesmo aparelho nao ve nada). */
+export function useClearOnSignOut() {
+  const { status } = useSession();
+  useEffect(() => {
+    if (status === 'signedOut') queryClient.clear();
+  }, [status]);
 }

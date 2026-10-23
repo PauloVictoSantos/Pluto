@@ -1,7 +1,8 @@
 import * as ScreenCapture from 'expo-screen-capture';
 import { useEffect, useState } from 'react';
-import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
+import { PlutoMark } from './brand';
 
 /**
  * Esconde os dados financeiros fora do app (guia mobile, secao 7):
@@ -23,7 +24,7 @@ export function PrivacyCover() {
   if (!visible) return null;
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: t.brand, alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-      <Text style={{ color: t.onBrand, fontSize: 34, fontWeight: '700' }}>Pluto</Text>
+      <PlutoMark size={72} tone="white" />
     </View>
   );
 }

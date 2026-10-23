@@ -23,4 +23,5 @@ export * from './schemas/agentGoals';
 export * from './schemas/purchases';
 export * from './schemas/plutao';
 export * from './schemas/privacy';
+export * from './design/icons';
 export * from './merchants';

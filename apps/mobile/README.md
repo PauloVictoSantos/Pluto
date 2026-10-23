@@ -33,17 +33,48 @@ versao compativel com o SDK). Antes de cada build: `pnpm --filter @pluto/mobile 
   recentes, sem print nem gravacao de tela, como apps de banco); capa roxa enquanto inativo.
 - `src/auth/flow.ts` (login e regras de bloqueio) e testado no Vitest.
 
-## Telas
+## Telas e visual
 
-| Aba | API | O que mostra |
-|---|---|---|
-| Resumo | `/me`, `/dashboard/summary`, `/agent/limit`, `/analytics/health` | Saldo, entradas e saidas do mes, limite de gasto, saude financeira |
-| Fixos | `/agent/fixed-expenses` | Lista, total do mes, cadastro, edicao e exclusao (parcelas de dividas so leitura) |
-| Metas | `/goals`, `/agent/goals/plan`, `/agent/goals/:id/status` | Plano da sobra por prioridade, progresso, pausar/retomar/concluir |
-| Plutao | `/agent/chat`, `/agent/consent` | Chat com o agente; autorizacao de IA; Sim/Nao para gravar |
+O app reproduz o site no celular (fase "paridade com o site"):
 
-Todas recarregam ao voltar para a aba e no "puxar para atualizar", e so buscam dados depois do
-desbloqueio. Nada e salvo no aparelho. Meta nova passa pela entrevista: no app, pelo Plutao.
+- Mesmo visual: tokens de cor de `apps/web/app/globals.css` (claro e escuro), fonte Geist,
+  icones com os mesmos tracos (`@pluto/shared`, `design/icons.ts`), marcas do Pluto.
+- Mesma navegacao do site no celular: cabecalho (ocultar valores, tema, notificacoes, conta),
+  barra de baixo (Inicio, Extrato, Boleto, Cartoes, Mais), grade do "Mais" e o Plutao no botao
+  flutuante (chat em tela cheia, com autorizacao de IA e Sim/Nao para gravar).
+- Dados com TanStack Query, mesmas chaves do site; so depois do desbloqueio; nada salvo no
+  aparelho. Ocultar valores troca todo dinheiro por "R$ ••••".
+
+Andamento das paginas: Visao geral (provisoria), Gastos fixos e Metas ja no app; as demais
+mostram "Chegando no app" ate a etapa em que forem convertidas (B: Visao geral completa;
+C: Transacoes e Cartoes; D: Contas, Orcamento, Fixos e Metas completos; E: o restante).
+
+## Build Android (EAS)
+
+Projeto no EAS: `@br.pessoal.pluto/pluto-mobile` (id no `app.json`). Os comandos rodam dentro de
+`apps/mobile`. O `eas.json` ja leva a URL publica da API (o `.env` nao vai para a nuvem) e desliga o
+download do MongoDB de testes da API. O `.easignore` da raiz define o que NAO sobe para o EAS
+(segredos, node_modules, pastas do editor/agente).
+
+```bash
+cd apps/mobile
+pnpm build:android        # APK de teste (perfil preview); o link sai no terminal e em expo.dev
+```
+
+Instalar no celular:
+
+1. Abra o link do build (ou o QR code) no Android e baixe o APK.
+2. Permita "instalar apps desconhecidos" para o navegador quando o Android pedir.
+3. Instale. Os proximos APKs instalam por cima, mantendo o login.
+
+Keystore: o EAS gerou e guarda a chave de assinatura na conta. Sem ela nao da para atualizar o
+app instalado. Faca um backup (fora do projeto e fora do Git):
+
+```bash
+npx eas-cli@latest credentials -p android   # Android > preview > Keystore > Download credentials
+```
+
+Antes de cada build: `pnpm doctor`.
 
 ## Estrutura
 
@@ -52,6 +83,6 @@ src/
   app/          rotas (Expo Router): cada arquivo e uma tela
   api/          cliente da API (client.ts), SecureStore (secure-store.ts), instancia (index.ts)
   auth/         login em dois passos e regras de bloqueio (flow.ts), sessao (session.tsx)
-  components/   tela de bloqueio, capa de privacidade e pecas visuais (ui.tsx)
-  lib/          formatacao (moeda, CPF), cores (theme.ts), carregamento (use-api.ts)
+  components/   casco (shell/), kit visual (ui.tsx, T.tsx, Icon.tsx, brand.tsx), bloqueio e privacidade
+  lib/          formatacao (moeda, CPF), tema e preferencias (theme.tsx), dados (use-api.ts), navegacao (nav.ts)
 ```

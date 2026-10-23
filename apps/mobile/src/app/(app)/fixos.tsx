@@ -1,17 +1,21 @@
 import { CATEGORIES, FIXED_RECURRENCE_LABEL, FixedExpensesSchema, categoryOf, type FixedExpense, type FixedRecurrence } from '@pluto/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
 import { ApiError, api } from '@/api';
-import { Button, Card, CardTitle, Chips, ErrorBox, Loading, Muted, Notice, Row, Screen } from '@/components/ui';
-import { brl, maskMoney, onlyDigits, pct } from '@/lib/format';
+import { Icon } from '@/components/Icon';
+import { T } from '@/components/T';
+import { Btn, Card, CardTitle, Chips, Empty, ErrorBox, Field, Loading, Muted, Notice, PageHeader, Screen, Segmented, Sheet, StatTiles } from '@/components/ui';
+import { maskMoney, money, onlyDigits } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import { useApi } from '@/lib/use-api';
+import { useApiQuery } from '@/lib/use-api';
 
-// Gastos fixos (mesmo endpoint do site e do Plutao, GF-01). Parcelas de dividas aparecem aqui, mas
-// so se editam em Contas a pagar no site.
+// Gastos fixos (como /fixos no site; mesmo endpoint do Plutao, GF-01). Parcelas de dividas
+// aparecem, mas so se editam em Contas a pagar.
 const SPEND = CATEGORIES.filter((c) => c.group === 'essential' || c.group === 'lifestyle');
 const RECURRENCES = (['monthly', 'weekly', 'yearly'] as const).map((id) => ({ id, label: FIXED_RECURRENCE_LABEL[id] }));
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const load = () => api.request('/agent/fixed-expenses', {}, FixedExpensesSchema);
 
 interface Form {
@@ -36,70 +40,67 @@ const fromItem = (i: FixedExpense): Form => ({
   isVariable: i.isVariable,
 });
 const dueText = (i: FixedExpense) =>
-  i.recurrence === 'weekly' ? `toda ${WEEKDAYS[i.dueDay - 1]}` : i.recurrence === 'yearly' ? `todo ano, dia ${i.dueDay}/${i.dueMonth}` : `todo dia ${i.dueDay}`;
+  i.recurrence === 'weekly' ? `toda ${WEEKDAYS[i.dueDay - 1]}` : i.recurrence === 'yearly' ? `todo ano em ${i.dueDay} de ${MONTHS[(i.dueMonth ?? 1) - 1]}` : `todo dia ${i.dueDay}`;
 
 export default function Fixos() {
   const t = useTheme();
-  const q = useApi(load);
+  const qc = useQueryClient();
+  const q = useApiQuery(['fixed-expenses'], load);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
   const d = q.data;
   const own = d?.items.filter((i) => i.source !== 'divida') ?? [];
   const debts = d?.items.filter((i) => i.source === 'divida') ?? [];
 
-  const save = async (action: 'save' | 'delete') => {
-    if (!form) return;
-    setBusy(true);
-    setError('');
-    try {
+  const save = useMutation({
+    mutationFn: async (action: 'save' | 'delete') => {
+      const f = form!;
       const body = {
-        name: form.name.trim(),
-        categoryKey: form.categoryKey,
-        amountMinor: form.amount.minor,
-        isVariable: form.isVariable,
-        recurrence: form.recurrence,
-        dueDay: Number(form.dueDay) || 1,
-        dueMonth: form.recurrence === 'yearly' ? Number(form.dueMonth) || 1 : null,
+        name: f.name.trim(),
+        categoryKey: f.categoryKey,
+        amountMinor: f.amount.minor,
+        isVariable: f.isVariable,
+        recurrence: f.recurrence,
+        dueDay: Number(f.dueDay) || 1,
+        dueMonth: f.recurrence === 'yearly' ? Number(f.dueMonth) || 1 : null,
       };
-      const next =
-        action === 'delete'
-          ? await api.request(`/agent/fixed-expenses/${form.id}`, { method: 'DELETE' }, FixedExpensesSchema)
-          : form.id
-            ? await api.request(`/agent/fixed-expenses/${form.id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema)
-            : await api.request('/agent/fixed-expenses', { method: 'POST', body: JSON.stringify({ ...body, source: 'manual' }) }, FixedExpensesSchema);
-      q.setData(next);
+      if (action === 'delete') return api.request(`/agent/fixed-expenses/${f.id}`, { method: 'DELETE' }, FixedExpensesSchema);
+      if (f.id) return api.request(`/agent/fixed-expenses/${f.id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema);
+      return api.request('/agent/fixed-expenses', { method: 'POST', body: JSON.stringify({ ...body, source: 'manual' }) }, FixedExpensesSchema);
+    },
+    onSuccess: (next) => {
+      qc.setQueryData(['fixed-expenses'], next);
+      for (const k of ['agent-limit', 'overview-lite']) void qc.invalidateQueries({ queryKey: [k] });
       setForm(null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Não foi possível salvar.');
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Não foi possível salvar.'),
+  });
   const ok = !!form && !!form.name.trim() && form.amount.minor > 0 && Number(form.dueDay) >= 1 && Number(form.dueDay) <= (form.recurrence === 'weekly' ? 7 : 31);
+  const open = (f: Form) => (setError(''), setForm(f));
 
-  const item = (i: FixedExpense) => {
+  const row = (i: FixedExpense) => {
     const cat = categoryOf(i.categoryKey);
     const readOnly = i.source === 'divida';
     return (
-      <Pressable
-        key={i.id}
-        accessibilityRole={readOnly ? 'text' : 'button'}
-        disabled={readOnly}
-        onPress={() => (setError(''), setForm(fromItem(i)))}
-        style={[s.item, { borderTopColor: t.border }]}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: t.text, fontWeight: '600', fontSize: 15 }}>{i.name}</Text>
-          <Muted>
+      <Pressable key={i.id} accessibilityRole={readOnly ? 'text' : 'button'} disabled={readOnly} onPress={() => open(fromItem(i))} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: t.border, paddingVertical: 12 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 99, backgroundColor: t.muted, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon icon={cat.icon} size={17} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T size={15} weight={600} numberOfLines={1}>
+            {i.name}
+          </T>
+          <T size={12.5} tone="muted" numberOfLines={1}>
             {cat.label} · {dueText(i)}
             {i.installment ? ` · parcela ${i.installment.n} de ${i.installment.total}` : ''}
             {i.source === 'chat' ? ' · pelo Plutão' : ''}
-          </Muted>
+          </T>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ color: t.text, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{brl(i.amountMinor)}</Text>
-          {i.isVariable && <Muted>média</Muted>}
+          <T size={15} weight={600} tabular>
+            {money(i.amountMinor)}
+          </T>
+          {i.isVariable ? <T size={11.5} tone="muted">média</T> : i.recurrence !== 'monthly' ? <T size={11.5} tone="muted">{`${money(i.monthlyMinor)}/mês`}</T> : null}
         </View>
       </Pressable>
     );
@@ -107,85 +108,90 @@ export default function Fixos() {
 
   return (
     <>
-      <Screen refreshing={q.refreshing} onRefresh={q.refresh}>
+      <Screen refreshing={q.refreshing} onRefresh={() => void q.refresh()}>
+        <PageHeader title="Gastos fixos" subtitle="O que sai todo mês antes de qualquer escolha. O Plutão desconta isso antes de calcular o seu limite." />
+        <Btn icon="plus" label="Novo gasto fixo" onPress={() => open(blank())} />
         {q.error && <ErrorBox message={q.error} />}
-        {q.loading && <Loading />}
+        {q.isLoading && <Loading />}
         {d && (
           <>
-            <Card>
-              <Muted>Gastos fixos por mês</Muted>
-              <Text style={{ color: t.text, fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{brl(d.monthlyTotalMinor)}</Text>
-              {d.incomeShare !== null && <Row label="Da sua renda" value={pct(d.incomeShare)} />}
-              {d.incomeShare !== null && d.incomeShare > 0.5 && <Notice>Fixos e parcelas passam de 50% da renda. O ideal é ficar abaixo disso.</Notice>}
-            </Card>
-            <Button label="Novo gasto fixo" onPress={() => (setError(''), setForm(blank()))} />
+            <StatTiles
+              tiles={[
+                { label: 'Por mês', value: money(d.monthlyTotalMinor), tone: 'brand' },
+                { label: 'Da renda', value: d.incomeShare === null ? '—' : `${Math.round(d.incomeShare * 100)}%` },
+                { label: 'Gastos', value: String(d.items.length) },
+              ]}
+            />
+            {d.incomeShare !== null && d.incomeShare > 0.5 && <ErrorBox message="Fixos e parcelas passam de 50% da sua renda. O recomendado é ficar abaixo disso para sobrar espaço para metas e imprevistos." />}
+            {d.incomeMinor === null && <Notice>Informe sua renda em Ajustes › Perfil financeiro para ver quanto dela os fixos ocupam.</Notice>}
+            {!d.items.length && (
+              <Empty title="Nenhum gasto fixo ainda" text="Aluguel, luz, internet, academia… Cadastre o que você paga todo mês." action={<Btn icon="plus" label="Cadastrar primeiro" onPress={() => open(blank())} />} />
+            )}
             {own.length > 0 && (
-              <Card>
-                <CardTitle>Seus gastos fixos</CardTitle>
-                {own.map(item)}
+              <Card style={{ gap: 0 }}>
+                <View style={{ paddingBottom: 8 }}>
+                  <CardTitle>Seus gastos fixos</CardTitle>
+                </View>
+                {own.map(row)}
               </Card>
             )}
             {debts.length > 0 && (
-              <Card>
+              <Card style={{ gap: 0 }}>
                 <CardTitle>Parcelas e dívidas</CardTitle>
-                <Muted>Vêm de Contas a pagar; edite no site.</Muted>
-                {debts.map(item)}
+                <Muted style={{ paddingBottom: 8 }}>Vêm de Contas a pagar e saem daqui sozinhas quando terminam.</Muted>
+                {debts.map(row)}
               </Card>
             )}
-            {!d.items.length && <Muted style={{ textAlign: 'center' }}>Nenhum gasto fixo ainda. Aluguel, luz, internet, academia…</Muted>}
           </>
         )}
       </Screen>
 
-      <Modal visible={!!form} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setForm(null)}>
+      <Sheet visible={!!form} onClose={() => setForm(null)} title={form?.id ? `Editar “${form.name}”` : 'Novo gasto fixo'}>
         {form && (
-          <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={s.sheet} keyboardShouldPersistTaps="handled">
-              <Text style={{ color: t.text, fontSize: 22, fontWeight: '700' }}>{form.id ? 'Editar gasto fixo' : 'Novo gasto fixo'}</Text>
-              <Text style={[s.label, { color: t.text }]}>Nome</Text>
-              <TextInput style={[s.input, { borderColor: t.border, color: t.text, backgroundColor: t.card }]} value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} placeholder="Ex.: Aluguel" placeholderTextColor={t.muted} maxLength={60} />
-              <Text style={[s.label, { color: t.text }]}>{form.isVariable ? 'Valor médio' : 'Valor'}</Text>
-              <TextInput
-                style={[s.input, s.money, { borderColor: t.border, color: t.text, backgroundColor: t.card }]}
-                value={form.amount.text}
-                onChangeText={(v) => setForm({ ...form, amount: maskMoney(v) })}
-                placeholder="R$ 0,00"
-                placeholderTextColor={t.muted}
-                keyboardType="number-pad"
-              />
-              <View style={s.switchRow}>
-                <Text style={{ color: t.text, flex: 1 }}>O valor muda todo mês (luz, água)</Text>
-                <Switch value={form.isVariable} onValueChange={(v) => setForm({ ...form, isVariable: v })} trackColor={{ true: t.brand }} />
+          <>
+            <Field label="Nome" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} placeholder="Ex.: Aluguel" maxLength={60} />
+            <Field label={form.isVariable ? 'Valor médio' : 'Valor'} big value={form.amount.text} onChangeText={(v) => setForm({ ...form, amount: maskMoney(v) })} placeholder="R$ 0,00" keyboardType="number-pad" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <T size={14} weight={600}>
+                  O valor muda todo mês
+                </T>
+                <T size={12.5} tone="muted">
+                  Luz, água, gás: informe uma média.
+                </T>
               </View>
-              <Text style={[s.label, { color: t.text }]}>Repete</Text>
-              <Chips items={RECURRENCES} value={form.recurrence} onChange={(r) => setForm({ ...form, recurrence: r })} />
-              <Text style={[s.label, { color: t.text }]}>{form.recurrence === 'weekly' ? 'Dia da semana (1 = domingo, 7 = sábado)' : 'Dia do vencimento'}</Text>
-              <TextInput style={[s.input, { borderColor: t.border, color: t.text, backgroundColor: t.card }]} value={form.dueDay} onChangeText={(v) => setForm({ ...form, dueDay: onlyDigits(v).slice(0, 2) })} keyboardType="number-pad" />
+              <Switch value={form.isVariable} onValueChange={(v) => setForm({ ...form, isVariable: v })} trackColor={{ true: t.brand }} accessibilityLabel="O valor muda todo mês" />
+            </View>
+            <View style={{ gap: 6 }}>
+              <T size={13} tone="muted">
+                Repete
+              </T>
+              <Segmented items={RECURRENCES} value={form.recurrence} onChange={(r) => setForm({ ...form, recurrence: r, dueDay: r === 'weekly' ? String(Math.min(Number(form.dueDay) || 1, 7)) : form.dueDay })} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label={form.recurrence === 'weekly' ? 'Dia (1 = dom, 7 = sáb)' : 'Dia do vencimento'} value={form.dueDay} onChangeText={(v) => setForm({ ...form, dueDay: onlyDigits(v).slice(0, 2) })} keyboardType="number-pad" />
+              </View>
               {form.recurrence === 'yearly' && (
-                <>
-                  <Text style={[s.label, { color: t.text }]}>Mês (1 a 12)</Text>
-                  <TextInput style={[s.input, { borderColor: t.border, color: t.text, backgroundColor: t.card }]} value={form.dueMonth} onChangeText={(v) => setForm({ ...form, dueMonth: onlyDigits(v).slice(0, 2) })} keyboardType="number-pad" />
-                </>
+                <View style={{ flex: 1 }}>
+                  <Field label="Mês (1 a 12)" value={form.dueMonth} onChangeText={(v) => setForm({ ...form, dueMonth: onlyDigits(v).slice(0, 2) })} keyboardType="number-pad" />
+                </View>
               )}
-              <Text style={[s.label, { color: t.text }]}>Categoria</Text>
+            </View>
+            <View style={{ gap: 6 }}>
+              <T size={13} tone="muted">
+                Categoria
+              </T>
               <Chips items={SPEND.map((c) => ({ id: c.key, label: c.label }))} value={form.categoryKey} onChange={(k) => setForm({ ...form, categoryKey: k })} />
-              {!!error && <ErrorBox message={error} />}
-              <Button label={form.id ? 'Salvar' : 'Cadastrar'} onPress={() => void save('save')} disabled={!ok} busy={busy} />
-              {form.id && <Button label="Excluir" kind="danger" onPress={() => void save('delete')} busy={busy} />}
-              <Button label="Cancelar" kind="outline" onPress={() => setForm(null)} />
-            </ScrollView>
-          </KeyboardAvoidingView>
+            </View>
+            {!!error && <ErrorBox message={error} />}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {form.id ? <Btn grow kind="danger" label="Excluir" onPress={() => save.mutate('delete')} busy={save.isPending} /> : <Btn grow kind="outline" label="Cancelar" onPress={() => setForm(null)} />}
+              <Btn grow label={form.id ? 'Salvar' : 'Cadastrar'} onPress={() => save.mutate('save')} disabled={!ok} busy={save.isPending} />
+            </View>
+          </>
         )}
-      </Modal>
+      </Sheet>
     </>
   );
 }
-
-const s = StyleSheet.create({
-  item: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
-  sheet: { padding: 20, gap: 10, paddingBottom: 40 },
-  label: { fontSize: 14, fontWeight: '600', marginTop: 6 },
-  input: { borderWidth: 1, borderRadius: 12, padding: 13, fontSize: 16 },
-  money: { fontSize: 22, fontWeight: '700' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-});

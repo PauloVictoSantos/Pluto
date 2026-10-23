@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskMoney, pct } from './format';
+import { fmtDay, maskMoney, money, pct, setValuesHidden } from './format';
 
 describe('formatacao', () => {
   it('campo de dinheiro em centavos', () => {
@@ -9,7 +9,14 @@ describe('formatacao', () => {
     expect(maskMoney('abc').text).toBe('');
     expect(maskMoney('5').text).toMatch(/^R\$\s0,05$/);
   });
-  it('percentual', () => {
+  it('ocultar valores mascara todo dinheiro da tela', () => {
+    expect(money(123_456)).toMatch(/^R\$\s1\.234,56$/);
+    setValuesHidden(true);
+    expect(money(123_456)).toBe('R$ ••••');
+    setValuesHidden(false);
+  });
+  it('percentual e datas', () => {
     expect(pct(0.456)).toBe('46%');
+    expect(fmtDay('2026-10-05T12:00:00Z')).toBe('5 out.');
   });
 });

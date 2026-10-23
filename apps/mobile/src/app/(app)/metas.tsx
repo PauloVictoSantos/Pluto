@@ -1,90 +1,109 @@
 import { GoalSchema, GoalsPlanSchema, type Goal } from '@pluto/shared';
-import { router } from 'expo-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { z } from 'zod';
 import { ApiError, api } from '@/api';
-import { Button, Card, CardTitle, ErrorBox, Loading, Muted, Progress, Row, Screen } from '@/components/ui';
-import { brl } from '@/lib/format';
+import { Icon } from '@/components/Icon';
+import { T } from '@/components/T';
+import { Btn, Card, CardTitle, Empty, ErrorBox, Loading, Muted, PageHeader, Progress, Row, Screen } from '@/components/ui';
+import { MESES, money } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import { useApi } from '@/lib/use-api';
+import { useApiQuery } from '@/lib/use-api';
 
-// Metas e o plano da sobra por prioridade (MT-04). Meta nova passa pela entrevista: no app, pelo
-// Plutao (a mesma entrevista do site).
-const load = async () => {
-  const [goals, plan] = await Promise.all([api.request('/goals', {}, z.array(GoalSchema)), api.request('/agent/goals/plan', {}, GoalsPlanSchema)]);
-  return { goals: goals.filter((g) => g.status !== 'cancelada'), plan };
-};
+// Metas (como /metas no site): a primeira em destaque roxo, progresso, situacao no plano e
+// pausar/retomar. Meta nova passa pela entrevista: no app, pelo Plutao (etapa D traz a entrevista).
+const loadGoals = () => api.request('/goals', {}, z.array(GoalSchema));
+const loadPlan = () => api.request('/agent/goals/plan', {}, GoalsPlanSchema);
+const PRIORITIES = ['Máxima', 'Alta', 'Média', 'Baixa', 'Quando der'];
 const STATUS: Record<Goal['status'], string> = { ativa: 'Ativa', pausada: 'Pausada', concluida: 'Concluída', cancelada: 'Cancelada' };
-const date = (d: string) => d.split('-').reverse().join('/');
 
 export default function Metas() {
   const t = useTheme();
-  const q = useApi(load);
-  const [busy, setBusy] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const goals = useApiQuery(['goals'], loadGoals);
+  const plan = useApiQuery(['goals-plan'], loadPlan);
   const [error, setError] = useState('');
-  const d = q.data;
-
-  const setStatus = async (g: Goal, status: 'ativa' | 'pausada' | 'concluida') => {
-    setBusy(g.id);
-    setError('');
-    try {
-      await api.request(`/agent/goals/${g.id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, GoalsPlanSchema);
-      await q.refresh();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Não foi possível alterar a meta.');
-    } finally {
-      setBusy(null);
-    }
-  };
+  const list = (goals.data ?? []).filter((g) => g.status !== 'cancelada');
+  const total = list.reduce((s, g) => s + g.savedMinor, 0);
+  const status = useMutation({
+    mutationFn: ({ g, to }: { g: Goal; to: 'ativa' | 'pausada' | 'concluida' }) => api.request(`/agent/goals/${g.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: to }) }, GoalsPlanSchema),
+    onSuccess: (p) => {
+      setError('');
+      qc.setQueryData(['goals-plan'], p);
+      for (const k of ['goals', 'agent-limit', 'overview-lite']) void qc.invalidateQueries({ queryKey: [k] });
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Não foi possível alterar a meta.'),
+  });
+  const refresh = () => void Promise.all([goals.refresh(), plan.refresh()]);
 
   return (
-    <Screen refreshing={q.refreshing} onRefresh={q.refresh}>
-      {(q.error || error) && <ErrorBox message={q.error ?? error} />}
-      {q.loading && <Loading />}
-      {d && (
-        <>
-          <Card>
-            <CardTitle>Plano das metas</CardTitle>
-            <Muted>Sua sobra no mês vai primeiro para as metas de maior prioridade. A soma dos aportes nunca passa dela.</Muted>
-            <Progress value={d.plan.capacityMinor > 0 ? d.plan.allocatedMinor / d.plan.capacityMinor : 0} />
-            <Row label="Sobra no mês" value={brl(d.plan.capacityMinor)} />
-            <Row label="Em metas" value={brl(d.plan.allocatedMinor)} />
-            <Row label="Livre" value={brl(d.plan.freeMinor)} strong />
-          </Card>
-
-          <Button label="Criar meta com o Plutão" onPress={() => router.push('/chat')} />
-
-          {!d.goals.length && <Muted style={{ textAlign: 'center' }}>Nenhuma meta ainda. Uma reserva de emergência, um computador, uma viagem…</Muted>}
-
-          {d.goals.map((g) => {
-            const done = g.savedMinor >= g.targetMinor;
-            const paused = g.status === 'pausada';
-            const p = d.plan.goals.find((x) => x.goalId === g.id);
-            return (
-              <Card key={g.id} style={paused ? { opacity: 0.7 } : undefined}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-                  <Text style={{ color: t.text, fontSize: 16, fontWeight: '700', flexShrink: 1 }}>{g.name}</Text>
-                  <Muted>{STATUS[g.status]}</Muted>
-                </View>
-                <Text style={{ color: t.text, fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{brl(g.savedMinor)}</Text>
-                <Muted>
-                  de {brl(g.targetMinor)} até {date(g.deadline)}
-                  {g.score !== null ? ` · prioridade ${Math.round(g.score * 100)}/100` : ''}
-                </Muted>
-                <Progress value={g.savedMinor / g.targetMinor} color={done ? '#7DBF00' : undefined} />
-                {p && !done && <Muted style={{ color: p.waiting && !paused ? t.danger : t.muted }}>{p.note}</Muted>}
-                {g.monthlyContributionMinor > 0 && !done && <Row label="Aporte planejado" value={`${brl(g.monthlyContributionMinor)}/mês`} />}
-                {done && g.status !== 'concluida' ? (
-                  <Button label="Concluir meta" kind="outline" onPress={() => void setStatus(g, 'concluida')} busy={busy === g.id} />
-                ) : (
-                  !done && <Button label={paused ? 'Retomar' : 'Pausar'} kind={paused ? 'primary' : 'outline'} onPress={() => void setStatus(g, paused ? 'ativa' : 'pausada')} busy={busy === g.id} />
-                )}
-              </Card>
-            );
-          })}
-        </>
+    <Screen refreshing={goals.refreshing} onRefresh={refresh}>
+      <PageHeader title="Metas" subtitle={goals.isLoading ? 'Carregando…' : `${list.length} meta${list.length === 1 ? '' : 's'} · ${money(total)} guardados`} />
+      {(goals.error || error) && <ErrorBox message={goals.error ?? error} />}
+      {goals.isLoading && <Loading />}
+      {goals.data && !list.length && (
+        <Empty title="Nenhuma meta ainda" text="Uma reserva de emergência, um computador, uma viagem… Peça ao Plutão: ele faz as perguntas, calcula se cabe no seu mês e propõe o plano." />
       )}
+
+      {list.map((g, i) => {
+        const r = Math.min(g.savedMinor / g.targetMinor, 1);
+        const done = r >= 1;
+        const paused = g.status === 'pausada';
+        const feat = i === 0 && g.status === 'ativa';
+        const fg = feat ? '#FFFFFF' : t.foreground;
+        const sub = feat ? 'rgba(255,255,255,0.85)' : t.mutedForeground;
+        const p = plan.data?.goals.find((x) => x.goalId === g.id);
+        return (
+          <Card key={g.id} style={{ gap: 14, padding: 20, backgroundColor: feat ? '#7D39EB' : t.card, borderColor: feat ? '#7D39EB' : t.border, opacity: paused ? 0.7 : 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: feat ? 'rgba(255,255,255,0.16)' : t.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon icon={g.icon} size={20} color={fg} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T size={16} weight={600} color={fg} numberOfLines={1}>
+                  {g.name}
+                </T>
+                <T size={12} color={sub}>
+                  até {MESES[+g.deadline.slice(5, 7) - 1]} {g.deadline.slice(0, 4)} ·{' '}
+                  {g.score !== null ? `prioridade ${Math.round(g.score * 100)}/100` : `prioridade ${PRIORITIES[g.priority - 1]!.toLowerCase()}`}
+                  {g.status !== 'ativa' ? ` · ${STATUS[g.status].toLowerCase()}` : ''}
+                </T>
+              </View>
+            </View>
+            <View>
+              <T size={28} weight={700} color={fg} tabular>
+                {money(g.savedMinor)}
+              </T>
+              <T size={13} color={sub}>
+                de {money(g.targetMinor)} · {(r * 100).toFixed(0)}%
+              </T>
+            </View>
+            <View style={{ height: 10, borderRadius: 99, overflow: 'hidden', backgroundColor: feat ? 'rgba(255,255,255,0.2)' : t.muted }}>
+              <View style={{ width: `${r * 100}%`, height: '100%', borderRadius: 99, backgroundColor: feat || done ? '#C6FF33' : '#7D39EB' }} />
+            </View>
+            <T size={13} color={p?.waiting && !paused && !done ? (feat ? '#FFFFFF' : t.dangerText) : sub}>
+              {paused ? 'Pausada: não recebe aporte nem entra no limite do mês.' : done ? 'Meta concluída. Parabéns!' : (p?.note ?? (g.monthlyContributionMinor ? `Plano: ${money(g.monthlyContributionMinor)}/mês` : ''))}
+            </T>
+            {done && g.status !== 'concluida' ? (
+              <Btn kind={feat ? 'accent' : 'outline'} label="Concluir meta" onPress={() => status.mutate({ g, to: 'concluida' })} busy={status.isPending} />
+            ) : !done ? (
+              <Btn kind={paused ? 'primary' : feat ? 'accent' : 'outline'} label={paused ? 'Retomar' : 'Pausar'} onPress={() => status.mutate({ g, to: paused ? 'ativa' : 'pausada' })} busy={status.isPending} />
+            ) : null}
+          </Card>
+        );
+      })}
+
+      {plan.data && plan.data.goals.length > 0 && (
+        <Card>
+          <CardTitle>Plano das metas</CardTitle>
+          <Muted>Sua sobra no mês é {money(plan.data.capacityMinor)}. Ela vai primeiro para as metas de maior prioridade; a soma dos aportes nunca passa dela.</Muted>
+          <Progress value={plan.data.capacityMinor > 0 ? plan.data.allocatedMinor / plan.data.capacityMinor : 0} />
+          <Row label="Em metas" value={money(plan.data.allocatedMinor)} />
+          <Row label="Livre" value={money(plan.data.freeMinor)} strong />
+        </Card>
+      )}
+      {plan.error && <Muted>{plan.error}</Muted>}
     </Screen>
   );
 }
