@@ -41,6 +41,12 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
     },
   });
   const reset = useMutation({ mutationFn: api.resetAgentChat, onSuccess: apply });
+  const consent = useMutation({
+    mutationFn: () => api.setAiConsent(true),
+    onSuccess: () => {
+      for (const k of ['agent-chat', 'me']) void qc.invalidateQueries({ queryKey: [k] });
+    },
+  });
   const thinking = send.isPending;
   const s = q.data;
 
@@ -143,14 +149,26 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
               {error}
             </div>
           )}
-          {s && !s.available && !s.pending && (
+          {s && !s.consent && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-muted p-3 text-[13px]" role="group" aria-label="Autorizar uso de IA">
+              <div className="font-semibold">Antes de começar</div>
+              <div>
+                Para conversar, o Plutão envia ao provedor de IA (Google Gemini) só números agregados do seu plano. Extratos completos, nome, CPF, e-mail, telefone e números de
+                conta nunca são enviados. Você pode retirar a autorização em Configurações › Privacidade e dados.
+              </div>
+              <button onClick={() => consent.mutate()} disabled={consent.isPending} className="btn btn-primary h-10 text-[14px]">
+                Autorizo o uso de IA
+              </button>
+            </div>
+          )}
+          {s && s.consent && !s.available && !s.pending && (
             <div className="text-[13px] text-muted-foreground">O Plutão precisa da IA ligada. Ative a opção de IA em Configurações.</div>
           )}
         </div>
         <div className="flex flex-col gap-2.5 border-t border-border px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
           {!s?.messages.length && (
             <div className="no-scrollbar flex gap-2 overflow-x-auto">
-              {SUGGESTIONS.map((t) => (
+              {s?.consent && SUGGESTIONS.map((t) => (
                 <button key={t} onClick={() => ask(t)} className="btn btn-outline h-9 shrink-0 px-3 text-[13px] font-normal">
                   {t}
                 </button>
@@ -172,7 +190,7 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
               maxLength={1000}
               className="input h-12 flex-1 rounded-full px-4"
             />
-            <button type="submit" aria-label="Enviar" disabled={thinking} className="grid size-12 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-brand text-white">
+            <button type="submit" aria-label="Enviar" disabled={thinking || !s?.consent} className="grid size-12 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-brand text-white">
               <Icon icon="send-horizontal" size={18} />
             </button>
           </form>

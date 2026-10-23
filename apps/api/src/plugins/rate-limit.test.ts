@@ -37,6 +37,7 @@ describe('limites por cliente atras do proxy', () => {
 
   it('rotas autenticadas contam por usuario, nao por IP', async () => {
     const [a, b] = [await h.createUser({ email: 'a-rl@pluto.test' }), await h.createUser({ email: 'b-rl@pluto.test' })];
+    await h.ctx.col.users.updateMany({}, { $set: { 'settings.aiConsentAt': new Date().toISOString() } });
     const ask = async (userId: typeof a.id) =>
       app.inject({
         method: 'POST',

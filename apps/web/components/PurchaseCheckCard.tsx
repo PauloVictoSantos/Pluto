@@ -66,6 +66,13 @@ export function PurchaseCheckCard() {
     onSuccess: done,
     onError: fail,
   });
+  const [contesting, setContesting] = useState('');
+  const [contested, setContested] = useState(false);
+  const contest = useMutation({
+    mutationFn: (e: PurchaseEvaluation) => api.contest(`Veredito da compra: ${e.description}`, contesting.trim()),
+    onSuccess: () => (setContested(true), setContesting(''), void qc.invalidateQueries({ queryKey: ['contestations'] })),
+    onError: fail,
+  });
   const toGoal = useMutation({ mutationFn: (id: string) => api.purchaseToGoal(id), onSuccess: (d) => (setShown(null), setGoalDraft(d.id)), onError: fail });
 
   const recent = (list.data ?? []).filter((p) => !['desistiu', 'comprada'].includes(p.status)).slice(0, 4);
@@ -97,6 +104,25 @@ export function PurchaseCheckCard() {
           {e.consequence.map((c) => (
             <span key={c}>{c}</span>
           ))}
+        </div>
+      )}
+      {e.id && e.verdict !== 'aprovar' && (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
+          {contested ? (
+            <span className="text-[12.5px] text-muted-foreground">Contestação registrada para revisão.</span>
+          ) : (
+            <>
+              <label className="text-[12.5px] font-semibold" htmlFor="contest">
+                Discorda do veredito? Conte por quê
+              </label>
+              <div className="flex gap-2">
+                <input id="contest" value={contesting} onChange={(x) => setContesting(x.target.value)} maxLength={1000} className="input h-10 flex-1" />
+                <button onClick={() => contest.mutate(e)} disabled={!contesting.trim() || contest.isPending} className="btn btn-outline h-10 px-3 text-[13px]">
+                  Contestar
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
       {e.id && !['comprada', 'desvio', 'desistiu'].includes(e.status) && (
@@ -135,7 +161,7 @@ export function PurchaseCheckCard() {
         </button>
       </div>
       {recent.map((p) => (
-        <button key={p.id} onClick={() => setShown(p)} className="flex cursor-pointer items-center gap-3 border-0 border-t border-solid border-border bg-transparent py-2.5 text-left text-foreground">
+        <button key={p.id} onClick={() => (setShown(p), setContested(false))} className="flex cursor-pointer items-center gap-3 border-0 border-t border-solid border-border bg-transparent py-2.5 text-left text-foreground">
           <span className="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" style={{ background: VERDICT[p.verdict].bg, color: VERDICT[p.verdict].fg }}>
             {VERDICT[p.verdict].label}
           </span>

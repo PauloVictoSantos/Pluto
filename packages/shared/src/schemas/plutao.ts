@@ -18,5 +18,7 @@ export const AgentChatStateSchema = z.object({
   pending: z.object({ tool: z.string(), summary: z.string() }).nullable(),
   /** IA ligada (chave configurada e "IA" ativa nas configuracoes). */
   available: z.boolean(),
+  /** Consentimento para usar IA (LGPD): sem ele o Plutao nao conversa. */
+  consent: z.boolean(),
 });
 export type AgentChatState = z.infer<typeof AgentChatStateSchema>;

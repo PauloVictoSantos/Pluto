@@ -74,6 +74,7 @@ describe('guardrails no chat', () => {
   beforeEach(async () => {
     await h.reset();
     userId = (await h.createUser()).id;
+    await h.ctx.col.users.updateOne({ _id: userId }, { $set: { 'settings.aiConsentAt': new Date().toISOString() } });
     script = [];
     seen = [];
     h.ctx.llm = {

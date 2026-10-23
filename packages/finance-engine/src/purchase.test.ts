@@ -55,6 +55,12 @@ describe('avaliacao de compra', () => {
     expect(r).toMatchObject({ verdict: 'aprovar', reason: 'urgencia-reserva', reservePlan: { useMinor: 150_000, months: 3, monthlyMinor: 50_000 } });
   });
 
+  it('desejo com reserva abaixo de 3 meses: adiar priorizando a reserva (compra pequena passa)', () => {
+    expect(evaluatePurchase({ ...base, reserveMinor: 300_000 })).toMatchObject({ verdict: 'adiar', reason: 'reserva-baixa' });
+    expect(evaluatePurchase({ ...base, reserveMinor: 300_000, priceMinor: 5_000 }).verdict).toBe('aprovar');
+    expect(evaluatePurchase({ ...base, reserveMinor: 300_000, essential: true }).verdict).toBe('aprovar');
+  });
+
   it('contencao: so essenciais', () => {
     expect(evaluatePurchase({ ...base, containment: true })).toMatchObject({ verdict: 'recusar', reason: 'contencao' });
     expect(evaluatePurchase({ ...base, containment: true, essential: true }).verdict).toBe('aprovar');

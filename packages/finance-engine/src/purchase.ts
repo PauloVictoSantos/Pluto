@@ -39,6 +39,7 @@ export type PurchaseReason =
   | 'juros-sem-reserva'
   | 'contencao'
   | 'estoura-limite'
+  | 'reserva-baixa'
   | 'atrasa-meta'
   | 'regra-72h'
   | 'cabe';
@@ -94,6 +95,9 @@ export function evaluatePurchase(i: PurchaseInput): PurchaseResult {
   if (i.containment && !i.essential) return { ...base, verdict: 'recusar', reason: 'contencao', goalDelayDays: delay(i.priceMinor) };
   // Estoura o limite do mes.
   if (monthImpactMinor > i.limitRemainingMinor) return { ...base, verdict: 'recusar', reason: 'estoura-limite', goalDelayDays: delay(monthImpactMinor - Math.max(0, i.limitRemainingMinor)) };
+  // MT-06 / 10.3: desejo com reserva abaixo de 3 meses espera; a reserva vem antes (compras pequenas passam).
+  if (!i.essential && i.fixedMinor > 0 && reserveCover < 3 && i.priceMinor > i.incomeMinor * 0.02)
+    return { ...base, verdict: 'adiar', reason: 'reserva-baixa', goalDelayDays: delay(i.priceMinor) };
   // Cabe no limite, mas o resto do mes nao: a diferenca sai das metas.
   const gap = i.expectedRestMinor - (i.limitRemainingMinor - monthImpactMinor);
   if (!i.essential && gap > 0 && i.topGoal) return { ...base, verdict: 'adiar', reason: 'atrasa-meta', goalDelayDays: delay(roundHalfEven(gap)) };

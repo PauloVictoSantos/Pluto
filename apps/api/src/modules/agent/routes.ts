@@ -11,6 +11,8 @@ import {
   PurchasesSchema,
   AgentChatRequestSchema,
   AgentChatStateSchema,
+  ContestationsSchema,
+  CreateContestationSchema,
   CreateFixedExpenseSchema,
   CreateLoanSchema,
   FinancialProfileSchema,
@@ -25,6 +27,7 @@ import {
   UpdateLoanSchema,
 } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
 import { audit } from '../../lib/audit';
@@ -165,6 +168,17 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
   app.get('/agent/chat', { schema: CHAT }, async (req) => chatState(ctx, userOf(req).id));
   app.post('/agent/chat', { config: { rateLimit: perUser(30) }, schema: { body: AgentChatRequestSchema, ...CHAT } }, async (req) => sendMessage(ctx, userOf(req).id, req.body.message, req.ip));
   app.post('/agent/chat/reset', { schema: CHAT }, async (req) => resetChat(ctx, userOf(req).id));
+
+  // Revisao de decisao automatizada (LGPD, 8.5): todo veredito pode ser contestado e fica registrado.
+  const contestations = async (userId: ObjectId) =>
+    (await ctx.col.agentContestations.find({ userId }).sort({ createdAt: -1 }).limit(50).toArray()).map((c) => ({ subject: c.subject, text: c.text, createdAt: c.createdAt.toISOString() }));
+  app.get('/agent/contestations', { schema: { response: { 200: ContestationsSchema } } }, async (req) => contestations(userOf(req).id));
+  app.post('/agent/contestations', { config: { rateLimit: perUser(10) }, schema: { body: CreateContestationSchema, response: { 200: ContestationsSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    await ctx.col.agentContestations.insertOne({ _id: new ObjectId(), userId, subject: req.body.subject, text: req.body.text, createdAt: new Date() });
+    await audit(ctx.col, 'agent.contested', userId, { subject: req.body.subject }, req.ip);
+    return contestations(userId);
+  });
 
   // Avaliacao de compra (doc. Pluton 3.4). "simulate" e a ferramenta simular_compra: so calcula.
   const PURCHASE = { response: { 200: PurchaseEvaluationSchema } };

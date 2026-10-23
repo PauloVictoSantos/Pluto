@@ -7,6 +7,7 @@ import { ConnectionsCard } from '@/components/ConnectionsCard';
 import { AlertsCard } from '@/components/AlertsCard';
 import { MerchantGroupsCard } from '@/components/MerchantGroupsCard';
 import { FinancialProfileCard } from '@/components/FinancialProfileCard';
+import { PrivacyCard } from '@/components/PrivacyCard';
 import { PasskeysCard } from '@/components/PasskeysCard';
 import { useReauth } from '@/components/Reauth';
 import { Icon } from '@/components/ui/Icon';
@@ -113,6 +114,7 @@ export default function ConfiguracoesPage() {
       <ConnectionsCard />
       <CategoryRulesCard />
       <MerchantGroupsCard />
+      <PrivacyCard />
 
       <div data-anim="" className="card flex flex-col gap-3.5">
         <div className="card-title">Aparência</div>

@@ -92,6 +92,10 @@ function explain(req: PurchaseRequest, r: PurchaseResult, c: Ctx): Pick<Purchase
       lines.push(`Restam ${brl(Math.max(0, c.limit.remainingMinor))} no limite e a compra pesa ${brl(r.monthImpactMinor)} neste mês.`);
       lines.push('Dá para transformar em meta: o Plutão calcula quanto guardar por mês.');
       break;
+    case 'reserva-baixa':
+      headline = `ADIAR: sua reserva cobre ${(c.fixedMinor ? c.reserveMinor / c.fixedMinor : 0).toFixed(1).replace('.', ',')} mês(es) de custo fixo; o mínimo é 3.`;
+      lines.push(`Esses ${brl(req.priceMinor)} completariam ${r.reserveMonths?.toFixed(1).replace('.', ',') ?? '0'} mês(es) da reserva. Primeiro a reserva, depois o desejo.`);
+      break;
     case 'atrasa-meta':
       headline = `ADIAR: cabe no limite, mas o resto do mês não. ${goal ? `Atrasa “${goal}” em ${days(r.goalDelayDays ?? 0)}.` : ''}`.trim();
       lines.push(`Depois dela sobram ${brl(after)}; no seu ritmo, o resto do mês pede cerca de ${brl(c.expectedRestMinor)}.`);

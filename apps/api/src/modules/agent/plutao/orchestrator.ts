@@ -52,15 +52,14 @@ async function save(ctx: AppContext, userId: ObjectId, doc: AgentSessionDoc | nu
   else await ctx.col.agentSessions.insertOne({ _id: new ObjectId(), userId, stateEnc, promptVersion: PROMPT_VERSION, createdAt: now, updatedAt: now });
 }
 
-async function available(ctx: AppContext, userId: ObjectId) {
-  if (!ctx.llm?.chat) return false;
-  const u = await ctx.col.users.findOne({ _id: userId }, { projection: { 'settings.aiEnabled': 1 } });
-  return u?.settings.aiEnabled !== false;
+async function aiStatus(ctx: AppContext, userId: ObjectId) {
+  const u = await ctx.col.users.findOne({ _id: userId }, { projection: { 'settings.aiEnabled': 1, 'settings.aiConsentAt': 1 } });
+  return { available: !!ctx.llm?.chat && u?.settings.aiEnabled !== false, consent: !!u?.settings.aiConsentAt };
 }
 
 export async function chatState(ctx: AppContext, userId: ObjectId): Promise<AgentChatState> {
   const { state } = await load(ctx, userId);
-  return { messages: state.transcript, pending: state.pending && { tool: state.pending.tool, summary: state.pending.summary }, available: await available(ctx, userId) };
+  return { messages: state.transcript, pending: state.pending && { tool: state.pending.tool, summary: state.pending.summary }, ...(await aiStatus(ctx, userId)) };
 }
 
 export async function resetChat(ctx: AppContext, userId: ObjectId) {
@@ -120,6 +119,9 @@ async function runWrite(ctx: AppContext, userId: ObjectId, state: SessionState, 
 
 export async function sendMessage(ctx: AppContext, userId: ObjectId, message: string, ip: string | null): Promise<AgentChatState> {
   const now = new Date();
+  const ai = await aiStatus(ctx, userId);
+  // LGPD: sem consentimento explicito, nada vai para o provedor de IA.
+  if (!ai.consent) throw new AppError(403, 'AI_CONSENT_REQUIRED', 'Para conversar com o Plutão, autorize o uso de IA.');
   await countMessage(ctx, userId, now);
   const { doc, state } = await load(ctx, userId);
   const at = () => new Date().toISOString();
@@ -161,7 +163,7 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
     return reply(REFUSAL[input.block]);
   }
 
-  if (!(await available(ctx, userId))) throw new AppError(503, 'LLM_NOT_CONFIGURED', 'O Plutão precisa da IA ligada. Ative em Configurações.');
+  if (!ai.available) throw new AppError(503, 'LLM_NOT_CONFIGURED', 'O Plutão precisa da IA ligada. Ative em Configurações.');
   pushUser(state.contents, { text: input.text });
   if (input.noConfirmRequest) pushUser(state.contents, { text: '(Nota do sistema: gravar sem confirmação não é permitido. Toda escrita continua exigindo o "sim" do usuário.)' });
   const env = { ctx, userId, refs: state.refs };

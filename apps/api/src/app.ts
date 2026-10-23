@@ -15,6 +15,7 @@ import { debtRoutes } from './modules/debts/routes';
 import { merchantRoutes } from './modules/merchants/routes';
 import { recalcLimit } from './modules/agent/limit';
 import { agentRoutes } from './modules/agent/routes';
+import { privacyRoutes } from './modules/privacy/routes';
 
 /** Mudancas que alteram o plano (renda, fixos, dividas, metas). */
 const PLAN_ROUTES = /\/(agent\/(profile|fixed-expenses|loans|goal-drafts\/:id\/confirm|purchases\/:id\/(plan|bought))|goals|debts)(\/|$)/;
@@ -75,6 +76,7 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(debtRoutes, { ctx });
       await v1.register(merchantRoutes, { ctx });
       await v1.register(agentRoutes, { ctx });
+      await v1.register(privacyRoutes, { ctx });
       await v1.register(alertRoutes, { ctx });
       await v1.register(chargeRoutes, { ctx });
       await v1.register(stripeWebhookRoutes, { ctx });

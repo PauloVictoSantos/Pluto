@@ -39,7 +39,7 @@ export const PurchaseEvaluationSchema = z.object({
   priceMinor: z.number().int(),
   payment: z.enum(PAYMENT_METHODS),
   verdict: z.enum(['aprovar', 'adiar', 'recusar']),
-  reason: z.enum(['urgencia-reserva', 'juros-sem-reserva', 'contencao', 'estoura-limite', 'atrasa-meta', 'regra-72h', 'cabe']),
+  reason: z.enum(['urgencia-reserva', 'juros-sem-reserva', 'contencao', 'estoura-limite', 'reserva-baixa', 'atrasa-meta', 'regra-72h', 'cabe']),
   /** Veredito em uma frase, com o numero. */
   headline: z.string(),
   explanation: z.array(z.string()),
