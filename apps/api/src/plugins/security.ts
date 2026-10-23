@@ -22,6 +22,12 @@ export async function registerSecurity(app: FastifyInstance, env: Env) {
     allowedHeaders: ['content-type', 'authorization', 'x-pluto-client'],
   });
 
+  // Dados financeiros nao ficam em cache (navegador, proxy ou o app mobile; guia mobile, secao 7).
+  app.addHook('onSend', async (_req, reply, payload) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    return payload;
+  });
+
   // Chave padrao: req.ip. Com trustProxy em loopback (app.ts), atras do proxy do Next e o IP
   // real do cliente (ultimo endereco nao confiavel do X-Forwarded-For), nao o do proxy.
   await app.register(rateLimit, {

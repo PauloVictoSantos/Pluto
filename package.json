@@ -12,6 +12,7 @@
     "dev": "pnpm --parallel --filter @pluto/api --filter @pluto/web dev",
     "dev:api": "pnpm --filter @pluto/api dev",
     "dev:web": "pnpm --filter @pluto/web dev",
+    "dev:mobile": "pnpm --filter @pluto/mobile start",
     "build": "pnpm -r build",
     "build:mobile": "pnpm --filter @pluto/web build:mobile",
     "typecheck": "pnpm -r typecheck",

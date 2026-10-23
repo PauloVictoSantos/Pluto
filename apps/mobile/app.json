@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Pluto",
+    "slug": "pluto-mobile",
+    "scheme": "pluto",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#7D39EB",
+    "ios": {
+      "bundleIdentifier": "br.pessoal.pluto",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "br.pessoal.pluto",
+      "adaptiveIcon": {
+        "backgroundColor": "#7D39EB",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Use o Face ID para desbloquear o Pluto."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#7D39EB",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

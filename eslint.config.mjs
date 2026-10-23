@@ -14,6 +14,10 @@ export default tseslint.config(
       'apps/web/ios/**',
       'apps/web/android/**',
       '**/next-env.d.ts',
+      'apps/mobile/.expo/**',
+      'apps/mobile/expo-env.d.ts',
+      'apps/mobile/ios/**',
+      'apps/mobile/android/**',
     ],
   },
   js.configs.recommended,
@@ -33,6 +37,11 @@ export default tseslint.config(
   {
     files: ['apps/web/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
+  },
+  {
+    files: ['apps/mobile/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
   },
