@@ -33,6 +33,18 @@ versao compativel com o SDK). Antes de cada build: `pnpm --filter @pluto/mobile 
   recentes, sem print nem gravacao de tela, como apps de banco); capa roxa enquanto inativo.
 - `src/auth/flow.ts` (login e regras de bloqueio) e testado no Vitest.
 
+## Telas
+
+| Aba | API | O que mostra |
+|---|---|---|
+| Resumo | `/me`, `/dashboard/summary`, `/agent/limit`, `/analytics/health` | Saldo, entradas e saidas do mes, limite de gasto, saude financeira |
+| Fixos | `/agent/fixed-expenses` | Lista, total do mes, cadastro, edicao e exclusao (parcelas de dividas so leitura) |
+| Metas | `/goals`, `/agent/goals/plan`, `/agent/goals/:id/status` | Plano da sobra por prioridade, progresso, pausar/retomar/concluir |
+| Plutao | `/agent/chat`, `/agent/consent` | Chat com o agente; autorizacao de IA; Sim/Nao para gravar |
+
+Todas recarregam ao voltar para a aba e no "puxar para atualizar", e so buscam dados depois do
+desbloqueio. Nada e salvo no aparelho. Meta nova passa pela entrevista: no app, pelo Plutao.
+
 ## Estrutura
 
 ```text
@@ -40,6 +52,6 @@ src/
   app/          rotas (Expo Router): cada arquivo e uma tela
   api/          cliente da API (client.ts), SecureStore (secure-store.ts), instancia (index.ts)
   auth/         login em dois passos e regras de bloqueio (flow.ts), sessao (session.tsx)
-  components/   tela de bloqueio e capa de privacidade
-  lib/          formatacao (moeda, CPF)
+  components/   tela de bloqueio, capa de privacidade e pecas visuais (ui.tsx)
+  lib/          formatacao (moeda, CPF), cores (theme.ts), carregamento (use-api.ts)
 ```

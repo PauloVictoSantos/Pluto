@@ -13,3 +13,13 @@ export function maskCpf(v: string): string {
   if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
+
+/** Campo de dinheiro: digitos viram centavos ("150000" -> R$ 1.500,00). */
+export function maskMoney(raw: string): { text: string; minor: number } {
+  const d = onlyDigits(raw).slice(0, 11);
+  const minor = d ? Number(d) : 0;
+  return { text: d ? brl(minor) : '', minor };
+}
+
+/** Fracao -> "45%". */
+export const pct = (x: number) => `${Math.round(x * 100)}%`;
