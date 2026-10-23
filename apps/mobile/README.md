@@ -22,11 +22,24 @@ versao compativel com o SDK). Antes de cada build: `pnpm --filter @pluto/mobile 
   `expo-secure-store`, acessivel apenas com o aparelho desbloqueado e fora de backups.
 - `src/api/client.ts` nao depende do Expo e e testado no Vitest (`pnpm test`).
 
+## Login e seguranca
+
+- Dois passos, como no site: CPF + senha (`/v1/auth/login`) e o codigo do autenticador
+  (`/v1/auth/2fa/verify`). O CPF nunca fica salvo no aparelho; so o refresh token.
+- Biometria ao abrir e ao voltar depois de 1 minuto em segundo plano (`expo-local-authentication`).
+  Sem leitor ou sem digital/rosto cadastrado, o app abre direto. Face ID nao funciona no Expo Go:
+  teste num build (etapa 5).
+- Fora do app: desfoque no seletor de apps do iOS; no Android, FLAG_SECURE (preview em branco nos
+  recentes, sem print nem gravacao de tela, como apps de banco); capa roxa enquanto inativo.
+- `src/auth/flow.ts` (login e regras de bloqueio) e testado no Vitest.
+
 ## Estrutura
 
 ```text
 src/
   app/          rotas (Expo Router): cada arquivo e uma tela
   api/          cliente da API (client.ts), SecureStore (secure-store.ts), instancia (index.ts)
+  auth/         login em dois passos e regras de bloqueio (flow.ts), sessao (session.tsx)
+  components/   tela de bloqueio e capa de privacidade
   lib/          formatacao (moeda, CPF)
 ```
