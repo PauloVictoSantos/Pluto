@@ -589,6 +589,16 @@ export interface AgentContestationDoc {
   createdAt: Date;
 }
 
+/** Contador diario de mensagens ao Plutao (abuso de custo, doc. 8.1). */
+export interface AgentUsageDoc {
+  /** "<userId>:<YYYY-MM-DD>" */
+  _id: string;
+  userId: ObjectId;
+  day: string;
+  messages: number;
+  createdAt: Date;
+}
+
 /** Alerta do painel do sino (doc. "alerts"): TTL de 180 dias; texto imutavel depois de criado (RN-G07). */
 export interface AlertDoc {
   _id: ObjectId;
@@ -713,6 +723,7 @@ export interface Collections {
   purchaseEvaluations: Collection<PurchaseEvaluationDoc>;
   agentSessions: Collection<AgentSessionDoc>;
   agentContestations: Collection<AgentContestationDoc>;
+  agentUsage: Collection<AgentUsageDoc>;
   auditLogs: Collection<AuditLogDoc>;
 }
 
@@ -750,5 +761,6 @@ export const collections = (db: Db): Collections => ({
   purchaseEvaluations: db.collection<PurchaseEvaluationDoc>('purchase_evaluations'),
   agentSessions: db.collection<AgentSessionDoc>('agent_sessions'),
   agentContestations: db.collection<AgentContestationDoc>('agent_contestations'),
+  agentUsage: db.collection<AgentUsageDoc>('agent_usage'),
   auditLogs: db.collection<AuditLogDoc>('audit_logs'),
 });

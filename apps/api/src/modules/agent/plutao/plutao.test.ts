@@ -49,7 +49,7 @@ describe('Plutao', () => {
     expect(r.json().messages[1].text).toContain('R$ 4.750,00');
     const snap = toolResponses()[0]!;
     expect(snap.name).toBe('ler_snapshot_financeiro');
-    expect(snap.response).toMatchObject({ rendaLiquida: 5000, limiteDoMes: { limite: 4750 } });
+    expect(snap.response.dados).toMatchObject({ rendaLiquida: 5000, limiteDoMes: { limite: 4750 } });
     const raw = JSON.stringify(toolResponses());
     expect(raw).not.toMatch(/[a-f0-9]{24}/);
     expect(raw).not.toContain(String(userId));
@@ -99,7 +99,7 @@ describe('Plutao', () => {
     });
     script = [call('listar_gastos_fixos'), call('editar_gasto_fixo', { ref: 'F1', valor: 120 })];
     const r = (await chat('Minha internet subiu para 120')).json();
-    expect(toolResponses()[0]!.response).toMatchObject({ itens: [{ ref: 'F1', nome: 'Internet', valor: 100 }] });
+    expect(toolResponses()[0]!.response.dados).toMatchObject({ itens: [{ ref: 'F1', nome: 'Internet', valor: 100 }] });
     expect(r.pending.summary).toMatch(/Alterar o gasto fixo “Internet”: R\$\s120,00/);
     await chat('sim');
     expect((await h.ctx.col.fixedExpenses.findOne({ userId }))!.amountMinor).toBe(12_000);
@@ -119,7 +119,7 @@ describe('Plutao', () => {
       call('criar_meta', { ref: 'R1', cenario: 'no-prazo' }),
     ];
     const r = (await chat('Quero juntar para um notebook de 5 mil para trabalhar')).json();
-    const diag = toolResponses().find((x) => x.name === 'diagnosticar_meta')!.response;
+    const diag = toolResponses().find((x) => x.name === 'diagnosticar_meta')!.response.dados;
     expect(diag).toMatchObject({ veredito: 'APROVAR', valorDaMeta: 4750 });
     expect(r.pending.summary).toMatch(/^Criar a meta “Notebook”: R\$\s4\.750,00/);
     expect(await h.ctx.col.goals.countDocuments({ userId })).toBe(0);

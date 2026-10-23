@@ -45,8 +45,8 @@ describe('limites por cliente atras do proxy', () => {
         remoteAddress: '127.0.0.1',
         headers: { authorization: `Bearer ${await h.token(userId)}` },
       });
-    // Sem LLM configurado a rota responde 503, mas cada chamada conta no limite (20/min).
-    for (let i = 0; i < 20; i++) expect((await ask(a.id)).statusCode).toBe(503);
+    // Sem LLM configurado a rota responde 503, mas cada chamada conta no limite (30/min, doc. Pluton 8.1).
+    for (let i = 0; i < 30; i++) expect((await ask(a.id)).statusCode).toBe(503);
     expect((await ask(a.id)).statusCode).toBe(429);
     expect((await ask(b.id)).statusCode).toBe(503);
   });

@@ -6,15 +6,22 @@ import type { LlmContent, LlmPart } from '../../../integrations/llm/gemini';
 import { audit } from '../../../lib/audit';
 import { AppError } from '../../../lib/errors';
 import { recalcLimit } from '../limit';
+import { REFUSAL, asData, classifyInput, dropSentencesWith, moneyIn, numbersIn, numbersOf, sanitizeReply, unverifiedMoney } from './guard';
 import { PROMPT_VERSION, SYSTEM_PROMPT } from './prompt';
 import { TOOL_BY_NAME, ToolError, toolDeclarations, type Refs } from './tools';
 
-// Orquestrador do Plutao (doc. Pluton 7.2): carrega a sessao, deixa o modelo responder ou propor
-// ferramentas, executa leitura/calculo direto e segura toda escrita ate um "sim" explicito. O estado
-// da sessao (conversa, referencias, acao pendente) fica criptografado no banco.
+export { sanitizeReply } from './guard';
+
+// Orquestrador do Plutao (doc. Pluton 7.2): guardrail de entrada -> sessao -> modelo e ferramentas
+// (leitura e calculo direto, escrita so com "sim") -> guardrail de saida (prompt, links, PII e
+// numeros conferidos). O estado da sessao fica criptografado no banco.
 
 const MAX_ROUNDS = 5;
 const MAX_CONTENTS = 40;
+/** Orcamento de contexto por sessao (~12 mil tokens). */
+const MAX_CONTEXT_CHARS = 48_000;
+/** 8.1: abuso de custo. Por minuto fica no rate limit da rota; por dia, aqui. */
+export const DAILY_MESSAGES = 500;
 const YES = /^\s*(sim|s|confirmo|confirmar|pode(\s+sim)?|pode gravar|ok|isso)\s*[.!]*\s*$/i;
 const NO = /^\s*(n[aã]o|n|cancela|cancelar|deixa|esquece)\b/i;
 
@@ -61,14 +68,15 @@ export async function resetChat(ctx: AppContext, userId: ObjectId) {
   return chatState(ctx, userId);
 }
 
-/** Guardrail de saida (basico; reforcado na etapa 9): sem links, IDs internos nem trechos do prompt. */
-export function sanitizeReply(text: string): string {
-  if (/REGRAS ABSOLUTAS|Você é o Plutão, agente financeiro do Pluton/i.test(text)) return 'Isso eu não compartilho. Voltando ao seu plano: em que posso ajudar?';
-  return text
-    .replace(/https?:\/\/\S+|www\.\S+/gi, '[link removido]')
-    .replace(/\b[a-f0-9]{24}\b/gi, '[id]')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .trim();
+/** 500 mensagens por dia por usuario (8.1). */
+async function countMessage(ctx: AppContext, userId: ObjectId, now: Date) {
+  const day = now.toISOString().slice(0, 10);
+  const r = await ctx.col.agentUsage.findOneAndUpdate(
+    { _id: `${userId.toHexString()}:${day}` },
+    { $inc: { messages: 1 }, $setOnInsert: { userId, day, createdAt: now } },
+    { upsert: true, returnDocument: 'after' },
+  );
+  if ((r?.messages ?? 0) > DAILY_MESSAGES) throw new AppError(429, 'DAILY_LIMIT', `Você chegou ao limite de ${DAILY_MESSAGES} mensagens por dia com o Plutão. Amanhã a conversa continua.`);
 }
 
 /** Mensagem do usuario na conversa do modelo (junta com a resposta de ferramenta pendente, se houver). */
@@ -78,12 +86,21 @@ function pushUser(contents: LlmContent[], part: LlmPart) {
   else contents.push({ role: 'user', parts: [part] });
 }
 
-/** Mantem as ultimas mensagens, sempre comecando num turno de texto do usuario. */
+/** Mantem as ultimas mensagens dentro do orcamento, sempre comecando num turno de texto do usuario. */
 function trim(contents: LlmContent[]) {
-  if (contents.length <= MAX_CONTENTS) return contents;
-  let i = contents.length - MAX_CONTENTS;
-  while (i < contents.length && !(contents[i]!.role === 'user' && contents[i]!.parts.some((p) => p.text))) i++;
-  return contents.slice(i);
+  let out = contents.length > MAX_CONTENTS ? contents.slice(contents.length - MAX_CONTENTS) : contents;
+  while (out.length > 2 && JSON.stringify(out).length > MAX_CONTEXT_CHARS) out = out.slice(2);
+  let i = 0;
+  while (i < out.length && !(out[i]!.role === 'user' && out[i]!.parts.some((p) => p.text))) i++;
+  return out.slice(i);
+}
+
+/** Numeros que o Plutao pode falar: os das ferramentas, os que o usuario disse e os ja conferidos. */
+function knownNumbers(state: SessionState): number[] {
+  const known: number[] = [];
+  for (const c of state.contents) for (const p of c.parts) if (p.functionResponse) numbersOf(p.functionResponse.response, known);
+  for (const t of state.transcript) known.push(...(t.role === 'user' ? numbersIn(t.text) : moneyIn(t.text)));
+  return known;
 }
 
 async function runWrite(ctx: AppContext, userId: ObjectId, state: SessionState, ip: string | null) {
@@ -102,9 +119,13 @@ async function runWrite(ctx: AppContext, userId: ObjectId, state: SessionState, 
 }
 
 export async function sendMessage(ctx: AppContext, userId: ObjectId, message: string, ip: string | null): Promise<AgentChatState> {
+  const now = new Date();
+  await countMessage(ctx, userId, now);
   const { doc, state } = await load(ctx, userId);
   const at = () => new Date().toISOString();
-  state.transcript.push({ role: 'user', text: message, at: at() });
+  // Guardrail de entrada: PII mascarada antes de ir ao modelo e ao historico (8.3).
+  const input = classifyInput(message);
+  state.transcript.push({ role: 'user', text: input.text, at: at() });
   const reply = async (text: string) => {
     const clean = sanitizeReply(text);
     state.transcript.push({ role: 'plutao', text: clean, at: at() });
@@ -117,14 +138,14 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
 
   // Acao pendente: so um "sim" explicito grava (GF-03, 7.2 passo 4). Nao precisa do modelo.
   if (state.pending) {
-    if (YES.test(message)) {
-      pushUser(state.contents, { text: message });
+    if (YES.test(input.text)) {
+      pushUser(state.contents, { text: input.text });
       const text = await runWrite(ctx, userId, state, ip);
       state.pending = null;
       return reply(text);
     }
-    if (NO.test(message)) {
-      pushUser(state.contents, { text: message });
+    if (NO.test(input.text)) {
+      pushUser(state.contents, { text: input.text });
       state.pending = null;
       return reply('Cancelado. Nada foi gravado. O que você quer fazer agora?');
     }
@@ -133,9 +154,18 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
     state.pending = null;
   }
 
+  // Injecao, dados de terceiros e fora de escopo: recusa curta, sem chamar o modelo (8.1).
+  if (input.block) {
+    await audit(ctx.col, 'plutao.guard', userId, { kind: input.block, promptVersion: PROMPT_VERSION }, ip);
+    pushUser(state.contents, { text: '(Mensagem do usuário barrada pelo filtro de segurança.)' });
+    return reply(REFUSAL[input.block]);
+  }
+
   if (!(await available(ctx, userId))) throw new AppError(503, 'LLM_NOT_CONFIGURED', 'O Plutão precisa da IA ligada. Ative em Configurações.');
-  pushUser(state.contents, { text: message });
+  pushUser(state.contents, { text: input.text });
+  if (input.noConfirmRequest) pushUser(state.contents, { text: '(Nota do sistema: gravar sem confirmação não é permitido. Toda escrita continua exigindo o "sim" do usuário.)' });
   const env = { ctx, userId, refs: state.refs };
+  let checked = false;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     let parts: LlmPart[];
@@ -147,9 +177,20 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
     }
     const calls = parts.filter((p) => p.functionCall);
     if (!calls.length) {
-      const text = parts.map((p) => p.text ?? '').join('').trim();
-      state.contents.pop(); // a resposta final entra ja filtrada, em reply()
-      return reply(text || 'Pode repetir de outro jeito?');
+      let text = parts.map((p) => p.text ?? '').join('').trim() || 'Pode repetir de outro jeito?';
+      // "Nunca invente numeros": todo R$ precisa ter vindo de ferramenta ou do usuario.
+      const bad = unverifiedMoney(text, knownNumbers(state));
+      if (bad.length && !checked) {
+        checked = true;
+        state.contents.push({ role: 'model', parts: [{ text }] });
+        pushUser(state.contents, { text: `(Verificação do sistema: os valores ${bad.map((v) => `R$ ${v}`).join(', ')} não vieram de nenhuma ferramenta nem do usuário. Refaça a resposta usando só números das ferramentas; se precisar de um dado, chame a ferramenta ou pergunte.)` });
+        continue;
+      }
+      if (bad.length) {
+        await audit(ctx.col, 'plutao.unverified_number', userId, { count: bad.length, promptVersion: PROMPT_VERSION }, ip);
+        text = dropSentencesWith(text, bad);
+      }
+      return reply(text);
     }
     state.contents.push({ role: 'model', parts });
     const responses: LlmPart[] = [];
@@ -170,8 +211,10 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
         if (tool.kind === 'escrita') {
           const summary = await tool.summary!(prepared, env);
           state.pending = { tool: name, args: prepared, summary };
-          respond({ status: 'aguardando confirmação do usuário', resumo: summary });
-        } else respond(await tool.run(prepared, env));
+          respond({ status: 'aguardando confirmação do usuário', resumo: asData(summary) });
+        }
+        // Dados delimitados: o que vem do banco (nomes, descricoes) e dado, nunca instrucao (8.1).
+        else respond({ dados: asData(await tool.run(prepared, env)) });
       } catch (e) {
         respond({ erro: e instanceof ToolError || e instanceof AppError ? e.message : 'Falha ao executar.' });
       }
