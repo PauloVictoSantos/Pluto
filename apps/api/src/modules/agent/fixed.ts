@@ -1,5 +1,5 @@
-import { CATEGORY_BY_KEY, fixedDueError, monthlyEquivalent, type CreateFixedExpense, type FixedExpense, type FixedRecurrence, type FixedSuggestion, type UpdateFixedExpense } from '@pluto/shared';
-import { mean, stdDev } from '@pluto/finance-engine';
+import { CATEGORY_BY_KEY, fixedDueError, monthlyEquivalent, type CreateFixedExpense, type FixedExpense, type FixedSuggestion, type UpdateFixedExpense } from '@pluto/shared';
+import { detectMonthlyCharge, mean, stdDev } from '@pluto/finance-engine';
 import { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
 import type { FixedExpenseDoc } from '../../db/collections';
@@ -101,29 +101,51 @@ async function loanItems(ctx: AppContext, userId: ObjectId, now: Date): Promise<
     }));
 }
 
-const PERIOD: Partial<Record<number, FixedRecurrence>> = { 7: 'weekly', 30: 'monthly', 365: 'yearly' };
-
-/** Recorrencias de saida detectadas no extrato que ainda nao sao fixos (o usuario confirma). */
+/**
+ * Sugestoes a partir do extrato (doc. Melhorias, passo 7): saidas do mesmo estabelecimento que
+ * aparecem em >= 3 dos ultimos 6 meses, uma vez por mes, com valor a +-10% e dia a +-3 dias.
+ * Calculadas na leitura, entao refletem a ultima importacao. "Remover" grava a chave e ela nao volta.
+ */
 async function suggestions(ctx: AppContext, userId: ObjectId, used: Set<string>, tz: string, now: Date): Promise<FixedSuggestion[]> {
-  const recs = await ctx.col.recurrences.find({ userId, direction: 'out' }).toArray();
-  return recs
-    .filter((r) => PERIOD[r.period] && !used.has(r.key) && ['essential', 'lifestyle'].includes(CATEGORY_BY_KEY[r.categoryKey]?.group ?? ''))
-    // Serie viva: a ultima ocorrencia foi ha no maximo 2 periodos.
-    .filter((r) => now.getTime() - r.lastDate.getTime() <= 2 * r.period * 86_400_000)
-    .sort((a, b) => Math.abs(b.amountMinor) - Math.abs(a.amountMinor))
+  const from = monthStart(addMonth(monthOf(now, tz), -6), tz);
+  const [rows, dismissed] = await Promise.all([
+    ctx.col.transactions
+      .find(
+        { userId, deletedAt: null, type: 'EXPENSE', amountMinor: { $lt: 0 }, date: { $gte: from }, installment: null },
+        { projection: { date: 1, amountMinor: 1, counterpartyKey: 1, matchKey: 1, descriptionNorm: 1, merchant: 1, description: 1, categoryKey: 1 } },
+      )
+      .toArray(),
+    ctx.col.fixedDismissals.find({ userId }, { projection: { key: 1 } }).toArray(),
+  ]);
+  const skip = new Set([...used, ...dismissed.map((d) => d.key)]);
+  const groups = new Map<string, typeof rows>();
+  for (const t of rows) {
+    const key = t.counterpartyKey ?? t.matchKey ?? t.descriptionNorm;
+    if (!key || skip.has(key)) continue;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  const ymd = (d: Date) => new Date(d.getTime() + tzOffsetMs(d, tz)).toISOString().slice(0, 10);
+  const cutoff = ymd(new Date(now.getTime() - 45 * 86_400_000));
+  const out: (FixedSuggestion & { _last: string })[] = [];
+  for (const [key, txs] of groups) {
+    const cat = txs.at(-1)!.categoryKey ?? 'outros';
+    if (!['essential', 'lifestyle'].includes(CATEGORY_BY_KEY[cat]?.group ?? '')) continue;
+    const m = detectMonthlyCharge(txs.map((t) => ({ ymd: ymd(t.date), amountMinor: t.amountMinor })));
+    // Serie viva: apareceu nos ultimos 45 dias.
+    if (!m || m.lastYmd < cutoff) continue;
+    const last = txs.reduce((a, b) => (b.date > a.date ? b : a));
+    out.push({ matchKey: key, name: last.merchant ?? last.description, categoryKey: cat, amountMinor: m.meanMinor, recurrence: 'monthly', dueDay: m.day, months: m.months, _last: m.lastYmd });
+  }
+  return out
+    .sort((a, b) => b.amountMinor - a.amountMinor)
     .slice(0, 8)
-    .map((r) => {
-      const local = new Date(r.nextDate.getTime() + tzOffsetMs(r.nextDate, tz));
-      const recurrence = PERIOD[r.period]!;
-      return {
-        matchKey: r.key,
-        name: r.label,
-        categoryKey: r.categoryKey,
-        amountMinor: Math.abs(r.amountMinor),
-        recurrence,
-        dueDay: recurrence === 'weekly' ? local.getUTCDay() + 1 : local.getUTCDate(),
-      };
-    });
+    .map(({ _last, ...s }) => s);
+}
+
+/** "Remover" uma sugestao: a chave fica guardada e nao e sugerida de novo. */
+export async function dismissSuggestion(ctx: AppContext, userId: ObjectId, key: string) {
+  await ctx.col.fixedDismissals.updateOne({ userId, key }, { $setOnInsert: { userId, key, createdAt: new Date() } }, { upsert: true });
+  return listFixed(ctx, userId);
 }
 
 export async function listFixed(ctx: AppContext, userId: ObjectId, now = new Date()) {

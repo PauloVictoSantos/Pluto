@@ -1,6 +1,6 @@
 'use client';
 
-import { CATEGORIES, FIXED_RECURRENCE_LABEL, categoryOf, type FixedExpense, type FixedRecurrence, type FixedSuggestion } from '@pluto/shared';
+import { CATEGORIES, FIXED_RECURRENCE_LABEL, brandOf, categoryOf, fixedIconOf, type FixedExpense, type FixedRecurrence, type FixedSuggestion } from '@pluto/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
@@ -11,6 +11,7 @@ import { Segmented } from '@/components/ui/Segmented';
 import { Sheet } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { MESES, maskMoney, hidePct } from '@/lib/format';
+import { MerchantLogo } from '@/lib/merchants';
 import { useEnter } from '@/lib/motion';
 import { ROUTES } from '@/lib/nav';
 import { money } from '@/lib/queries';
@@ -86,6 +87,8 @@ export default function FixosPage() {
   const create = useMutation({ mutationFn: () => api.createFixedExpense({ ...body(), source: 'manual' }), onSuccess: done, onError: fail });
   const update = useMutation({ mutationFn: (id: string) => api.updateFixedExpense(id, body()), onSuccess: done, onError: fail });
   const remove = useMutation({ mutationFn: (id: string) => api.deleteFixedExpense(id), onSuccess: done, onError: fail });
+  // Remover sugestao: nao volta a ser sugerida.
+  const dismiss = useMutation({ mutationFn: (key: string) => api.dismissFixedSuggestion(key), onSuccess: (d) => qc.setQueryData(['fixed-expenses'], d) });
   const busy = create.isPending || update.isPending || remove.isPending;
 
   const open = (d: Dialog) => {
@@ -117,9 +120,7 @@ export default function FixosPage() {
         className="flex w-full cursor-pointer items-center gap-3 border-0 border-t border-solid border-border bg-transparent py-3 text-left text-foreground"
         aria-label={isDebt ? `${i.name}: editar em Contas a pagar` : `Editar ${i.name}`}
       >
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted">
-          <Icon icon={cat.icon} size={17} />
-        </span>
+        <FixedIcon name={i.name} matchKey={i.matchKey} categoryKey={i.categoryKey} size={40} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-semibold">{i.name}</span>
           <span className="block truncate text-[12.5px] text-muted-foreground">
@@ -176,21 +177,22 @@ export default function FixosPage() {
       {d && d.suggestions.length > 0 && (
         <section data-anim="" className="card flex flex-col" aria-label="Encontrados no extrato">
           <div className="card-title">Encontrados no seu extrato</div>
-          <div className="mt-1 mb-1 text-[13px] text-muted-foreground">Estes gastos se repetem. Confirme para virar gasto fixo.</div>
+          <div className="mt-1 mb-1 text-[13px] text-muted-foreground">Apareceram em pelo menos 3 meses, com valor e dia parecidos. Adicione para virar gasto fixo ou remova para não ver de novo.</div>
           {d.suggestions.map((s) => (
             <div key={s.matchKey} className="flex items-center gap-3 border-t border-border py-2.5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted">
-                <Icon icon={categoryOf(s.categoryKey).icon} size={16} />
-              </span>
+              <FixedIcon name={s.name} matchKey={s.matchKey} categoryKey={s.categoryKey} size={36} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-semibold">{s.name}</span>
                 <span className="block text-[12px] text-muted-foreground">
-                  {FIXED_RECURRENCE_LABEL[s.recurrence]} · {money(s.amountMinor)}
+                  {money(s.amountMinor)} em média · todo dia {s.dueDay} · {s.months} meses seguidos
                 </span>
               </span>
               <button onClick={() => open({ kind: 'new', from: s })} className="btn btn-outline h-9 px-3 text-[13px]">
                 <Icon icon="plus" size={14} />
                 Adicionar
+              </button>
+              <button onClick={() => dismiss.mutate(s.matchKey)} disabled={dismiss.isPending} aria-label={`Remover sugestão ${s.name}`} title="Não sugerir de novo" className="icon-btn size-9">
+                <Icon icon="x" size={15} />
               </button>
             </div>
           ))}
@@ -225,7 +227,7 @@ export default function FixosPage() {
 
       {dialog && dialog.kind !== 'delete' && (
         <Sheet onClose={() => setDialog(null)} onSubmit={submit} label={dialog.kind === 'new' ? 'Novo gasto fixo' : 'Editar gasto fixo'}>
-          <div className="text-xl font-bold tracking-[-0.02em]">{dialog.kind === 'new' ? 'Novo gasto fixo' : `Editar “${dialog.item.name}”`}</div>
+          <div className="sticky -top-6 z-1 -mx-5 -mt-6 bg-card px-5 pt-6 pb-1 text-xl font-bold tracking-[-0.02em]">{dialog.kind === 'new' ? 'Novo gasto fixo' : `Editar “${dialog.item.name}”`}</div>
           <label className="field">
             Nome
             <input value={f.name} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} placeholder="Ex.: Aluguel" maxLength={60} className="input" autoFocus />
@@ -304,7 +306,8 @@ export default function FixosPage() {
               {error}
             </div>
           )}
-          <div className="flex gap-2.5">
+          {/* Rodape fixo: o formulario rola por dentro e o Salvar fica sempre visivel. */}
+          <div className="sticky -bottom-[calc(24px+env(safe-area-inset-bottom))] -mx-5 flex gap-2.5 border-t border-border bg-card px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] -mb-[calc(24px+env(safe-area-inset-bottom))]">
             {dialog.kind === 'edit' ? (
               <button type="button" onClick={() => open({ kind: 'delete', item: dialog.item })} className="btn h-[50px] flex-1 border-transparent bg-danger-soft text-[15px] text-danger-text">
                 Excluir
@@ -337,5 +340,16 @@ export default function FixosPage() {
         </Sheet>
       )}
     </div>
+  );
+}
+
+/** Logo da marca (Netflix, Spotify...) ou o icone do tipo de gasto (doc. Melhorias, passo 7). */
+function FixedIcon({ name, matchKey, categoryKey, size }: { name: string; matchKey: string | null; categoryKey: string; size: number }) {
+  const brand = brandOf(name) ?? (matchKey ? brandOf(matchKey) : null);
+  if (brand) return <MerchantLogo brand={brand} categoryKey={categoryKey} size={size} />;
+  return (
+    <span className="grid shrink-0 place-items-center rounded-full bg-muted" style={{ width: size, height: size }} aria-hidden>
+      <Icon icon={fixedIconOf(name, categoryKey)} size={size * 0.42} />
+    </span>
   );
 }

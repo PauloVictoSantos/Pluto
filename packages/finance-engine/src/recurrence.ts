@@ -111,3 +111,31 @@ export function findPendingDuplicates(pending: readonly DedupCandidate[], posted
  * Uma compra de verdade quase nunca cai exatamente em HH:00:00.000.
  */
 export const hasRealTime = (d: Date) => d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0 || d.getUTCMilliseconds() !== 0;
+
+export interface MonthlyCharge {
+  /** Meses diferentes em que apareceu. */
+  months: number;
+  meanMinor: number;
+  /** Dia provavel do mes (mediana). */
+  day: number;
+  lastYmd: string;
+}
+
+/** Distancia entre dias do mes considerando a virada (30 e 1 estao a 1-2 dias). */
+const dayDistance = (a: number, b: number) => Math.min(Math.abs(a - b), 31 - Math.abs(a - b));
+
+/**
+ * Gasto fixo mensal no extrato (doc. Melhorias, passo 7): aparece em >= 3 meses diferentes, uma vez
+ * por mes, com valor a +-10% e dia a +-3 dias da mediana. Datas locais "AAAA-MM-DD"; valores > 0.
+ */
+export function detectMonthlyCharge(occ: readonly { ymd: string; amountMinor: number }[], minMonths = 3): MonthlyCharge | null {
+  const byMonth = new Map<string, { ymd: string; amountMinor: number }[]>();
+  for (const o of occ) byMonth.set(o.ymd.slice(0, 7), [...(byMonth.get(o.ymd.slice(0, 7)) ?? []), o]);
+  // Mais de uma vez no mesmo mes (corridas, mercado): nao e conta fixa.
+  if (byMonth.size < minMonths || [...byMonth.values()].some((l) => l.length > 1)) return null;
+  const list = [...byMonth.values()].map((l) => l[0]!).sort((a, b) => a.ymd.localeCompare(b.ymd));
+  const amounts = list.map((o) => Math.abs(o.amountMinor)), days = list.map((o) => +o.ymd.slice(8, 10));
+  const m = median(amounts), d = Math.round(median(days));
+  if (!m || amounts.some((a) => Math.abs(a - m) > 0.1 * m) || days.some((x) => dayDistance(x, d) > 3)) return null;
+  return { months: list.length, meanMinor: Math.round(amounts.reduce((t, a) => t + a, 0) / amounts.length), day: d, lastYmd: list.at(-1)!.ymd };
+}

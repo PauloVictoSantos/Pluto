@@ -472,6 +472,14 @@ export interface FinancialProfileDoc {
   updatedAt: Date;
 }
 
+/** Sugestao de gasto fixo que o usuario removeu: nao e sugerida de novo (doc. Melhorias, passo 7). */
+export interface FixedDismissalDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  key: string;
+  createdAt: Date;
+}
+
 /** Perfil financeiro / fonte de renda (doc. Melhorias, passo 6): no maximo 2 por usuario. */
 export interface IncomeProfileDoc {
   _id: ObjectId;
@@ -733,6 +741,7 @@ export interface Collections {
   goals: Collection<GoalDoc>;
   financialProfiles: Collection<FinancialProfileDoc>;
   incomeProfiles: Collection<IncomeProfileDoc>;
+  fixedDismissals: Collection<FixedDismissalDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
@@ -772,6 +781,7 @@ export const collections = (db: Db): Collections => ({
   goals: db.collection<GoalDoc>('goals'),
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
   incomeProfiles: db.collection<IncomeProfileDoc>('income_profiles'),
+  fixedDismissals: db.collection<FixedDismissalDoc>('fixed_dismissals'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),

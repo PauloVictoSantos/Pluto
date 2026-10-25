@@ -291,6 +291,7 @@ export const api = {
   updateFixedExpense: (id: string, body: UpdateFixedExpense) =>
     request(`/agent/fixed-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema),
   deleteFixedExpense: (id: string) => request(`/agent/fixed-expenses/${id}`, { method: 'DELETE' }, FixedExpensesSchema),
+  dismissFixedSuggestion: (matchKey: string) => request('/agent/fixed-expenses/suggestions/dismiss', post({ matchKey }), FixedExpensesSchema),
   /** Perfis financeiros (ate 2): a soma das rendas e a renda do plano. */
   incomeProfiles: () => request('/agent/income-profiles', {}, IncomeProfilesSchema),
   createIncomeProfile: (b: CreateIncomeProfile) => request('/agent/income-profiles', post(b), IncomeProfilesSchema),

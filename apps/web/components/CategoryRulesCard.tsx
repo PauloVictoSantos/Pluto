@@ -187,7 +187,7 @@ function RulesSheet({ rules, onClose }: { rules: CategoryRule[]; onClose: () => 
         </div>
       )}
       {/* Rodape fixo: Salvar sempre visivel, mesmo com muitas regras. */}
-      <div className="sticky bottom-0 -mx-5 mt-1 flex gap-2 border-t border-border bg-card px-5 pt-3">
+      <div className="sticky -bottom-[calc(24px+env(safe-area-inset-bottom))] -mx-5 mt-1 flex gap-2 border-t border-border bg-card px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] -mb-[calc(24px+env(safe-area-inset-bottom))]">
         <CancelButton />
         <button type="button" onClick={() => save.mutate()} disabled={!dirty || save.isPending} className="btn btn-primary h-11 flex-1 disabled:opacity-50">
           {save.isPending ? 'Salvando…' : 'Salvar'}

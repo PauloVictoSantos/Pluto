@@ -230,7 +230,7 @@ function ProfileSheet({ editing, onClose, onSaved }: { editing: Editing; onClose
           {error}
         </div>
       )}
-      <div className="sticky bottom-0 flex gap-2 bg-card pt-1">
+      <div className="sticky -bottom-[calc(24px+env(safe-area-inset-bottom))] -mx-5 flex gap-2 border-t border-border bg-card px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] -mb-[calc(24px+env(safe-area-inset-bottom))]">
         <CancelButton />
         <button type="submit" disabled={!ok || save.isPending} className="btn btn-primary h-11 flex-1 disabled:opacity-50">
           {save.isPending ? 'Salvando…' : 'Salvar perfil'}

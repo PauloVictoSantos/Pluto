@@ -49,8 +49,12 @@ export const FixedSuggestionSchema = z.object({
   amountMinor: z.number().int(),
   recurrence: z.enum(FIXED_RECURRENCES),
   dueDay: z.number().int(),
+  /** Em quantos meses (dos ultimos 6) apareceu no extrato. */
+  months: z.number().int(),
 });
 export type FixedSuggestion = z.infer<typeof FixedSuggestionSchema>;
+
+export const DismissFixedSuggestionSchema = z.object({ matchKey: z.string().min(1).max(200) });
 
 export const FixedExpensesSchema = z.object({
   items: z.array(FixedExpenseSchema),

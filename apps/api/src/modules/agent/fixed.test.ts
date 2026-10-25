@@ -112,19 +112,36 @@ describe('gastos fixos', () => {
     expect(r.monthlyTotalMinor).toBe(10_000);
   });
 
-  it('sugere recorrencias de saida do extrato que ainda nao sao fixos', async () => {
-    const base = { userId, direction: 'out' as const, count: 6, updatedAt: now };
-    await h.ctx.col.recurrences.insertMany([
-      { ...base, _id: new ObjectId(), key: 'netflix com', label: 'Netflix', categoryKey: 'assinaturas', period: 30, amountMinor: -5_590, lastDate: ago(0, 1), nextDate: new Date(now.getTime() + 20 * 86_400_000) },
-      { ...base, _id: new ObjectId(), key: 'pix maria', label: 'Maria', categoryKey: 'fatura', period: 30, amountMinor: -9_000, lastDate: ago(0, 1), nextDate: now },
-      { ...base, _id: new ObjectId(), key: 'academia velha', label: 'Academia', categoryKey: 'saude', period: 30, amountMinor: -9_900, lastDate: ago(5), nextDate: ago(4) },
-    ]);
+  it('sugere o que se repete no extrato (>= 3 meses, +-10%, +-3 dias); Remover nao volta', async () => {
+    await h.ctx.col.transactions.insertMany([
+      // Netflix: 3 meses, valor ate +7%, dias 8-10 -> sugestao.
+      { ...tx('netflix com', ago(2, 8), -5_590), categoryKey: 'assinaturas' },
+      { ...tx('netflix com', ago(1, 9), -5_590), categoryKey: 'assinaturas' },
+      { ...tx('netflix com', ago(0, 10), -5_990), categoryKey: 'assinaturas' },
+      // Academia: 3 meses, mas o ultimo 30% mais caro -> nao.
+      ...[2, 1, 0].map((m, i) => ({ ...tx('smart fit', ago(m, 5), i === 2 ? -13_000 : -10_000), categoryKey: 'saude' })),
+      // Uber: varias vezes por mes -> nao.
+      ...[2, 1, 0].flatMap((m) => [{ ...tx('uber trip', ago(m, 3), -2_000), categoryKey: 'transporte' }, { ...tx('uber trip', ago(m, 18), -2_000), categoryKey: 'transporte' }]),
+      // So 2 meses -> nao.
+      ...[1, 0].map((m) => ({ ...tx('spotify', ago(m, 12), -2_190), categoryKey: 'assinaturas' })),
+    ] as never);
     let r = (await req('GET')).json();
-    expect(r.suggestions.map((s: { name: string }) => s.name)).toEqual(['Netflix']);
-    expect(r.suggestions[0]).toMatchObject({ amountMinor: 5_590, recurrence: 'monthly', matchKey: 'netflix com' });
-    await req('POST', URL, { name: 'Netflix', categoryKey: 'assinaturas', amountMinor: 5_590, dueDay: 3, recurrence: 'monthly', matchKey: 'netflix com' });
-    r = (await req('GET')).json();
+    expect(r.suggestions.map((s: { name: string }) => s.name)).toEqual(['NETFLIX COM']);
+    expect(r.suggestions[0]).toMatchObject({ amountMinor: 5_723, recurrence: 'monthly', dueDay: 9, months: 3, matchKey: 'netflix com' });
+
+    // Remover: some e nao volta, nem depois de uma nova cobranca.
+    r = (await req('POST', `${URL}/suggestions/dismiss`, { matchKey: 'netflix com' })).json();
     expect(r.suggestions).toEqual([]);
+    await h.ctx.col.transactions.insertOne({ ...tx('netflix com', now, -5_590), categoryKey: 'assinaturas' } as never);
+    expect((await req('GET')).json().suggestions).toEqual([]);
+  });
+
+  it('sugestao adicionada vira gasto fixo e sai da lista', async () => {
+    await h.ctx.col.transactions.insertMany([2, 1, 0].map((m) => ({ ...tx('vivo fibra', ago(m, 15), -9_990), categoryKey: 'contas-casa' })) as never);
+    const s = (await req('GET')).json().suggestions[0];
+    expect(s).toMatchObject({ name: 'VIVO FIBRA', dueDay: 15 });
+    await req('POST', URL, { name: 'Internet', categoryKey: s.categoryKey, amountMinor: s.amountMinor, dueDay: s.dueDay, recurrence: 'monthly', matchKey: s.matchKey });
+    expect((await req('GET')).json().suggestions).toEqual([]);
   });
 
   it('um usuario nao ve nem altera fixos de outro', async () => {

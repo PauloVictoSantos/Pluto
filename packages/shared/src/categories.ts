@@ -21,7 +21,7 @@ export const CATEGORIES: CategoryDef[] = [
   { key: 'transporte-app', label: 'Transporte por app', icon: 'car', color: '#0F172A', group: 'essential' },
   { key: 'combustivel', label: 'Combustível', icon: 'fuel', color: '#5A22B8', group: 'essential' },
   { key: 'saude', label: 'Saúde', icon: 'heart-pulse', color: '#A1E3B5', group: 'essential' },
-  { key: 'educacao', label: 'Educação', icon: 'file-text', color: '#6A2AD6', group: 'essential' },
+  { key: 'educacao', label: 'Educação', icon: 'graduation-cap', color: '#6A2AD6', group: 'essential' },
   { key: 'seguros', label: 'Seguros', icon: 'shield', color: '#8FBF12', group: 'essential' },
   { key: 'dividas', label: 'Dívidas e empréstimos', icon: 'landmark', color: '#B91C1C', group: 'essential' },
   { key: 'taxas', label: 'Taxas, juros e IOF', icon: 'receipt', color: '#EF4444', group: 'essential' },

@@ -26,6 +26,7 @@ import {
   UpdateFixedExpenseSchema,
   UpdateLoanSchema,
   ObligationsSchema,
+  DismissFixedSuggestionSchema,
   IncomeProfilesSchema,
   CreateIncomeProfileSchema,
   UpdateIncomeProfileSchema,
@@ -37,7 +38,7 @@ import type { AppContext } from '../../context';
 import { audit } from '../../lib/audit';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
-import { createFixed, listFixed, removeFixed, updateFixed } from './fixed';
+import { createFixed, dismissSuggestion, listFixed, removeFixed, updateFixed } from './fixed';
 import { answerDraft, confirmDraft, createDraft, diagnoseDraft, discardDraft, getDraft, goalsPlan, listDrafts, setGoalStatus } from './goals';
 import { getLimit, overrideLimit } from './limit';
 import { chatState, resetChat, sendMessage } from './plutao/orchestrator';
@@ -76,6 +77,9 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     return listFixed(ctx, userId);
   });
 
+  app.post('/agent/fixed-expenses/suggestions/dismiss', { config: { rateLimit: perUser(30) }, schema: { body: DismissFixedSuggestionSchema, ...FIXED } }, async (req) =>
+    dismissSuggestion(ctx, userOf(req).id, req.body.matchKey),
+  );
   app.patch('/agent/fixed-expenses/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, body: UpdateFixedExpenseSchema, ...FIXED } }, async (req) => {
     const userId = userOf(req).id;
     const change = await updateFixed(ctx, userId, req.params.id, req.body);
