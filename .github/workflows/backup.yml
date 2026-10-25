@@ -27,7 +27,7 @@ jobs:
       - if: env.HAS_SECRETS != 'true'
         run: echo "::warning::Cadastre MONGODB_URI e BACKUP_PASSPHRASE em Settings > Secrets para ativar o backup."
       - if: env.HAS_SECRETS == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - if: env.HAS_SECRETS == 'true'
         uses: actions/setup-node@v4
         with:
