@@ -13,6 +13,8 @@ export const AgentMessageSchema = z.object({
   role: z.enum(['user', 'plutao']),
   text: z.string(),
   at: z.string(),
+  /** Pergunta com escolha (radio + Confirmar no app): as respostas possiveis. */
+  options: z.array(z.string()).optional(),
 });
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;
 

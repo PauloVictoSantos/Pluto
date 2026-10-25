@@ -28,7 +28,7 @@ import { simulatePurchase } from '../purchases';
 // orquestrador. Argumentos validados por schema antes de executar. IDs internos nunca saem: as
 // ferramentas falam em referencias curtas da sessao (F1, M2, D1, R1).
 
-export type ToolKind = 'leitura' | 'calculo' | 'sessao' | 'escrita';
+export type ToolKind = 'leitura' | 'calculo' | 'sessao' | 'escrita' | 'pergunta';
 export type RefType = 'F' | 'M' | 'D' | 'R';
 export type Refs = Record<string, string>;
 
@@ -84,6 +84,7 @@ const S = {
   bool: (description: string) => ({ type: 'boolean', description }),
   enum: (values: readonly string[], description: string) => ({ type: 'string', enum: [...values], description }),
   obj: (properties: Record<string, object>, required: string[] = []) => ({ type: 'object', properties, required }),
+  strs: (description: string) => ({ type: 'array', items: { type: 'string' }, description }),
 };
 
 const fixedView = (f: FixedExpense, refs: Refs) => ({
@@ -148,6 +149,17 @@ const ANSWER_PARAMS = {
 };
 
 export const TOOLS: Tool[] = [
+  {
+    // Contrato com o site (doc. Melhorias, passo 4): a pergunta vira lista de escolha (radio) + Confirmar.
+    name: 'perguntar_com_opcoes',
+    kind: 'pergunta',
+    description:
+      'Faz UMA pergunta ao usuário com 2 a 6 respostas curtas para ele escolher (o app mostra como lista de escolha). Use sempre que as respostas possíveis forem conhecidas: prazo, prioridade, tipo de meta, sim/não com nuances. Encerra a sua vez: aguarde a resposta.',
+    parameters: S.obj({ pergunta: S.str('Texto da pergunta'), opcoes: S.strs('De 2 a 6 opções curtas (até 60 caracteres cada)') }, ['pergunta', 'opcoes']),
+    prepare: async (a) =>
+      parse(z.object({ question: z.string().trim().min(3).max(300), options: z.array(z.string().trim().min(1).max(60)).min(2).max(6) }), { question: a.pergunta, options: a.opcoes }),
+    run: async () => ({}),
+  },
   {
     name: 'ler_snapshot_financeiro',
     kind: 'leitura',

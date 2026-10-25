@@ -19,6 +19,7 @@ export { sanitizeReply } from './guard';
 const MAX_ROUNDS = 5;
 /** O site espera ate 60 s; depois disso a resposta sai sem novas rodadas do modelo. */
 const TIME_BUDGET_MS = 45_000;
+export const LLM_RETRY_MS = 1_500;
 const MAX_CONTENTS = 40;
 /** Orcamento de contexto por sessao (~12 mil tokens). */
 const MAX_CONTEXT_CHARS = 48_000;
@@ -35,7 +36,7 @@ interface Pending {
 interface SessionState {
   contents: LlmContent[];
   /** id: clientId da mensagem do usuario (reenvio nao duplica). */
-  transcript: { role: 'user' | 'plutao'; text: string; at: string; id?: string }[];
+  transcript: { role: 'user' | 'plutao'; text: string; at: string; id?: string; options?: string[] }[];
   refs: Refs;
   pending: Pending | null;
 }
@@ -156,9 +157,9 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
   // Guardrail de entrada: PII mascarada antes de ir ao modelo e ao historico (8.3).
   const input = classifyInput(message);
   state.transcript.push({ role: 'user', text: input.text, at: at(), ...(clientId ? { id: clientId } : {}) });
-  const reply = async (text: string) => {
+  const reply = async (text: string, options?: string[]) => {
     const clean = sanitizeReply(text);
-    state.transcript.push({ role: 'plutao', text: clean, at: at() });
+    state.transcript.push({ role: 'plutao', text: clean, at: at(), ...(options?.length ? { options } : {}) });
     state.contents.push({ role: 'model', parts: [{ text: clean }] });
     state.contents = trim(state.contents);
     state.transcript = state.transcript.slice(-60);
@@ -200,8 +201,13 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
   for (let round = 0; round < MAX_ROUNDS; round++) {
     if (round > 0 && Date.now() > deadline) break;
     let parts: LlmPart[];
+    const call = () => ctx.llm!.chat!({ system: SYSTEM_PROMPT, contents: state.contents, tools: toolDeclarations() });
     try {
-      parts = await ctx.llm!.chat!({ system: SYSTEM_PROMPT, contents: state.contents, tools: toolDeclarations() });
+      // Falha passageira do provedor: uma nova tentativa antes de desistir.
+      parts = await call().catch(async () => {
+        await new Promise((r) => setTimeout(r, LLM_RETRY_MS));
+        return call();
+      });
     } catch {
       // Sem o conteudo no log: tem dados financeiros.
       throw new AppError(502, 'LLM_FAILED', 'O Plutão não respondeu agora. Tente de novo em instantes.');
@@ -225,6 +231,7 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
     }
     state.contents.push({ role: 'model', parts });
     const responses: LlmPart[] = [];
+    let question: { question: string; options: string[] } | null = null;
     for (const c of calls) {
       const { name, args = {} } = c.functionCall!;
       const tool = TOOL_BY_NAME.get(name);
@@ -239,6 +246,11 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
       }
       try {
         const prepared = await tool.prepare(args, env);
+        if (tool.kind === 'pergunta') {
+          question = prepared as { question: string; options: string[] };
+          respond({ status: 'pergunta exibida ao usuário; aguarde a resposta' });
+          continue;
+        }
         if (tool.kind === 'escrita') {
           const summary = await tool.summary!(prepared, env);
           state.pending = { tool: name, args: prepared, summary };
@@ -258,6 +270,13 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
       state.contents = trim(state.contents);
       await save(ctx, userId, doc, state);
       return chatState(ctx, userId);
+    }
+    if (question) {
+      // Opcoes passam pelos mesmos filtros da resposta: sem link, ID nem valor inventado.
+      const known = knownNumbers(state);
+      const options = question.options.map(sanitizeReply).filter((o) => o && !unverifiedMoney(o, known).length);
+      const text = unverifiedMoney(question.question, known).length ? 'Pode me contar um pouco mais?' : question.question;
+      return reply(text, options.length >= 2 ? options : undefined);
     }
   }
   return reply('Não consegui concluir esse cálculo agora. Pode reformular o pedido?');

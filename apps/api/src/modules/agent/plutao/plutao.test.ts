@@ -170,5 +170,30 @@ describe('Plutao', () => {
     expect(Date.now() - t0).toBeLessThan(5_000);
     expect(ok.messages.at(-1).text).toMatch(/^Feito\./);
   });
+
+  it('pergunta com opcoes vira lista de escolha; valor inventado numa opcao e descartado', async () => {
+    script = [[{ functionCall: { name: 'perguntar_com_opcoes', args: { pergunta: 'Qual o prazo da meta?', opcoes: ['3 meses', '6 meses', '12 meses', 'R$ 9.999,00 por mês'] } } }]];
+    const r = (await chat('Quero juntar para uma viagem')).json();
+    expect(r.messages.at(-1)).toMatchObject({ role: 'plutao', text: 'Qual o prazo da meta?', options: ['3 meses', '6 meses', '12 meses'] });
+    // A escolha volta como mensagem comum e o modelo sabe que a pergunta foi exibida.
+    script = [say('Ótimo, 6 meses então.')];
+    const r2 = (await chat('6 meses')).json();
+    expect(r2.messages.at(-1).options).toBeUndefined();
+    expect(JSON.stringify(seen.at(-1))).toContain('pergunta exibida');
+  });
+
+  it('falha passageira da IA: tenta de novo uma vez antes de desistir', async () => {
+    let calls = 0;
+    h.ctx.llm = {
+      generate: async () => '',
+      chat: async () => {
+        if (calls++ === 0) throw new Error('timeout');
+        return say('Tudo certo por aqui.');
+      },
+    };
+    const r = (await chat('Oi')).json();
+    expect(r.messages.at(-1).text).toBe('Tudo certo por aqui.');
+    expect(calls).toBe(2);
+  });
 });
 
