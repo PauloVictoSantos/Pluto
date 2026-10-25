@@ -51,7 +51,7 @@ jobs:
           pnpm --filter @pluto/api restore -- "$(ls "$GITHUB_WORKSPACE"/out/*.enc)" | tee restore.log
           test "$(grep '^{' backup.log)" = "$(grep '^{' restore.log)" || { echo "::error::Contagens diferentes apos restaurar"; exit 1; }
       - if: env.HAS_SECRETS == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pluto-backup-${{ github.run_id }}
           path: out/*.enc
