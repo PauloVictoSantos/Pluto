@@ -29,6 +29,7 @@ O banco continua no MongoDB Atlas.
 | `BACKUP_PASSPHRASE` | Obrigatória em produção. Gere com `gen-secrets.mjs` e guarde num gerenciador de senhas |
 | `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` | Os mesmos do `.env` |
 | `GEMINI_API_KEY` | A mesma do `.env` |
+| `SENTRY_DSN` | Opcional. DSN de um projeto Node.js no Sentry; ver `RECUPERACAO.md` |
 
 4. O deploy roda o build (`pnpm install` + `pnpm build`) e depois `node scripts/start-render.mjs`. O health check é `/v1/health`: ele passa pelo site e chega na API.
 
@@ -58,6 +59,10 @@ O banco continua no MongoDB Atlas.
 3. Os avisos por e-mail usam o mesmo Resend dos boletos (`RESEND_API_KEY` e `EMAIL_FROM`) e vão para o e-mail de contato do seu usuário.
 4. Em Configurações → Avisos da Pluto, toque em **Receber neste aparelho** em cada aparelho e depois em **Enviar teste**. No iPhone, a notificação só funciona com a Pluto instalada na tela inicial.
 5. Horários (fuso do usuário): avisos do dia às 7h, lembrete 1 hora antes do seu horário de pico e resumo da semana no domingo às 19h. Nada entre 22h e 7h, exceto conta que vence no dia.
+
+## Backup e monitoramento
+
+Backup diário, alerta de queda e o passo a passo quando algo dá errado estão em [RECUPERACAO.md](RECUPERACAO.md).
 
 ## Erros comuns
 

@@ -1,3 +1,4 @@
+import type { MongoClient } from 'mongodb';
 import type { Env } from './config/env';
 import type { Collections } from './db/collections';
 import type { Mailer } from './integrations/email/resend';
@@ -13,6 +14,8 @@ import type { Jwt } from './lib/jwt';
 export interface AppContext {
   env: Env;
   col: Collections;
+  /** Cliente do banco, para transacoes (db/transaction.ts). */
+  mongo?: MongoClient;
   crypto: FieldCrypto;
   jwt: Jwt | null;
   /** null quando PLUGGY_CLIENT_ID/SECRET nao estao configurados. */

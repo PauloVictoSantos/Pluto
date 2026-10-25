@@ -27,6 +27,7 @@ import {
 import { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
 import type { GoalDoc, GoalDraftDoc } from '../../db/collections';
+import { inTransaction } from '../../db/transaction';
 import { AppError, notFound } from '../../lib/errors';
 import { tzOffsetMs } from '../../lib/time';
 import { financialHealth } from '../analytics/health';
@@ -294,7 +295,6 @@ export async function confirmDraft(ctx: AppContext, userId: ObjectId, id: string
   const paused = sc.pauseGoalId ? new ObjectId(sc.pauseGoalId) : null;
   const committed = s.goals.filter((g) => isActive(g) && !(paused && g._id.equals(paused))).reduce((t, g) => t + (g.monthlyContributionMinor ?? 0), 0);
   if (committed + sc.monthlyMinor > s.capacityMinor) throw new AppError(409, 'OVER_CAPACITY', `Não cabe: sobram ${brl(Math.max(0, s.capacityMinor - committed))} por mês para metas. Refaça o diagnóstico.`);
-  if (paused) await ctx.col.goals.updateOne({ _id: paused, userId }, { $set: { status: 'pausada', updatedAt: now } });
   const day = await today(ctx, userId, now);
   const goal: GoalDoc = {
     _id: new ObjectId(),
@@ -316,8 +316,12 @@ export async function confirmDraft(ctx: AppContext, userId: ObjectId, id: string
     createdAt: now,
     updatedAt: now,
   };
-  await ctx.col.goals.insertOne(goal);
-  await ctx.col.goalDrafts.updateOne({ _id: d._id }, { $set: { status: 'confirmada', goalId: goal._id, updatedAt: now } });
+  // Pausar a outra meta, criar esta e fechar o rascunho: tudo ou nada.
+  await inTransaction(ctx.mongo, async (session) => {
+    if (paused) await ctx.col.goals.updateOne({ _id: paused, userId }, { $set: { status: 'pausada', updatedAt: now } }, { session });
+    await ctx.col.goals.insertOne(goal, { session });
+    await ctx.col.goalDrafts.updateOne({ _id: d._id }, { $set: { status: 'confirmada', goalId: goal._id, updatedAt: now } }, { session });
+  });
   return { draft: toDraft({ ...d, status: 'confirmada', goalId: goal._id }), goalId: goal._id.toHexString(), pausedGoalId: sc.pauseGoalId, scenario: key };
 }
 

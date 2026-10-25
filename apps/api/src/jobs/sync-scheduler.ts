@@ -6,6 +6,7 @@ import { markOverdueBills } from '../modules/bills/routes';
 import { syncDebtBills } from '../modules/debts/service';
 import { rollShoppingLists } from '../modules/shopping/service';
 import { ensureMonthLimits } from '../modules/agent/limit';
+import { reportError } from '../lib/monitoring';
 import { syncConnection } from '../modules/sync/service';
 
 /**
@@ -57,7 +58,7 @@ export function startChargeScheduler(ctx: AppContext, log: FastifyBaseLogger) {
   const run = async () => {
     if (running) return;
     running = true;
-    await processCharges(ctx, {}, log).catch((err) => log.error({ err }, 'falha no job de cobranças'));
+    await processCharges(ctx, {}, log).catch((err) => (log.error({ err }, 'falha no job de cobranças'), reportError(err, { job: 'cobrancas' })));
     running = false;
   };
   const first = setTimeout(run, 30_000);
@@ -91,6 +92,7 @@ export function startPlannerScheduler(ctx: AppContext, log: FastifyBaseLogger) {
       if (overdue) log.info({ bills: overdue }, 'boletos marcados como vencidos');
     } catch (err) {
       log.error({ err }, 'falha no job de planejamento');
+      reportError(err, { job: 'planejamento' });
     } finally {
       running = false;
     }
@@ -112,6 +114,7 @@ export function startAlertsScheduler(ctx: AppContext, log: FastifyBaseLogger) {
       await tickAlerts(ctx);
     } catch (err) {
       log.error({ err }, 'falha no job de alertas');
+      reportError(err, { job: 'alertas' });
     } finally {
       running = false;
     }

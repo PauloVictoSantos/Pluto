@@ -60,6 +60,8 @@ export const EnvSchema = z
     VAPID_SUBJECT: optional,
 
     FCM_SERVICE_ACCOUNT_JSON: optional,
+    /** Sentry (erros inesperados da API). Sem ele, os erros ficam so no log. */
+    SENTRY_DSN: optional,
     BACKUP_PASSPHRASE: optional,
 
     SYNC_INTERVAL_HOURS: z.coerce.number().positive().default(6),

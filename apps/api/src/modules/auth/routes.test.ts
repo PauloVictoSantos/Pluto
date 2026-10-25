@@ -53,7 +53,7 @@ describe('login', () => {
     expect(res.json().refreshToken).toBeUndefined();
     const c = cookieOf(res)!;
     expect(c).toMatchObject({ httpOnly: true, secure: true, sameSite: 'Strict', path: '/' });
-    expect(c.maxAge).toBe(30 * 86_400);
+    expect(c.maxAge).toBe(7 * 86_400);
     const me = await h.app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: `Bearer ${accessToken}` } });
     expect(me.json()).toMatchObject({ email: u.email, cpfMasked: maskCpf(u.cpf), name: 'Marina Souza', settings: { timezone: 'America/Manaus' } });
 

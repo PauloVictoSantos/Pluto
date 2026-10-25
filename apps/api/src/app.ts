@@ -7,6 +7,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import type { AppContext } from './context';
 import { analyticsRoutes } from './modules/analytics/routes';
 import { alertRoutes } from './modules/alerts/routes';
@@ -49,7 +50,11 @@ export async function buildApp(ctx: AppContext) {
     bodyLimit: 1_048_576,
   }).withTypeProvider<ZodTypeProvider>();
 
-  app.setValidatorCompiler(validatorCompiler);
+  // Mensagens de validacao em portugues; o corpo rejeita campos que a rota nao conhece.
+  z.config(z.locales.pt());
+  app.setValidatorCompiler((route) =>
+    validatorCompiler({ ...route, schema: (route.httpPart === 'body' && route.schema instanceof z.ZodObject ? route.schema.strict() : route.schema) as z.ZodType }),
+  );
   app.setSerializerCompiler(serializerCompiler);
 
   registerErrorHandler(app);

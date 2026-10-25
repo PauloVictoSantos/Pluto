@@ -64,5 +64,8 @@ services:
       # Contato do responsavel para os servicos de push, ex.: mailto:voce@seudominio.com.br
       - key: VAPID_SUBJECT
         sync: false
+      # Sentry (opcional): erros inesperados da API. Ver RECUPERACAO.md.
+      - key: SENTRY_DSN
+        sync: false
       - key: LLM_MODEL
         value: gemini-3.8-flash

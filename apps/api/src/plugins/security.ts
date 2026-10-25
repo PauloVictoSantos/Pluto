@@ -30,11 +30,16 @@ export async function registerSecurity(app: FastifyInstance, env: Env) {
 
   // Chave padrao: req.ip. Com trustProxy em loopback (app.ts), atras do proxy do Next e o IP
   // real do cliente (ultimo endereco nao confiavel do X-Forwarded-For), nao o do proxy.
+  // Padrao: 100 requisicoes por minuto por IP; login, chat e afins tem limites proprios na rota.
   await app.register(rateLimit, {
-    max: 300,
+    max: 100,
     timeWindow: '1 minute',
-    // Os testes fazem dezenas de logins seguidos do mesmo IP.
+    // Os testes fazem dezenas de logins seguidos do mesmo IP (rate-limit.test.ts liga o limite).
     allowList: () => env.NODE_ENV === 'test',
+    errorResponseBuilder: (_req, c) => {
+      const min = Math.max(1, Math.ceil(c.ttl / 60_000));
+      return Object.assign(new Error(`Muitas tentativas. Tente de novo em ${min} ${min === 1 ? 'minuto' : 'minutos'}.`), { statusCode: 429, code: 'RATE_LIMITED' });
+    },
   });
 }
 

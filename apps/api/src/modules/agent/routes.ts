@@ -166,7 +166,7 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
   // algumas chamadas ao provedor.
   const CHAT = { response: { 200: AgentChatStateSchema } };
   app.get('/agent/chat', { schema: CHAT }, async (req) => chatState(ctx, userOf(req).id));
-  app.post('/agent/chat', { config: { rateLimit: perUser(30) }, schema: { body: AgentChatRequestSchema, ...CHAT } }, async (req) => sendMessage(ctx, userOf(req).id, req.body.message, req.ip));
+  app.post('/agent/chat', { config: { rateLimit: perUser(20) }, schema: { body: AgentChatRequestSchema, ...CHAT } }, async (req) => sendMessage(ctx, userOf(req).id, req.body.message, req.ip));
   app.post('/agent/chat/reset', { schema: CHAT }, async (req) => resetChat(ctx, userOf(req).id));
 
   // Revisao de decisao automatizada (LGPD, 8.5): todo veredito pode ser contestado e fica registrado.

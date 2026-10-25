@@ -1,0 +1,59 @@
+# Backup diario do banco (doc. Melhorias, passo 1). O arquivo sai cifrado com BACKUP_PASSPHRASE e
+# fica 30 dias nos artefatos do GitHub, fora do servidor. A cada execucao ele e restaurado num
+# MongoDB temporario e as contagens sao conferidas: o backup so vale se restaura.
+# Segredos do repositorio: MONGODB_URI, BACKUP_PASSPHRASE (opcional: MONGODB_DB, padrao "pluto").
+name: Backup
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # 05:00 em Manaus
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+    env:
+      MONGOMS_DISABLE_POSTINSTALL: '1'
+      HAS_SECRETS: ${{ secrets.MONGODB_URI != '' && secrets.BACKUP_PASSPHRASE != '' }}
+    steps:
+      - if: env.HAS_SECRETS != 'true'
+        run: echo "::warning::Cadastre MONGODB_URI e BACKUP_PASSPHRASE em Settings > Secrets para ativar o backup."
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/checkout@v4
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+      - if: env.HAS_SECRETS == 'true'
+        run: corepack enable && pnpm install --frozen-lockfile --filter @pluto/api...
+      - if: env.HAS_SECRETS == 'true'
+        name: Gerar backup
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB || 'pluto' }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: pnpm --filter @pluto/api backup -- "$GITHUB_WORKSPACE/out" | tee backup.log
+      - if: env.HAS_SECRETS == 'true'
+        name: Testar a restauracao
+        env:
+          MONGODB_URI: mongodb://localhost:27017
+          MONGODB_DB: pluto_restore_check
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          pnpm --filter @pluto/api restore -- "$(ls "$GITHUB_WORKSPACE"/out/*.enc)" | tee restore.log
+          test "$(grep '^{' backup.log)" = "$(grep '^{' restore.log)" || { echo "::error::Contagens diferentes apos restaurar"; exit 1; }
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluto-backup-${{ github.run_id }}
+          path: out/*.enc
+          retention-days: 30
+          if-no-files-found: error

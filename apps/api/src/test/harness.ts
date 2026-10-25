@@ -102,7 +102,7 @@ export async function startHarness(): Promise<Harness> {
   });
   const jwt = await createJwt({ publicKeyB64: env.JWT_PUBLIC_KEY!, privateKeyB64: env.JWT_PRIVATE_KEY });
   const pluggy = new FakePluggy();
-  const ctx: AppContext = { env, col: collections(db), crypto: createFieldCrypto(env.FIELD_ENCRYPTION_KEY), jwt, pluggy, pingDb: async () => true };
+  const ctx: AppContext = { env, col: collections(db), mongo: client, crypto: createFieldCrypto(env.FIELD_ENCRYPTION_KEY), jwt, pluggy, pingDb: async () => true };
   const app = await buildApp(ctx);
 
   return {

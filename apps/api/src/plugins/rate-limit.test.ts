@@ -23,6 +23,8 @@ describe('limites por cliente atras do proxy', () => {
     for (let i = 0; i < 5; i++) await app.inject({ method: 'POST', url: '/v1/auth/login', payload: {}, ...viaProxy('203.0.113.9') });
     const attacker = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: {}, ...viaProxy('203.0.113.9') });
     expect(attacker.statusCode).toBe(429);
+    // Janela de 15 min (doc. Melhorias, passo 1), com mensagem em portugues.
+    expect(attacker.json().error).toEqual({ code: 'RATE_LIMITED', message: 'Muitas tentativas. Tente de novo em 15 minutos.' });
 
     const res = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { cpf: owner.cpf, password: owner.password }, ...viaProxy('198.51.100.7') });
     expect(res.statusCode).toBe(200);
@@ -46,9 +48,15 @@ describe('limites por cliente atras do proxy', () => {
         remoteAddress: '127.0.0.1',
         headers: { authorization: `Bearer ${await h.token(userId)}` },
       });
-    // Sem LLM configurado a rota responde 503, mas cada chamada conta no limite (30/min, doc. Pluton 8.1).
-    for (let i = 0; i < 30; i++) expect((await ask(a.id)).statusCode).toBe(503);
+    // Sem LLM configurado a rota responde 503, mas cada chamada conta no limite (20/min, doc. Melhorias 1).
+    for (let i = 0; i < 20; i++) expect((await ask(a.id)).statusCode).toBe(503);
     expect((await ask(a.id)).statusCode).toBe(429);
     expect((await ask(b.id)).statusCode).toBe(503);
+  });
+
+  it('demais rotas: 100 por minuto por cliente', async () => {
+    const health = () => app.inject({ method: 'GET', url: '/v1/health', ...viaProxy('203.0.113.77') });
+    for (let i = 0; i < 100; i++) expect((await health()).statusCode).toBe(200);
+    expect((await health()).statusCode).toBe(429);
   });
 });

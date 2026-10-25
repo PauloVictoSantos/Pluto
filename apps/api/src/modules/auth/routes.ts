@@ -28,7 +28,7 @@ import { cpfHash, login, logout, reauth, refresh, toMe, verifyMfa, type RequestM
 // Web: refresh em cookie HttpOnly; Secure; SameSite=Strict, prefixo __Host- (secoes 6.2 e 6.7).
 // Mobile: refresh no corpo, guardado no Keychain/Keystore pelo app.
 export const REFRESH_COOKIE = '__Host-pluto_rt';
-const COOKIE_MAX_AGE_SEC = 30 * 86_400;
+const COOKIE_MAX_AGE_SEC = 7 * 86_400;
 
 const meta = (req: FastifyRequest): RequestMeta => ({
   ip: req.ip ?? null,
@@ -63,7 +63,8 @@ export const authRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (app
 
   app.post(
     '/auth/login',
-    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: { body: LoginSchema, response: { 200: MfaChallengeSchema } } },
+    // 5 tentativas a cada 15 min por IP; a conta tambem tem bloqueio progressivo (service.ts).
+    { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }, schema: { body: LoginSchema, response: { 200: MfaChallengeSchema } } },
     async (req) => {
       ensureLogin();
       return { mfaRequired: true as const, mfaToken: await login(ctx, req.body.cpf, req.body.password, meta(req)) };

@@ -13,7 +13,8 @@ import { verifyTotp } from '../../lib/totp';
 
 // Secao 6.2: senha + 2FA obrigatorio, access token curto, refresh opaco rotacionado a cada uso.
 const LOCK_AFTER = 5;
-const PERSISTENT_TTL_MS = 30 * 86_400_000;
+// Refresh de 7 dias, renovado a cada rotacao (quem usa o app toda semana nao precisa entrar de novo).
+const PERSISTENT_TTL_MS = 7 * 86_400_000;
 const SESSION_TTL_MS = 12 * 3_600_000;
 /** Duas abas/requests renovando ao mesmo tempo nao sao tratadas como roubo. */
 const ROTATION_GRACE_MS = 15_000;

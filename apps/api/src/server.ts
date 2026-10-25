@@ -13,8 +13,10 @@ import { createPusher } from './integrations/push/webpush';
 import { startAlertsScheduler, startChargeScheduler, startPlannerScheduler, startSyncScheduler } from './jobs/sync-scheduler';
 import { createFieldCrypto } from './lib/crypto';
 import { createJwt } from './lib/jwt';
+import { initMonitoring } from './lib/monitoring';
 
 const env = loadEnv();
+initMonitoring(env.SENTRY_DSN, env.NODE_ENV);
 const database = await connectDatabase(env.MONGODB_URI, env.MONGODB_DB);
 await ensureIndexes(database.db);
 // Migracao que falha nao derruba a API: os dados continuam utilizaveis e o erro fica no log.
@@ -26,6 +28,7 @@ const llmKey = env.LLM_API_KEY ?? env.GEMINI_API_KEY;
 const ctx: AppContext = {
   env,
   col: collections(database.db),
+  mongo: database.client,
   crypto: createFieldCrypto(env.FIELD_ENCRYPTION_KEY),
   jwt: env.JWT_PUBLIC_KEY ? await createJwt({ publicKeyB64: env.JWT_PUBLIC_KEY, privateKeyB64: env.JWT_PRIVATE_KEY }) : null,
   pluggy:
