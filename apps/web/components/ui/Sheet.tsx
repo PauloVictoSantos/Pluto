@@ -79,6 +79,10 @@ export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap
     zIndex: 61,
     gap,
     maxWidth: '100%',
+    // Formulario longo rola por dentro (o rodape com "sticky bottom-0" fica sempre visivel).
+    maxHeight: isMobile ? '92dvh' : `calc(100dvh - ${top} - 24px)`,
+    overflowY: 'auto' as const,
+    overscrollBehavior: 'contain' as const,
     ...(isMobile
       ? { left: 0, right: 0, bottom: 0, borderRadius: '24px 24px 0 0' }
       : { left: `calc(50% - ${width / 2}px)`, top, width, borderRadius: 20 }),

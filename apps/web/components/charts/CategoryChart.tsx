@@ -6,6 +6,7 @@ import { useEnter } from '@/lib/motion';
 import { monthLong, money } from '@/lib/queries';
 import { PlutoLogo } from '../brand/PlutoLogo';
 import { Icon } from '../ui/Icon';
+import { hidePct } from '@/lib/format';
 
 const C = 2 * Math.PI * 76;
 const TOP = 5;
@@ -35,7 +36,7 @@ export function CategoryChart({ spending, loading = false, tip }: { spending?: S
   }));
   const cur = hover >= 0 ? items[hover] : null;
   const center = cur
-    ? { label: cur.label, value: money(cur.spentMinor), sub: cur.pct.toFixed(1).replace('.', ',') + '% do total' }
+    ? { label: cur.label, value: money(cur.spentMinor), sub: hidePct(cur.pct.toFixed(1).replace('.', ',') + '%') + ' do total' }
     : { label: 'Total gasto', value: money(total), sub: `${all.length} categoria${all.length === 1 ? '' : 's'}` };
 
   return (
@@ -102,7 +103,7 @@ export function CategoryChart({ spending, loading = false, tip }: { spending?: S
                   <Icon icon={s.icon} size={14} />
                 </span>
                 <span className="min-w-0 flex-1 truncate">{s.label}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">{s.pct.toFixed(0)}%</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{hidePct(`${s.pct.toFixed(0)}%`)}</span>
                 <span className="min-w-[86px] text-right font-semibold tabular-nums">{money(s.spentMinor)}</span>
               </button>
             ))}

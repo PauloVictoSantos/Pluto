@@ -9,7 +9,7 @@ import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
 import { ApiRequestError, api } from '@/lib/api';
-import { MESES, daysBetween, maskMoney } from '@/lib/format';
+import { MESES, daysBetween, maskMoney, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { addMonth, monthLower, money, useBudget, useCurrentMonth, useGoals, useSpending, useSummary } from '@/lib/queries';
 
@@ -141,7 +141,7 @@ function PlanEditor({ base, monthPicker }: { base: Base; monthPicker: ReactNode 
   const edit = (patch: (st: St) => Partial<St>) => setS((st) => ({ ...st, ...patch(st), strategy: 'custom', applied: false, justApplied: false }));
 
   const I = s.income || 0;
-  const pct = (v: number) => (I ? ((v / I) * 100).toFixed(0) + '%' : '0%');
+  const pct = (v: number) => hidePct(I ? ((v / I) * 100).toFixed(0) + '%' : '0%');
   const visible = (g: GroupId) => CATEGORIES.filter((c) => c.group === g && ((base.avg[c.key] ?? 0) > 0 || (s.budgets[c.key] ?? 0) > 0));
   const totals = { essential: 0, lifestyle: 0 };
   GROUPS.forEach((g) => (totals[g.id] = visible(g.id).reduce((t, c) => t + (s.budgets[c.key] || 0), 0)));

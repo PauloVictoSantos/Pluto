@@ -23,6 +23,10 @@ import {
   ContestationsSchema,
   ExportFileSchema,
   ObligationsSchema,
+  IncomeProfilesSchema,
+  type CreateIncomeProfile,
+  type UpdateIncomeProfile,
+  type SaveCategoryRules,
   type PurchaseRequest,
   type GoalAnswers,
   type GoalKindV2,
@@ -287,6 +291,11 @@ export const api = {
   updateFixedExpense: (id: string, body: UpdateFixedExpense) =>
     request(`/agent/fixed-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema),
   deleteFixedExpense: (id: string) => request(`/agent/fixed-expenses/${id}`, { method: 'DELETE' }, FixedExpensesSchema),
+  /** Perfis financeiros (ate 2): a soma das rendas e a renda do plano. */
+  incomeProfiles: () => request('/agent/income-profiles', {}, IncomeProfilesSchema),
+  createIncomeProfile: (b: CreateIncomeProfile) => request('/agent/income-profiles', post(b), IncomeProfilesSchema),
+  updateIncomeProfile: (id: string, b: UpdateIncomeProfile) => request(`/agent/income-profiles/${id}`, { method: 'PATCH', body: JSON.stringify(b) }, IncomeProfilesSchema),
+  deleteIncomeProfile: (id: string) => request(`/agent/income-profiles/${id}`, { method: 'DELETE' }, IncomeProfilesSchema),
   /** Dividas do mes (faturas, parcelamentos, fixos, emprestimos): a mesma lista do Plutao. */
   obligations: () => request('/agent/obligations', {}, ObligationsSchema),
   financialProfile: () => request('/agent/profile', {}, FinancialProfileSchema),
@@ -365,6 +374,8 @@ export const api = {
   renameTransaction: (id: string, name: string | null) => request(`/transactions/${id}/rename`, post({ name }), z.object({ name: z.string().nullable() })),
   categoryRules: () => request('/category-rules', {}, z.array(CategoryRuleSchema)),
   deleteCategoryRule: (id: string) => request<void>(`/category-rules/${id}`, { method: 'DELETE' }),
+  /** Modal de regras: adicionar, mover e remover de uma vez. */
+  saveCategoryRules: (b: SaveCategoryRules) => request('/category-rules', { method: 'PUT', body: JSON.stringify(b) }, z.array(CategoryRuleSchema)),
   exportMyData: (format: 'json' | 'csv') => request(`/me/export?format=${format}`, {}, ExportFileSchema),
   deleteAccount: () => request<void>('/me', { method: 'DELETE', body: JSON.stringify({ confirm: 'EXCLUIR' }) }),
   setAiConsent: (accept: boolean) => request<void>('/agent/consent', post({ accept })),

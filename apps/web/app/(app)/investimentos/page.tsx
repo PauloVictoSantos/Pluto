@@ -7,7 +7,7 @@ import { useShell } from '@/components/shell/ShellContext';
 import { CountUp } from '@/components/ui/CountUp';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/lib/api';
-import { fmtDayFull } from '@/lib/format';
+import { fmtDayFull, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { monthLong, money, useInvestments, useSummary } from '@/lib/queries';
 
@@ -18,7 +18,7 @@ const TYPE_LABEL: Record<string, string> = {
 const TYPE_COLOR: Record<string, string> = {
   FIXED_INCOME: '#C6FF33', STOCK: '#7D39EB', FUND: '#B18CF7', ETF: '#9A68F2', CRYPTO: '#F59E0B', OTHER: '#A1A1AA',
 };
-const pctText = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`;
+const pctText = (v: number) => hidePct(`${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`);
 
 export default function InvestimentosPage() {
   const { mode, nav } = useShell();
@@ -151,7 +151,7 @@ export default function InvestimentosPage() {
                 <div key={a.type} className="flex min-h-12 items-center gap-2.5 border-t border-border text-sm">
                   <span className="size-2.5 rounded-[3px]" style={{ background: TYPE_COLOR[a.type] }} />
                   <span className="flex-1">{TYPE_LABEL[a.type]}</span>
-                  <span className="text-[13px] text-muted-foreground">{((a.valueMinor / d.totalMinor) * 100).toFixed(0)}%</span>
+                  <span className="text-[13px] text-muted-foreground">{hidePct(`${((a.valueMinor / d.totalMinor) * 100).toFixed(0)}%`)}</span>
                   <strong className="min-w-[110px] text-right tabular-nums">{money(a.valueMinor)}</strong>
                 </div>
               ))}

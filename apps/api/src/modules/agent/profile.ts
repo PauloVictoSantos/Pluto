@@ -3,6 +3,7 @@ import { median } from '@pluto/finance-engine';
 import type { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
 import type { FinancialProfileDoc } from '../../db/collections';
+import { profilesIncome } from './incomeProfiles';
 import { addMonth, monthOf, monthStart } from '../../lib/time';
 
 /** Mediana das entradas dos ultimos 6 meses fechados (meses sem entrada nao contam). */
@@ -21,11 +22,13 @@ export async function suggestIncome(ctx: AppContext, userId: ObjectId, now = new
 
 /** Perfil com os padroes preenchidos (documento ausente = perfil novo). */
 export async function readProfile(ctx: AppContext, userId: ObjectId): Promise<{ doc: FinancialProfileDoc | null; profile: Omit<FinancialProfile, 'suggestedIncomeMinor'> }> {
-  const doc = await ctx.col.financialProfiles.findOne({ userId });
+  const [doc, fromProfiles] = await Promise.all([ctx.col.financialProfiles.findOne({ userId }), profilesIncome(ctx, userId)]);
   return {
     doc,
     profile: {
-      netIncomeMinor: doc?.netIncomeEnc ? Number(ctx.crypto.decrypt(doc.netIncomeEnc)) : null,
+      // Com perfis financeiros cadastrados, a renda e a soma deles (doc. Melhorias, passo 6).
+      netIncomeMinor: fromProfiles ?? (doc?.netIncomeEnc ? Number(ctx.crypto.decrypt(doc.netIncomeEnc)) : null),
+      incomeFromProfiles: fromProfiles !== null,
       safetyMarginPct: doc?.safetyMarginPct ?? PROFILE_DEFAULTS.safetyMarginPct,
       yearObjective: doc?.yearObjective ?? null,
       referenceRateMonthly: doc?.referenceRateMonthly ?? PROFILE_DEFAULTS.referenceRateMonthly,

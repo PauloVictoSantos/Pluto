@@ -3,6 +3,7 @@
 import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
 import { api, ApiRequestError, OFFLINE, refreshSession, setOnConnecting, setOnSessionLost } from './api';
+import { clearDrafts } from './draft';
 import { setValuesHidden } from './format';
 import { quietEnter } from './motion';
 import { queryClient } from './query-client';
@@ -64,7 +65,10 @@ const write = (k: string, v: string | null) => {
 };
 
 // Dados em cache pertencem a quem estava logado: somem em toda troca de sessao.
-const clearData = () => queryClient.clear();
+const clearData = () => {
+  queryClient.clear();
+  clearDrafts();
+};
 
 setOnSessionLost(() => {
   clearData();

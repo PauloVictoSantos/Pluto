@@ -20,7 +20,7 @@ import { invalidateFinancialContext } from './modules/agent/plutao/context';
 import { privacyRoutes } from './modules/privacy/routes';
 
 /** Mudancas que alteram o plano (renda, fixos, dividas, metas). */
-const PLAN_ROUTES = /\/(agent\/(profile|fixed-expenses|loans|goal-drafts\/:id\/confirm|purchases\/:id\/(plan|bought))|goals|debts)(\/|$)/;
+const PLAN_ROUTES = /\/(agent\/(profile|income-profiles|fixed-expenses|loans|goal-drafts\/:id\/confirm|purchases\/:id\/(plan|bought))|goals|debts)(\/|$)/;
 import { shoppingRoutes } from './modules/shopping/routes';
 import { chargeRoutes, stripeWebhookRoutes } from './modules/charges/routes';
 import { authRoutes } from './modules/auth/routes';

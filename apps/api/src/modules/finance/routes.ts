@@ -3,6 +3,7 @@ import {
   brandKeysFor,
   CategoryRuleSchema,
   RenameTransactionSchema,
+  SaveCategoryRulesSchema,
   SetCategoryResultSchema,
   SetCategorySchema,
   SimilarSchema,
@@ -21,8 +22,9 @@ import type { AccountDoc, CategoryRuleDoc, TransactionDoc } from '../../db/colle
 import { categoryKeyForType, deriveType } from '../../integrations/pluggy/mappers';
 import { audit } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
-import { escapeRegex, normalizeDescription } from '../../lib/text';
+import { escapeRegex, matchKeyOf, normalizeDescription } from '../../lib/text';
 import { requireAuth, userOf } from '../../plugins/auth';
+import { perUser } from '../../plugins/security';
 import { isAnomaly, median, modifiedZ } from '@pluto/finance-engine';
 import { autoCategorize } from '../analytics/categorizer';
 import { recurringKeys } from '../analytics/service';
@@ -267,9 +269,8 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
   );
 
   /** Remove a regra; as transacoes que ela categorizou voltam para a categoria do Pluggy. */
-  app.delete('/category-rules/:id', { schema: { params: IdParam } }, async (req, reply) => {
-    const userId = userOf(req).id;
-    const rule = await ctx.col.categoryRules.findOneAndDelete({ _id: new ObjectId(req.params.id), userId });
+  const deleteRule = async (userId: ObjectId, id: string) => {
+    const rule = await ctx.col.categoryRules.findOneAndDelete({ _id: new ObjectId(id), userId });
     if (!rule) throw notFound('Regra');
     const affected = await ctx.col.transactions
       .find({ userId, ...ruleKeyFilter(rule.matchKey), categorySource: 'RULE' }, { projection: { accountId: 1, pluggyCategory: 1, amountMinor: 1, description: 1 } })
@@ -291,6 +292,44 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
         }),
       );
     }
+  };
+
+  /** Troca a categoria de uma regra: o que ela ja tinha categorizado passa a seguir a nova. */
+  const moveRule = async (userId: ObjectId, id: string, categoryKey: string) => {
+    const rule = await ctx.col.categoryRules.findOneAndUpdate({ _id: new ObjectId(id), userId }, { $set: { categoryKey, updatedAt: new Date() } }, { returnDocument: 'after' });
+    if (!rule) throw notFound('Regra');
+    await ctx.col.transactions.updateMany({ userId, ...ruleKeyFilter(rule.matchKey), categorySource: 'RULE' }, { $set: { categorySource: null } });
+    await applyRule(ctx.col, rule);
+  };
+
+  /** Estabelecimento digitado no modal: vale para as transacoes com a mesma descricao. */
+  const addRule = async (userId: ObjectId, label: string, categoryKey: string, direction: 'in' | 'out') => {
+    const now = new Date(), matchKey = matchKeyOf(label);
+    const rule = await ctx.col.categoryRules.findOneAndUpdate(
+      { userId, matchKey, direction },
+      { $set: { categoryKey, label, updatedAt: now }, $setOnInsert: { createdAt: now } },
+      { upsert: true, returnDocument: 'after' },
+    );
+    await ctx.col.transactions.updateMany({ userId, ...ruleKeyFilter(matchKey), categorySource: 'RULE' }, { $set: { categorySource: null } });
+    await applyRule(ctx.col, rule!);
+  };
+
+  /** Modal de regras (doc. Melhorias, passo 6): adicionar, mover e remover de uma vez, no "Salvar". */
+  app.put('/category-rules', { config: { rateLimit: perUser(20) }, schema: { body: SaveCategoryRulesSchema, response: { 200: z.array(CategoryRuleSchema) } } }, async (req) => {
+    const userId = userOf(req).id, { create, move, remove } = req.body;
+    const own = await ctx.col.categoryRules.countDocuments({ userId, _id: { $in: [...move.map((m) => m.id), ...remove].map((id) => new ObjectId(id)) } });
+    if (own !== new Set([...move.map((m) => m.id), ...remove]).size) throw notFound('Regra');
+    for (const id of remove) await deleteRule(userId, id);
+    for (const m of move) if (!remove.includes(m.id)) await moveRule(userId, m.id, m.categoryKey);
+    for (const c of create) await addRule(userId, c.label, c.categoryKey, c.direction);
+    await autoCategorize(ctx.col, userId).catch((e) => req.log.warn({ err: e instanceof Error ? e.message : e }, 'falha ao recategorizar'));
+    await audit(ctx.col, 'category_rules.saved', userId, { created: create.length, moved: move.length, removed: remove.length }, req.ip);
+    return (await ctx.col.categoryRules.find({ userId }).sort({ matchKey: 1 }).toArray()).map(toRuleDTO);
+  });
+
+  app.delete('/category-rules/:id', { schema: { params: IdParam } }, async (req, reply) => {
+    const userId = userOf(req).id;
+    await deleteRule(userId, req.params.id);
     await audit(ctx.col, 'category_rule.deleted', userId, { ruleId: req.params.id }, req.ip);
     return reply.code(204).send();
   });

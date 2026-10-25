@@ -26,6 +26,8 @@ export const FinancialProfileSchema = z.object({
   /** Rendimento mensal de referencia do dinheiro guardado (ex.: 0,008 = 0,8% a.m.). */
   referenceRateMonthly: z.number().min(0).max(0.05),
   updatedAt: z.string().nullable(),
+  /** true: a renda e a soma dos perfis financeiros (o campo de renda fica so de leitura). */
+  incomeFromProfiles: z.boolean(),
 });
 export type FinancialProfile = z.infer<typeof FinancialProfileSchema>;
 

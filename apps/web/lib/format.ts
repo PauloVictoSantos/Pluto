@@ -12,6 +12,10 @@ export const fmt = (v: number) => (valuesHidden ? VALUE_MASK : BRL.format(v));
 /** Sem mascara: so para respostas que o usuario pediu explicitamente (chat) e exportacoes. */
 export const fmtRaw = (v: number) => BRL.format(v);
 export const pct = (v: number) => (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+/** Mascara das porcentagens (doc. Melhorias, passo 6): ocultar valores esconde tambem os "%". */
+export const PCT_MASK = '•• %';
+export const hidePct = (text: string) => (valuesHidden ? PCT_MASK : text);
+export const valuesAreHidden = () => valuesHidden;
 
 export const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'maio', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
 export const MESES_LONGOS = [

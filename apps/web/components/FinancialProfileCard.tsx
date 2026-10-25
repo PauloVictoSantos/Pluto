@@ -2,24 +2,26 @@
 
 import { YEAR_OBJECTIVES, YEAR_OBJECTIVE_LABEL, type FinancialProfile, type YearObjective } from '@pluto/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { ApiRequestError, api } from '@/lib/api';
+import { useDraft } from '@/lib/draft';
 import { maskMoney } from '@/lib/format';
 import { money } from '@/lib/queries';
 import { Icon } from './ui/Icon';
+import { MoneyInput } from './ui/MoneyInput';
+import { useState } from 'react';
 
 const pctText = (rate: number) => (rate * 100).toFixed(2).replace('.', ',');
 
 /**
- * Perfil financeiro (Configuracoes): o que o Plutao usa nos calculos. A renda vem sugerida pela
+ * Ajustes do plano (Configuracoes): o que o Plutao usa nos calculos. A renda vem sugerida pela
  * mediana das entradas dos ultimos meses; a margem de seguranca e a parte que ele nunca compromete.
  */
 export function FinancialProfileCard() {
   const q = useQuery({ queryKey: ['agent-profile'], queryFn: api.financialProfile });
   return (
-    <section data-anim="" className="card flex flex-col gap-3" aria-label="Perfil financeiro">
+    <section data-anim="" className="card flex flex-col gap-3" aria-label="Ajustes do plano">
       <div>
-        <div className="card-title">Perfil financeiro</div>
+        <div className="card-title">Ajustes do plano</div>
         <div className="mt-1 text-[13px] text-muted-foreground">O Plutão usa estes dados para calcular quanto você pode comprometer por mês. A renda fica criptografada.</div>
       </div>
       {q.data ? <ProfileForm key={q.data.updatedAt ?? 'novo'} p={q.data} /> : <div className="h-40 animate-pulse rounded-xl bg-muted" />}
@@ -29,10 +31,12 @@ export function FinancialProfileCard() {
 
 function ProfileForm({ p }: { p: FinancialProfile }) {
   const qc = useQueryClient();
-  const [income, setIncome] = useState(() => maskMoney(p.netIncomeMinor === null ? '' : String(p.netIncomeMinor)));
-  const [margin, setMargin] = useState(p.safetyMarginPct);
-  const [objective, setObjective] = useState<YearObjective | ''>(p.yearObjective ?? '');
-  const [rate, setRate] = useState(pctText(p.referenceRateMonthly));
+  // Rascunho fora do componente: ocultar valores remonta a tela e nada digitado pode sumir.
+  const key = `fin-profile:${p.updatedAt ?? 'novo'}`;
+  const [income, setIncome, clearIncome] = useDraft(`${key}:income`, () => maskMoney(p.netIncomeMinor === null ? '' : String(p.netIncomeMinor)));
+  const [margin, setMargin, clearMargin] = useDraft(`${key}:margin`, () => p.safetyMarginPct);
+  const [objective, setObjective, clearObjective] = useDraft<YearObjective | ''>(`${key}:objective`, () => p.yearObjective ?? '');
+  const [rate, setRate, clearRate] = useDraft(`${key}:rate`, () => pctText(p.referenceRateMonthly));
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const rateValue = Number(rate.replace(',', '.')) / 100;
@@ -40,18 +44,20 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
   const save = useMutation({
     mutationFn: () =>
       api.updateFinancialProfile({
-        netIncomeMinor: income.text ? Math.round(income.value * 100) : null,
+        // Com perfis financeiros, a renda vem da soma deles (o campo fica so de leitura).
+        ...(p.incomeFromProfiles ? {} : { netIncomeMinor: income.text ? Math.round(income.value * 100) : null }),
         safetyMarginPct: margin,
         yearObjective: objective || null,
         referenceRateMonthly: Math.round(rateValue * 1e6) / 1e6,
       }),
     onSuccess: (data) => {
+      for (const clear of [clearIncome, clearMargin, clearObjective, clearRate]) clear();
       qc.setQueryData(['agent-profile'], data);
-      setMsg({ ok: true, text: 'Perfil financeiro salvo.' });
+      setMsg({ ok: true, text: 'Ajustes salvos.' });
     },
     onError: (e) => setMsg({ ok: false, text: e instanceof ApiRequestError ? e.message : 'Não conseguimos salvar. Tente de novo.' }),
   });
-  const incomeMinor = income.text ? Math.round(income.value * 100) : p.suggestedIncomeMinor;
+  const incomeMinor = p.incomeFromProfiles ? p.netIncomeMinor : income.text ? Math.round(income.value * 100) : p.suggestedIncomeMinor;
 
   return (
     <form
@@ -61,9 +67,15 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
         if (rateOk) save.mutate();
       }}
     >
+      {p.incomeFromProfiles ? (
+        <div className="flex flex-col gap-1 rounded-xl bg-muted px-3.5 py-3 text-[13px]">
+          <span className="font-semibold">Renda líquida mensal: {money(p.netIncomeMinor ?? 0)}</span>
+          <span className="text-muted-foreground">Soma dos seus perfis financeiros. Para mudar, edite os perfis acima.</span>
+        </div>
+      ) : (
       <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
         Renda líquida mensal
-        <input value={income.text} onChange={(e) => setIncome(maskMoney(e.target.value))} inputMode="numeric" placeholder="R$ 0,00" className="input" />
+        <MoneyInput value={income.text} onChange={setIncome} className="input" aria-label="Renda líquida mensal" />
         {p.suggestedIncomeMinor !== null && (
           <span className="flex flex-wrap items-center gap-2 text-[12px] font-normal text-muted-foreground">
             Pelas suas entradas dos últimos meses: {money(p.suggestedIncomeMinor)}
@@ -75,6 +87,7 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
           </span>
         )}
       </label>
+      )}
 
       <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
         <span className="flex justify-between">
@@ -108,7 +121,7 @@ function ProfileForm({ p }: { p: FinancialProfile }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={save.isPending || !rateOk} className="btn btn-primary h-10 px-4 text-[14px]">
-          {save.isPending ? 'Salvando…' : 'Salvar perfil'}
+          {save.isPending ? 'Salvando…' : 'Salvar ajustes'}
         </button>
         {msg && (
           <span role="status" className={`flex items-center gap-1.5 text-[13px] ${msg.ok ? 'text-brand-text' : 'text-danger-text'}`}>

@@ -8,6 +8,7 @@ import { reducedMotion } from '@/lib/motion';
 import { ROUTES } from '@/lib/nav';
 import { money } from '@/lib/queries';
 import { Icon } from './ui/Icon';
+import { hidePct } from '@/lib/format';
 
 // Saude financeira (0-100, doc. Pluton 5.2) no desenho da referencia: arco em 4 segmentos com pontas
 // redondas e espacos, textura ondulada, marcador, nota grande, pilula de variacao e botao preto. SVG puro.
@@ -25,7 +26,7 @@ const SEGMENTS = [
 const TICKS = [0, 40, 60, 80, 100];
 
 const valueText = (i: HealthIndicatorDTO) =>
-  i.value === null ? '—' : i.unit === 'pct' ? `${Math.round(i.value * 100)}%` : i.unit === 'months' ? `${i.value.toFixed(1).replace('.', ',')} m` : money(i.value);
+  i.value === null ? '—' : i.unit === 'pct' ? hidePct(`${Math.round(i.value * 100)}%`) : i.unit === 'months' ? `${i.value.toFixed(1).replace('.', ',')} m` : money(i.value);
 
 const tOf = (v: number) => (Math.min(MAX, Math.max(MIN, v)) - MIN) / (MAX - MIN);
 const pt = (t: number, r = R): [number, number] => [CX + r * Math.cos(Math.PI * (1 - t)), CY - r * Math.sin(Math.PI * (1 - t))];
@@ -142,7 +143,7 @@ export function FinancialHealthGauge({ firstName }: { firstName: string }) {
         })),
         {
           title: 'Pagamentos em dia',
-          value: h.onTime.pct === null ? '—' : `${Math.round(h.onTime.pct * 100)}%`,
+          value: h.onTime.pct === null ? '—' : hidePct(`${Math.round(h.onTime.pct * 100)}%`),
           impact: 'Sinal extra',
           tone: 'mid',
           desc: `${h.onTime.paid} de ${h.onTime.due} contas pagas em dia nos últimos 90 dias`,
@@ -150,7 +151,7 @@ export function FinancialHealthGauge({ firstName }: { firstName: string }) {
         },
         {
           title: 'Uso do limite do cartão',
-          value: h.limitUse.pct === null ? '—' : `${Math.round(h.limitUse.pct * 100)}%`,
+          value: h.limitUse.pct === null ? '—' : hidePct(`${Math.round(h.limitUse.pct * 100)}%`),
           impact: 'Sinal extra',
           tone: 'mid',
           desc: `${money(h.limitUse.usedMinor)} de ${money(h.limitUse.limitMinor)} de limite`,

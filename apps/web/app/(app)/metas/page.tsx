@@ -12,7 +12,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { ymdIn } from '@/lib/datetime';
-import { MESES, maskMoney } from '@/lib/format';
+import { MESES, maskMoney, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { money, useGoals, useTz } from '@/lib/queries';
 
@@ -160,7 +160,7 @@ export default function MetasPage() {
               <div>
                 <div className="text-[28px] font-bold tracking-[-0.04em] tabular-nums">{money(g.savedMinor)}</div>
                 <div className="mt-0.5 text-[13px]" style={{ color: subFg }}>
-                  de {money(g.targetMinor)} · {(r * 100).toFixed(0)}%
+                  de {money(g.targetMinor)} · {hidePct(`${(r * 100).toFixed(0)}%`)}
                 </div>
               </div>
               <div className="h-2.5 overflow-hidden rounded-full" style={{ background: feat ? 'rgba(255,255,255,.2)' : 'var(--muted)' }}>

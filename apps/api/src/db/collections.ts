@@ -1,6 +1,8 @@
 import type {
   ALERT_PAGES,
   YearObjective,
+  IncomeType,
+  ProfileCover,
   FixedRecurrence,
   GoalAnswers,
   GoalDiagnosis,
@@ -470,6 +472,21 @@ export interface FinancialProfileDoc {
   updatedAt: Date;
 }
 
+/** Perfil financeiro / fonte de renda (doc. Melhorias, passo 6): no maximo 2 por usuario. */
+export interface IncomeProfileDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  name: string;
+  cover: ProfileCover;
+  /** Renda liquida mensal em centavos, criptografada. */
+  netIncomeEnc: string;
+  payDay: number;
+  incomeType: IncomeType;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Gasto fixo do agente (doc. Pluton 3.1); exclusao logica para manter o historico. */
 export interface FixedExpenseDoc {
   _id: ObjectId;
@@ -715,6 +732,7 @@ export interface Collections {
   shoppingLists: Collection<ShoppingListDoc>;
   goals: Collection<GoalDoc>;
   financialProfiles: Collection<FinancialProfileDoc>;
+  incomeProfiles: Collection<IncomeProfileDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
@@ -753,6 +771,7 @@ export const collections = (db: Db): Collections => ({
   shoppingLists: db.collection<ShoppingListDoc>('shopping_lists'),
   goals: db.collection<GoalDoc>('goals'),
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
+  incomeProfiles: db.collection<IncomeProfileDoc>('income_profiles'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),

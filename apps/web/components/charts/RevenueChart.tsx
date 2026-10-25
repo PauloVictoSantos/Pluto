@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useEnter } from '@/lib/motion';
 import { change, monthLong, monthLower, monthShort, money } from '@/lib/queries';
 import { Icon } from '../ui/Icon';
+import { hidePct } from '@/lib/format';
 
 const H = 220;
 
@@ -87,7 +88,7 @@ export function RevenueChart({ data, loading = false }: { data: MonthPoint[]; lo
       {cur && ch !== null && (
         <div className="flex flex-col gap-2 text-sm">
           <div className="flex items-center gap-2 leading-none font-medium">
-            Receitas {ch >= 0 ? 'subiram' : 'caíram'} {Math.abs(ch).toFixed(1).replace('.', ',')}% em {monthLower(cur.month)}
+            Receitas {ch >= 0 ? 'subiram' : 'caíram'} {hidePct(`${Math.abs(ch).toFixed(1).replace('.', ',')}%`)} em {monthLower(cur.month)}
             <Icon icon={ch >= 0 ? 'trending-up' : 'trending-down'} size={16} />
           </div>
           <div className="leading-[1.3] text-muted-foreground">Transferências entre suas contas e pagamentos de fatura não entram na conta.</div>

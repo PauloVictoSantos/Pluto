@@ -26,6 +26,9 @@ import {
   UpdateFixedExpenseSchema,
   UpdateLoanSchema,
   ObligationsSchema,
+  IncomeProfilesSchema,
+  CreateIncomeProfileSchema,
+  UpdateIncomeProfileSchema,
 } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { ObjectId } from 'mongodb';
@@ -41,6 +44,7 @@ import { chatState, resetChat, sendMessage } from './plutao/orchestrator';
 import { boughtPurchase, evaluateAndSave, giveUpPurchase, listPurchases, planPurchase, purchaseToGoal, simulatePurchase } from './purchases';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
 import { listObligations } from './obligations';
+import { createIncomeProfile, listIncomeProfiles, removeIncomeProfile, updateIncomeProfile } from './incomeProfiles';
 import { getProfile, updateProfile } from './profile';
 
 const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
@@ -162,6 +166,23 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     const change = await setGoalStatus(ctx, userId, req.params.id, req.body.status);
     await audit(ctx.col, 'goal.status_changed', userId, { goalId: req.params.id, ...change }, req.ip);
     return goalsPlan(ctx, userId);
+  });
+
+  // Perfis financeiros (doc. Melhorias, passo 6): ate 2 fontes de renda; a soma vira a renda do plano.
+  const INCOME = { response: { 200: IncomeProfilesSchema } };
+  app.get('/agent/income-profiles', { schema: INCOME }, async (req) => listIncomeProfiles(ctx, userOf(req).id));
+  app.post('/agent/income-profiles', { config: { rateLimit: perUser(20) }, schema: { body: CreateIncomeProfileSchema, ...INCOME } }, async (req) => {
+    const r = await createIncomeProfile(ctx, userOf(req).id, req.body);
+    await audit(ctx.col, 'income_profile.created', userOf(req).id, {}, req.ip);
+    return r;
+  });
+  app.patch('/agent/income-profiles/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, body: UpdateIncomeProfileSchema, ...INCOME } }, async (req) =>
+    updateIncomeProfile(ctx, userOf(req).id, req.params.id, req.body),
+  );
+  app.delete('/agent/income-profiles/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, ...INCOME } }, async (req) => {
+    const r = await removeIncomeProfile(ctx, userOf(req).id, req.params.id);
+    await audit(ctx.col, 'income_profile.deleted', userOf(req).id, {}, req.ip);
+    return r;
   });
 
   // Dividas do mes numa lista so: a mesma do chat, das Metas e do Planejamento (doc. Melhorias, passo 5).

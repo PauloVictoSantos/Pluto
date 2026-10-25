@@ -111,3 +111,12 @@ export const CategoryRuleSchema = z.object({
   createdAt: z.coerce.date(),
 });
 export type CategoryRule = z.infer<typeof CategoryRuleSchema>;
+
+const RuleId = z.string().regex(/^[a-f0-9]{24}$/);
+/** Modal de regras (doc. Melhorias, passo 6): tudo o que mudou, aplicado de uma vez no "Salvar". */
+export const SaveCategoryRulesSchema = z.object({
+  create: z.array(z.object({ label: z.string().trim().min(2, 'Nome do estabelecimento curto demais').max(80), categoryKey: CategoryKey, direction: z.enum(['in', 'out']).default('out') })).max(50).default([]),
+  move: z.array(z.object({ id: RuleId, categoryKey: CategoryKey })).max(200).default([]),
+  remove: z.array(RuleId).max(200).default([]),
+});
+export type SaveCategoryRules = z.input<typeof SaveCategoryRulesSchema>;

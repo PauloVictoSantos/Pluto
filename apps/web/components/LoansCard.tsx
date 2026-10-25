@@ -4,7 +4,7 @@ import { LOAN_KINDS, LOAN_KIND_LABEL, type Loan, type LoanKind } from '@pluto/sh
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiRequestError, api } from '@/lib/api';
-import { MESES, maskMoney } from '@/lib/format';
+import { MESES, maskMoney, hidePct } from '@/lib/format';
 import { money } from '@/lib/queries';
 import { Icon } from './ui/Icon';
 import { Sheet } from './ui/Sheet';
@@ -149,7 +149,7 @@ export function LoansCard() {
       {share !== null && share > 0.3 && (
         <div role="status" className="mt-3 flex items-start gap-2 rounded-xl bg-danger-soft p-3 text-[13px] text-danger-text">
           <Icon icon="circle-alert" size={16} />
-          As parcelas de dívida levam {Math.round(share * 100)}% da sua renda. O saudável é até 30%.
+          As parcelas de dívida levam {hidePct(`${Math.round(share * 100)}%`)} da sua renda. O saudável é até 30%.
         </div>
       )}
       {d && !d.items.length && <div className="mt-2 border-t border-border py-4 text-sm text-muted-foreground">Nenhuma dívida com juros cadastrada.</div>}

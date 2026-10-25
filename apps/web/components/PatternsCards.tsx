@@ -1,7 +1,7 @@
 'use client';
 
 import { categoryOf, type Patterns } from '@pluto/shared';
-import { MESES_LONGOS } from '@/lib/format';
+import { MESES_LONGOS, hidePct } from '@/lib/format';
 import { money } from '@/lib/queries';
 import { useApp } from '@/lib/store';
 import { Why } from './Insight';
@@ -131,7 +131,7 @@ export function CategoryBarsCard({ p }: { p: Patterns }) {
                   {def?.label ?? 'Outras'}
                 </span>
                 <span className="text-muted-foreground tabular-nums">
-                  {Math.round(c.share * 100)}% · {money(c.totalMinor)}
+                  {hidePct(`${Math.round(c.share * 100)}%`)} · {money(c.totalMinor)}
                 </span>
               </div>
               <div className="h-2.5 overflow-hidden rounded-full bg-muted">

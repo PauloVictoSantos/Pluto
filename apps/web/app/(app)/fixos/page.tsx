@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
 import { Sheet } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
-import { MESES, maskMoney } from '@/lib/format';
+import { MESES, maskMoney, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { ROUTES } from '@/lib/nav';
 import { money } from '@/lib/queries';
@@ -155,7 +155,7 @@ export default function FixosPage() {
       <StatTiles
         tiles={[
           { label: 'Por mês', value: d ? money(d.monthlyTotalMinor) : '…', ...tileBrand },
-          { label: 'Da renda', value: share === null ? '—' : `${Math.round(share * 100)}%`, ...tilePlain },
+          { label: 'Da renda', value: share === null ? '—' : hidePct(`${Math.round(share * 100)}%`), ...tilePlain },
           { label: 'Gastos', value: d ? String(d.items.length) : '…', ...tilePlain },
         ]}
       />
@@ -167,7 +167,7 @@ export default function FixosPage() {
       )}
       {d && d.incomeMinor === null && (
         <div data-anim="" className="text-[13px] text-muted-foreground">
-          Informe sua renda em <a href={ROUTES.settings} className="font-semibold text-brand-text underline">Configurações › Perfil financeiro</a> para ver quanto dela os fixos ocupam.
+          Informe sua renda em <a href={ROUTES.settings} className="font-semibold text-brand-text underline">Configurações › Perfis financeiros</a> para ver quanto dela os fixos ocupam.
         </div>
       )}
 

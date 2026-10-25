@@ -14,6 +14,7 @@ import { ymdIn } from '@/lib/datetime';
 import { spendingTip } from '@/lib/insights';
 import { useEnter } from '@/lib/motion';
 import { monthLower, monthProgress, money, useBudget, useCurrentMonth, useSpending, useTz } from '@/lib/queries';
+import { hidePct } from '@/lib/format';
 
 export default function OrcamentoPage() {
   const { mode, nav, openChat } = useShell();
@@ -59,7 +60,7 @@ export default function OrcamentoPage() {
       <div data-anim="" className="flex flex-col gap-3.5 rounded-2xl bg-brand p-[clamp(18px,4vw,24px)] text-white">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-[15px] font-medium">{noBudget ? 'Gastos do mês' : 'Limite mensal'}</span>
-          {!noBudget && <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-black">{u.toFixed(0)}% usado</span>}
+          {!noBudget && <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-black">{hidePct(`${u.toFixed(0)}%`)} usado</span>}
         </div>
         <div className="flex flex-wrap items-baseline gap-2">
           <CountUp key={spent} value={spent / 100} className="text-[clamp(30px,7vw,40px)] font-bold tracking-[-0.045em] tabular-nums" />
@@ -126,7 +127,7 @@ export default function OrcamentoPage() {
                         ? `Passou ${money(c.spent - c.limit)} do limite`
                         : proj > c.limit
                           ? `No ritmo atual passa do limite (${money(Math.round(proj))})`
-                          : `Restam ${money(c.limit - c.spent)} · ${(r * 100).toFixed(0)}% usado`}
+                          : `Restam ${money(c.limit - c.spent)} · ${hidePct(`${(r * 100).toFixed(0)}%`)} usado`}
                   </div>
                 </div>
               </div>

@@ -17,7 +17,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Sheet, useSheetClose } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { ymdIn } from '@/lib/datetime';
-import { fmtDay, maskMoney } from '@/lib/format';
+import { fmtDay, maskMoney, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { monthLong, monthLower, money, useTz } from '@/lib/queries';
 
@@ -308,7 +308,7 @@ export default function ListaPage() {
           <div className="text-base font-semibold">
             {list.basket.pct === 0
               ? `Sua cesta custa o mesmo que em ${monthLong(list.basket.sinceMonth).toLowerCase()}`
-              : `Sua cesta ficou ${Math.abs(list.basket.pct).toString().replace('.', ',')}% ${list.basket.pct > 0 ? 'mais cara' : 'mais barata'} desde ${monthLong(list.basket.sinceMonth).toLowerCase()}`}
+              : `Sua cesta ficou ${hidePct(`${Math.abs(list.basket.pct).toString().replace('.', ',')}%`)} ${list.basket.pct > 0 ? 'mais cara' : 'mais barata'} desde ${monthLong(list.basket.sinceMonth).toLowerCase()}`}
           </div>
           <div className="text-xs text-muted-foreground">
             Por quê: mesmos {list.basket.items} itens, nas quantidades de {monthLower(list.basket.sinceMonth)}, comparando só o preço.

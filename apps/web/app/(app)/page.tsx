@@ -18,7 +18,7 @@ import { Icon } from '@/components/ui/Icon';
 import { api } from '@/lib/api';
 import { bankBrand } from '@/lib/banks';
 import { fmtDateTimeIn, ymdIn } from '@/lib/datetime';
-import { VALUE_MASK, daysBetween, fmtDay } from '@/lib/format';
+import { VALUE_MASK, daysBetween, fmtDay, hidePct } from '@/lib/format';
 import { nextDue, spendingTip } from '@/lib/insights';
 import { useEnter } from '@/lib/motion';
 import { change, monthLower, monthProgress, money, useBudget, useCards, useCurrentMonth, useInvestments, useSpending, useSummary, useTz } from '@/lib/queries';
@@ -28,7 +28,7 @@ import { useHydrated, type Mode } from '@/lib/viewport';
 // Visao geral (tarefa 7): 7 blocos em destaque em cima (Saldo, Receitas, Despesas, Investido, Compras
 // recentes, Proximos vencimentos, Limite de gastos) e o resto na secao "Analises", recolhivel.
 
-const pctText = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`);
+const pctText = (v: number | null) => (v === null ? '—' : hidePct(`${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`));
 
 /**
  * Areas da grade por largura: sem buraco nem card orfao, cards da mesma linha com a mesma altura.
@@ -429,7 +429,7 @@ export default function OverviewPage() {
           <div data-grow="" className="h-full origin-left rounded-full" style={{ width: `${Math.min(used * 100, 100).toFixed(1)}%`, background: color }} />
         </div>
         <div className="flex justify-between gap-2 text-[13px] text-muted-foreground">
-          <span>{(used * 100).toFixed(0)}% usado</span>
+          <span>{hidePct(`${(used * 100).toFixed(0)}%`)} usado</span>
           <span>
             {limitTotal >= spent ? 'Restam ' : 'Passou '}
             <strong className="text-foreground">{money(Math.abs(limitTotal - spent))}</strong>

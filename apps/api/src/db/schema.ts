@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES, CONNECTION_SOURCES, CONNECTION_STATUSES, INVESTMENT_TYPES, INVOICE_STATUSES, SHOPPING_CATEGORY_KEYS, TRANSACTION_STATUSES, TRANSACTION_TYPES, UNITS } from '@pluto/shared';
+import { ACCOUNT_TYPES, CONNECTION_SOURCES, CONNECTION_STATUSES, INVESTMENT_TYPES, INCOME_TYPES, INVOICE_STATUSES, PROFILE_COVERS, SHOPPING_CATEGORY_KEYS, TRANSACTION_STATUSES, TRANSACTION_TYPES, UNITS } from '@pluto/shared';
 import { MongoServerError, type Db, type Document } from 'mongodb';
 
 // JSON Schema validator do MongoDB nas colecoes criticas (secao 4.1).
@@ -170,6 +170,14 @@ export const VALIDATORS: Record<string, Document> = {
     netIncomeEnc: { bsonType: ['string', 'null'], pattern: '^v1\\.' },
     safetyMarginPct: { bsonType: ['int', 'long', 'double'], minimum: 0, maximum: 15 },
     referenceRateMonthly: { bsonType: ['int', 'long', 'double'], minimum: 0, maximum: 0.05 },
+  }),
+  income_profiles: schema(['userId', 'name', 'cover', 'netIncomeEnc', 'payDay', 'incomeType', 'createdAt'], {
+    userId: oid,
+    name: { bsonType: 'string', maxLength: 40 },
+    cover: enumOf([...PROFILE_COVERS]),
+    netIncomeEnc: { bsonType: 'string', pattern: '^v1\\.' },
+    payDay: { ...int, minimum: 1, maximum: 31 },
+    incomeType: enumOf([...INCOME_TYPES]),
   }),
   shopping_items: schema(['userId', 'name', 'nameNorm', 'aliases', 'category', 'unit', 'createdAt'], {
     userId: oid,

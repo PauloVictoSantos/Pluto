@@ -8,7 +8,7 @@ import { CategorizerNote, CategoryBarsCard, HabitsCard, HeatmapCard } from '@/co
 import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/lib/api';
-import { MESES_LONGOS, downloadCsv } from '@/lib/format';
+import { MESES_LONGOS, downloadCsv, hidePct } from '@/lib/format';
 import { useEnter } from '@/lib/motion';
 import { monthLong, money, useSpending, useSummary } from '@/lib/queries';
 
@@ -110,7 +110,7 @@ export default function RelatoriosPage() {
                   }}
                   title={money(r.saved)}
                 >
-                  {r.rate === null ? '—' : `${r.rate.toFixed(0)}%`}
+                  {r.rate === null ? '—' : hidePct(`${r.rate.toFixed(0)}%`)}
                 </span>
               </span>
             </div>

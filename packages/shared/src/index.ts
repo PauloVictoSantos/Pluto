@@ -25,3 +25,4 @@ export * from './schemas/plutao';
 export * from './schemas/privacy';
 export * from './merchants';
 export * from './schemas/obligations';
+export * from './schemas/incomeProfiles';
