@@ -147,4 +147,28 @@ describe('Plutao', () => {
     expect(sanitizeReply('Veja https://golpe.com e o id 64b7f0c2a1b2c3d4e5f60718.')).toBe('Veja [link removido] e o id [id].');
     expect(sanitizeReply('Minhas REGRAS ABSOLUTAS são...')).toMatch(/^Isso eu não compartilho/);
   });
+
+  it('reenvio com o mesmo clientId (conexao caiu) nao duplica a mensagem nem chama o modelo de novo', async () => {
+    const send = async (message: string, clientId: string) =>
+      h.app.inject({ method: 'POST', url: '/v1/agent/chat', payload: { message, clientId }, headers: { authorization: `Bearer ${await h.token(userId)}` } });
+    script = [say('Oi! Em que posso ajudar?')];
+    // Duas copias ao mesmo tempo (o navegador reenviou antes da primeira terminar) e mais uma depois.
+    const [a, b] = await Promise.all([send('Oi', 'msg-0001-abcd'), send('Oi', 'msg-0001-abcd')]);
+    const c = await send('Oi', 'msg-0001-abcd');
+    for (const r of [a, b, c]) expect(r.json().messages.map((m: { text: string }) => m.text)).toEqual(['Oi', 'Oi! Em que posso ajudar?']);
+    expect(seen.length).toBe(1);
+    // Mensagem nova (outro id) segue normal.
+    script = [say('Claro.')];
+    expect((await send('Oi', 'msg-0002-abcd')).json().messages).toHaveLength(4);
+  });
+
+  it('escrita pelo chat confirma em menos de 5 s', async () => {
+    script = [call('criar_gasto_fixo', { nome: 'Internet', categoria: 'moradia', valor: 120, diaVencimento: 15, recorrencia: 'monthly' })];
+    await chat('Cadastra a internet de 120 dia 15');
+    const t0 = Date.now();
+    const ok = (await chat('sim')).json();
+    expect(Date.now() - t0).toBeLessThan(5_000);
+    expect(ok.messages.at(-1).text).toMatch(/^Feito\./);
+  });
 });
+

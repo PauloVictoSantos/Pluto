@@ -46,6 +46,18 @@ describe('env', () => {
 describe('app', () => {
   const env = loadEnv(baseEnv);
 
+  it('GET /v1/health/live responde sem tocar no banco', async () => {
+    const app = await buildApp({
+      env,
+      pingDb: async () => {
+        throw new Error('banco nao deveria ser consultado');
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/v1/health/live' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: 'ok' });
+  });
+
   it('GET /v1/health reporta o banco', async () => {
     const app = await buildApp({ env, pingDb: async () => false });
     const res = await app.inject({ method: 'GET', url: '/v1/health' });

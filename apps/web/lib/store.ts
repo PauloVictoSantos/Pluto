@@ -2,7 +2,7 @@
 
 import type { Me } from '@pluto/shared';
 import { useSyncExternalStore } from 'react';
-import { api, refreshSession, setOnSessionLost } from './api';
+import { api, ApiRequestError, OFFLINE, refreshSession, setOnConnecting, setOnSessionLost } from './api';
 import { setValuesHidden } from './format';
 import { quietEnter } from './motion';
 import { queryClient } from './query-client';
@@ -24,9 +24,11 @@ interface AppState {
   booting: boolean;
   user: User | null;
   loginMsg: LoginMsg | null;
+  /** Servidor acordando ou conexao instavel: mostra "Preparando o Pluto...". */
+  connecting: boolean;
 }
 
-const initial: AppState = { hydrated: false, theme: 'light', hideValues: false, session: false, booting: false, user: null, loginMsg: null };
+const initial: AppState = { hydrated: false, theme: 'light', hideValues: false, session: false, booting: false, user: null, loginMsg: null, connecting: false };
 
 let state = initial;
 const subs = new Set<() => void>();
@@ -69,6 +71,22 @@ setOnSessionLost(() => {
   if (state.session) set({ session: false, user: null, loginMsg: { kind: 'info', text: 'Sua sessão expirou. Entre novamente.' } });
 });
 
+setOnConnecting((connecting) => set({ connecting }));
+
+/** Ao abrir: o servidor pode estar dormindo. Se demorar, mostra "Preparando o Pluto..." enquanto acorda. */
+async function wakeServer() {
+  const slow = setTimeout(() => set({ connecting: true }), 1_200);
+  try {
+    await api.wake();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(slow);
+    set({ connecting: false });
+  }
+}
+
 let hydrating: Promise<void> | null = null;
 /** Restaura tema e sessao. A sessao vem do cookie HttpOnly: nada de token no navegador. */
 export function hydrate() {
@@ -81,8 +99,14 @@ export function hydrate() {
     for (const k of ['pluto-session', 'pluto-user', 'pluto-plan', 'pluto-page']) write(k, null);
 
     let user: User | null = null;
-    if (await refreshSession()) user = await api.me().catch(() => null);
-    set({ hydrated: true, theme, hideValues, session: !!user, user });
+    let loginMsg: LoginMsg | null = null;
+    try {
+      if (!(await wakeServer())) throw new ApiRequestError(0, OFFLINE, '');
+      if (await refreshSession()) user = await api.me();
+    } catch (e) {
+      if (e instanceof ApiRequestError && e.code === OFFLINE) loginMsg = { kind: 'error', text: 'Não conseguimos falar com o Pluto agora. Confira sua internet e tente de novo.' };
+    }
+    set({ hydrated: true, theme, hideValues, session: !!user, user, ...(loginMsg ? { loginMsg } : {}) });
   })();
   return hydrating;
 }

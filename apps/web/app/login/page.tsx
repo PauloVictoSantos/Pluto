@@ -61,7 +61,7 @@ export default function LoginPage() {
     setMood('no');
     timers.current.push(setTimeout(() => setMood(''), 1600));
   };
-  const errorText = (e: unknown) => (e instanceof ApiRequestError ? e.message : 'Não foi possível falar com o servidor. A API está rodando?');
+  const errorText = (e: unknown) => (e instanceof ApiRequestError ? e.message : 'Não conseguimos entrar agora. Tente de novo em instantes.');
 
   const enterApp = async () => {
     setMood('happy');

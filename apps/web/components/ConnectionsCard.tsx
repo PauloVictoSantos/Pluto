@@ -41,7 +41,7 @@ export function ConnectionsCard() {
   const refreshAll = () => qc.invalidateQueries();
   const fail = (e: unknown) => {
     if (e instanceof ApiRequestError && e.code === 'REAUTH_CANCELLED') return;
-    setMsg({ kind: 'error', text: e instanceof ApiRequestError ? e.message : 'Não foi possível falar com o servidor.' });
+    setMsg({ kind: 'error', text: e instanceof ApiRequestError ? e.message : 'Não conseguimos falar com o Pluto agora. Tente de novo em instantes.' });
   };
 
   const importMut = useMutation({

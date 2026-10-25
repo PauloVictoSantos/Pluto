@@ -17,6 +17,8 @@ export { sanitizeReply } from './guard';
 // numeros conferidos). O estado da sessao fica criptografado no banco.
 
 const MAX_ROUNDS = 5;
+/** O site espera ate 60 s; depois disso a resposta sai sem novas rodadas do modelo. */
+const TIME_BUDGET_MS = 45_000;
 const MAX_CONTENTS = 40;
 /** Orcamento de contexto por sessao (~12 mil tokens). */
 const MAX_CONTEXT_CHARS = 48_000;
@@ -32,7 +34,8 @@ interface Pending {
 }
 interface SessionState {
   contents: LlmContent[];
-  transcript: { role: 'user' | 'plutao'; text: string; at: string }[];
+  /** id: clientId da mensagem do usuario (reenvio nao duplica). */
+  transcript: { role: 'user' | 'plutao'; text: string; at: string; id?: string }[];
   refs: Refs;
   pending: Pending | null;
 }
@@ -117,8 +120,33 @@ async function runWrite(ctx: AppContext, userId: ObjectId, state: SessionState, 
   }
 }
 
-export async function sendMessage(ctx: AppContext, userId: ObjectId, message: string, ip: string | null): Promise<AgentChatState> {
+// Mensagens em andamento por usuario: o reenvio da mesma mensagem espera a primeira (um so processo).
+const inflight = new Map<string, { clientId: string; done: Promise<AgentChatState> }>();
+
+/**
+ * Reenvio seguro: com o mesmo clientId, a mensagem e processada uma vez so. Se ainda estiver em
+ * andamento, espera; se ja foi respondida, devolve a conversa.
+ */
+export async function sendMessage(ctx: AppContext, userId: ObjectId, message: string, ip: string | null, clientId?: string): Promise<AgentChatState> {
+  if (!clientId) return processMessage(ctx, userId, message, ip);
+  const key = userId.toHexString();
+  const running = inflight.get(key);
+  if (running?.clientId === clientId) return running.done;
+  // Registrado antes de qualquer await: uma copia simultanea ja encontra esta em andamento.
+  const done = (async () => {
+    const { state } = await load(ctx, userId);
+    if (state.transcript.some((t) => t.id === clientId)) return chatState(ctx, userId);
+    return processMessage(ctx, userId, message, ip, clientId);
+  })().finally(() => {
+    if (inflight.get(key)?.done === done) inflight.delete(key);
+  });
+  inflight.set(key, { clientId, done });
+  return done;
+}
+
+async function processMessage(ctx: AppContext, userId: ObjectId, message: string, ip: string | null, clientId?: string): Promise<AgentChatState> {
   const now = new Date();
+  const deadline = now.getTime() + TIME_BUDGET_MS;
   const ai = await aiStatus(ctx, userId);
   // LGPD: sem consentimento explicito, nada vai para o provedor de IA.
   if (!ai.consent) throw new AppError(403, 'AI_CONSENT_REQUIRED', 'Para conversar com o Plutão, autorize o uso de IA.');
@@ -127,7 +155,7 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
   const at = () => new Date().toISOString();
   // Guardrail de entrada: PII mascarada antes de ir ao modelo e ao historico (8.3).
   const input = classifyInput(message);
-  state.transcript.push({ role: 'user', text: input.text, at: at() });
+  state.transcript.push({ role: 'user', text: input.text, at: at(), ...(clientId ? { id: clientId } : {}) });
   const reply = async (text: string) => {
     const clean = sanitizeReply(text);
     state.transcript.push({ role: 'plutao', text: clean, at: at() });
@@ -170,6 +198,7 @@ export async function sendMessage(ctx: AppContext, userId: ObjectId, message: st
   let checked = false;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    if (round > 0 && Date.now() > deadline) break;
     let parts: LlmPart[];
     try {
       parts = await ctx.llm!.chat!({ system: SYSTEM_PROMPT, contents: state.contents, tools: toolDeclarations() });

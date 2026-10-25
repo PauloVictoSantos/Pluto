@@ -11,6 +11,9 @@ export interface Database {
 export async function connectDatabase(uri: string, dbName: string): Promise<Database> {
   const client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 5_000,
+    // Um cliente so para a API inteira (pool reaproveitado); uma conexao fica sempre aberta.
+    maxPoolSize: 20,
+    minPoolSize: 1,
     appName: 'pluto-api',
   });
   await client.connect();

@@ -8,6 +8,9 @@ vi.mock('./api', () => ({
   },
   refreshSession: vi.fn(async () => false),
   setOnSessionLost: vi.fn(),
+  setOnConnecting: vi.fn(),
+  ApiRequestError: class extends Error {},
+  OFFLINE: 'NETWORK',
 }));
 
 const { queryClient } = await import('./query-client');

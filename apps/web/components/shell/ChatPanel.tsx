@@ -33,7 +33,8 @@ export function ChatPanel({ open, onClose, fullWidth }: { open: boolean; onClose
     for (const k of ['fixed-expenses', 'goals', 'goals-plan', 'goal-drafts', 'agent-limit', 'loans', 'analytics']) void qc.invalidateQueries({ queryKey: [k] });
   };
   const send = useMutation({
-    mutationFn: (text: string) => api.sendAgentMessage(text),
+    // Id por mensagem: as novas tentativas automaticas reenviam a mesma, sem duplicar.
+    mutationFn: (text: string) => api.sendAgentMessage(text, crypto.randomUUID()),
     onSuccess: apply,
     onError: (e) => {
       setSent(null);

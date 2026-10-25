@@ -3,7 +3,11 @@ import { z } from 'zod';
 // Chat com o Plutao (doc. Pluton 7). A escrita so acontece depois de um "sim" explicito: enquanto
 // isso, a acao fica pendente e a tela mostra os botoes Sim / Nao.
 
-export const AgentChatRequestSchema = z.object({ message: z.string().trim().min(1).max(1000) });
+export const AgentChatRequestSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+  /** Id gerado no navegador: o reenvio automatico da mesma mensagem nao vira mensagem duplicada. */
+  clientId: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
+});
 
 export const AgentMessageSchema = z.object({
   role: z.enum(['user', 'plutao']),

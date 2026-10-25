@@ -92,29 +92,77 @@ let onSessionLost: () => void = () => {};
 /** Chamado quando a sessao nao pode mais ser renovada (o app volta para o login). */
 export const setOnSessionLost = (fn: () => void) => void (onSessionLost = fn);
 
-async function raw(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  if (accessToken) headers.set('authorization', `Bearer ${accessToken}`);
-  return fetch(`${BASE_URL}${path}`, { ...init, headers, credentials: 'include' });
+/** Opcoes extras: retry (padrao so em GET), timeout (60 s) e quiet (nao mostra "Preparando o Pluto..."). */
+export type RequestOpts = RequestInit & { retry?: boolean; timeoutMs?: number; quiet?: boolean };
+
+/**
+ * Esperas entre tentativas quando a conexao falha ou o servidor ainda esta acordando
+ * (doc. Melhorias, passo 2): 3 novas tentativas antes de mostrar qualquer aviso.
+ */
+export const RETRY_DELAYS = [1_000, 3_000, 6_000];
+let sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** So para testes. */
+export const setSleep = (fn: typeof sleep) => void (sleep = fn);
+
+// Requisicoes em nova tentativa: o app mostra "Preparando o Pluto..." enquanto houver alguma.
+let retrying = 0;
+let onConnecting: (on: boolean) => void = () => {};
+export const setOnConnecting = (fn: (on: boolean) => void) => void (onConnecting = fn);
+
+export const OFFLINE = 'NETWORK';
+const offline = () => new ApiRequestError(0, OFFLINE, 'Não conseguimos falar com o Pluto agora. Confira sua internet e tente de novo.');
+
+/** Resposta de gateway (Render acordando, proxy sem a API): sem o JSON de erro da propria API. */
+const isGatewayError = (res: Response) => [502, 503, 504].includes(res.status) && !res.headers.get('content-type')?.includes('application/json');
+
+async function raw(path: string, init: RequestOpts = {}): Promise<Response> {
+  const { retry = !init.method || init.method === 'GET', timeoutMs = 60_000, quiet = false, ...req } = init;
+  const headers = new Headers(req.headers);
+  if (req.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  let counted = false;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      // O token pode ter sido renovado durante a espera.
+      if (accessToken) headers.set('authorization', `Bearer ${accessToken}`);
+      try {
+        const res = await fetch(`${BASE_URL}${path}`, { ...req, headers, credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
+        if (!retry || attempt >= RETRY_DELAYS.length || !isGatewayError(res)) return res;
+      } catch {
+        if (!retry || attempt >= RETRY_DELAYS.length) throw offline();
+      }
+      if (!quiet && !counted) {
+        counted = true;
+        if (retrying++ === 0) onConnecting(true);
+      }
+      await sleep(RETRY_DELAYS[attempt]!);
+    }
+  } finally {
+    if (counted && --retrying === 0) onConnecting(false);
+  }
 }
 
 async function toError(res: Response): Promise<ApiRequestError> {
   const body = (await res.json().catch(() => null)) as ApiError | null;
-  return new ApiRequestError(res.status, body?.error.code ?? 'UNKNOWN', body?.error.message ?? 'Não foi possível falar com o servidor');
+  if (!body?.error) return offline();
+  return new ApiRequestError(res.status, body.error.code, body.error.message);
 }
 
 // Uma unica renovacao por vez: varias requisicoes com 401 esperam a mesma.
 let refreshing: Promise<boolean> | null = null;
+/**
+ * true: sessao renovada; false: sem sessao (cookie ausente ou expirado).
+ * Sem conexao lanca ApiRequestError(OFFLINE): falta de rede nao e motivo para deslogar.
+ */
 export function refreshSession(): Promise<boolean> {
   refreshing ??= (async () => {
     try {
-      const res = await raw('/auth/refresh', { method: 'POST' });
-      if (!res.ok) return false;
+      const res = await raw('/auth/refresh', { method: 'POST', retry: true });
+      if (!res.ok) {
+        if (isGatewayError(res)) throw offline();
+        return false;
+      }
       setAccessToken(TokensSchema.parse(await res.json()).accessToken);
       return true;
-    } catch {
-      return false;
     } finally {
       setTimeout(() => (refreshing = null), 0);
     }
@@ -122,7 +170,7 @@ export function refreshSession(): Promise<boolean> {
   return refreshing;
 }
 
-export async function request<T>(path: string, init: RequestInit = {}, schema?: z.ZodType<T>): Promise<T> {
+export async function request<T>(path: string, init: RequestOpts = {}, schema?: z.ZodType<T>): Promise<T> {
   let res = await raw(path, init);
   // Access token expirado (15 min): renova pelo cookie e tenta de novo uma vez.
   if (res.status === 401 && !path.startsWith('/auth/')) {
@@ -141,12 +189,16 @@ export async function request<T>(path: string, init: RequestInit = {}, schema?: 
   return schema ? schema.parse(json) : (json as T);
 }
 
-const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
+const post = (body?: unknown, opts: RequestOpts = {}): RequestOpts => ({ ...opts, method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
+/** POST sem efeito colateral repetivel (login, desafio de passkey): pode tentar de novo. */
+const postRetry = (body?: unknown) => post(body, { retry: true });
 
 export const api = {
   health: () => request('/health', {}, HealthSchema),
+  /** Leve (sem banco): acorda o servidor ao abrir o app. */
+  wake: () => request('/health/live', { timeoutMs: 90_000 }, z.object({ status: z.literal('ok') })),
 
-  login: (cpf: string, password: string) => request('/auth/login', post({ cpf, password }), MfaChallengeSchema),
+  login: (cpf: string, password: string) => request('/auth/login', postRetry({ cpf, password }), MfaChallengeSchema),
   async verifyMfa(mfaToken: string, code: string, remember: boolean) {
     const t = await request('/auth/2fa/verify', post({ mfaToken, code, remember }), TokensSchema);
     setAccessToken(t.accessToken);
@@ -182,7 +234,7 @@ export const api = {
   passkeyRegister: (challengeId: string, response: unknown, name?: string) =>
     request('/auth/passkeys/register/verify', post({ challengeId, response, name }), PasskeySchema),
   removePasskey: (id: string) => request<void>(`/auth/passkeys/${id}`, { method: 'DELETE' }),
-  passkeyLoginOptions: () => request('/auth/passkeys/login/options', post(), PasskeyOptionsSchema),
+  passkeyLoginOptions: () => request('/auth/passkeys/login/options', postRetry(), PasskeyOptionsSchema),
   async passkeyLogin(challengeId: string, response: unknown, remember: boolean) {
     const t = await request('/auth/passkeys/login/verify', post({ challengeId, response, remember }), TokensSchema);
     setAccessToken(t.accessToken);
@@ -316,7 +368,8 @@ export const api = {
   contestations: () => request('/agent/contestations', {}, ContestationsSchema),
   contest: (subject: string, text: string) => request('/agent/contestations', post({ subject, text }), ContestationsSchema),
   agentChat: () => request('/agent/chat', {}, AgentChatStateSchema),
-  sendAgentMessage: (message: string) => request('/agent/chat', post({ message }), AgentChatStateSchema),
+  /** clientId repetido no reenvio: o servidor nao duplica a mensagem. Sem tela de "Preparando": o chat mostra o proprio aviso. */
+  sendAgentMessage: (message: string, clientId: string) => request('/agent/chat', post({ message, clientId }, { retry: true, quiet: true }), AgentChatStateSchema),
   resetAgentChat: () => request('/agent/chat/reset', post(), AgentChatStateSchema),
   transactionSummary: (from: Date, to?: Date) =>
     request(`/transactions/summary?from=${from.toISOString()}${to ? `&to=${to.toISOString()}` : ''}`, {}, TransactionSummarySchema),
