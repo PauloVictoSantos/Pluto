@@ -8,7 +8,6 @@ import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { Icon } from '@/components/ui/Icon';
 import { ApiRequestError, api } from '@/lib/api';
 import { play } from '@/lib/motion';
-import { isNative } from '@/lib/native/platform';
 import { loginWithPasskey, passkeyCancelled, passkeySupported } from '@/lib/passkey';
 import { completeLogin, consumeLoginMsg, useApp, type LoginMsg } from '@/lib/store';
 import { useHydrated, useMode } from '@/lib/viewport';
@@ -19,7 +18,6 @@ export default function LoginPage() {
   const isMobile = useMode() === 'mobile';
   const hydrated = useApp((s) => s.hydrated);
   const session = useApp((s) => s.session);
-  const native = useHydrated() && isNative();
 
   const [step, setStep] = useState<'password' | 'code'>('password');
   const [cpf, setCpf] = useState('');
@@ -250,7 +248,7 @@ export default function LoginPage() {
           )}
 
           {/* Passkey: digital, Face ID ou Windows Hello. Cadastre em Configuracoes depois de entrar. */}
-          {canPasskey && !native && step === 'password' && (
+          {canPasskey && step === 'password' && (
             <>
               <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />

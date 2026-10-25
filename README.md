@@ -1,6 +1,6 @@
 # Pluto
 
-Aplicativo de financas pessoais: web (Next.js) + iOS/Android (Capacitor) + API (Fastify) + MongoDB.
+Aplicativo de financas pessoais: web responsivo (Next.js; celular, tablet e desktop) + API (Fastify) + MongoDB.
 Especificacao completa em `Pluto_Documentacao_de_Software.pdf` (v1.0).
 
 ## Estrutura
@@ -8,7 +8,7 @@ Especificacao completa em `Pluto_Documentacao_de_Software.pdf` (v1.0).
 ```
 apps/
   api/                 Fastify + TypeScript (monolito modular)
-  web/                 Next.js (App Router) + Capacitor
+  web/                 Next.js (App Router), responsivo
 packages/
   shared/              tipos, schemas Zod, constantes
   finance-engine/      funcoes financeiras puras (VP, taxa implicita, score...)
@@ -21,7 +21,6 @@ infra/                 docker-compose do MongoDB
 - MongoDB: Atlas (em uso) ou local/Docker (`pnpm db:up`)
 - Conta no Pluggy (Client ID/Secret) e bancos conectados no Meu Pluggy
 - App autenticador no celular (Google Authenticator, Microsoft Authenticator, 1Password...)
-- Mobile: Android Studio (Android) / Mac com Xcode (iOS)
 
 ## Primeira configuracao
 
@@ -56,15 +55,4 @@ O site chama `/v1` na propria origem e o Next repassa para a API, entao use `htt
 | `pnpm test` / `pnpm test:coverage` | Vitest (motor financeiro exige 90% de cobertura) |
 | `pnpm typecheck` / `pnpm lint` | TypeScript strict e ESLint |
 | `pnpm build` | Build de todos os pacotes |
-| `pnpm build:mobile` | Export estatico do Next + `cap sync` |
 | `pnpm --filter @pluto/api db:indexes` | Cria os indices da secao 4.4 |
-
-## Mobile (secao 8)
-
-```bash
-cd apps/web
-npx cap add android     # uma vez
-npx cap add ios         # uma vez, somente no Mac
-pnpm build:mobile
-pnpm cap:android        # ou pnpm cap:ios
-```

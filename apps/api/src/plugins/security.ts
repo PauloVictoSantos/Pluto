@@ -22,7 +22,7 @@ export async function registerSecurity(app: FastifyInstance, env: Env) {
     allowedHeaders: ['content-type', 'authorization', 'x-pluto-client'],
   });
 
-  // Dados financeiros nao ficam em cache (navegador, proxy ou o app mobile; guia mobile, secao 7).
+  // Dados financeiros nao ficam em cache (navegador ou proxy).
   app.addHook('onSend', async (_req, reply, payload) => {
     if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
     return payload;

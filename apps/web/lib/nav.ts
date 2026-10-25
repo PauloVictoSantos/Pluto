@@ -3,7 +3,6 @@ export type PageId =
   | 'bills' | 'fixed' | 'goals' | 'cards' | 'settings' | 'help' | 'list';
 export type NavId = PageId | 'logout' | 'more';
 
-// Rotas estaticas (sem segmentos dinamicos) para funcionar no export do Capacitor (secao 3.6).
 export const ROUTES: Record<PageId, string> = {
   overview: '/',
   tx: '/transacoes',

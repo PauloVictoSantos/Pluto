@@ -15,8 +15,6 @@ coverage/
 !.env.example
 *.pem
 *.key
-google-services.json
-GoogleService-Info.plist
 *.keystore
 *.jks
 
@@ -24,15 +22,6 @@ GoogleService-Info.plist
 infra/backups/
 *.archive
 *.gz.enc
-
-# capacitor / nativo
-apps/web/ios/App/Pods/
-apps/web/ios/App/App/public/
-apps/web/android/app/src/main/assets/public/
-apps/web/android/.gradle/
-apps/web/android/build/
-apps/web/android/app/build/
-apps/web/android/local.properties
 
 # sistema / editores
 .DS_Store
@@ -43,5 +32,3 @@ Thumbs.db
 !.vscode/settings.json
 .idea/
 
-# Expo (gerado ao rodar comandos do Expo)
-.expo/

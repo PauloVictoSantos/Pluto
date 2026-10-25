@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Pluto - aplicativo de financas pessoais (web + iOS + Android)",
+  "description": "Pluto - aplicativo de financas pessoais (web responsivo)",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=22"
@@ -12,9 +12,7 @@
     "dev": "pnpm --parallel --filter @pluto/api --filter @pluto/web dev",
     "dev:api": "pnpm --filter @pluto/api dev",
     "dev:web": "pnpm --filter @pluto/web dev",
-    "dev:mobile": "pnpm --filter @pluto/mobile start",
     "build": "pnpm -r build",
-    "build:mobile": "pnpm --filter @pluto/web build:mobile",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",

@@ -9,8 +9,6 @@ export default defineConfig({
         test: { name: 'api', root: 'apps/api', include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'], environment: 'node', testTimeout: 20_000 },
       },
       { test: { name: 'web', root: 'apps/web', include: ['lib/**/*.test.ts'], environment: 'node' } },
-      // App: so o que nao depende do React Native (cliente da API, formatacao).
-      { test: { name: 'mobile', root: 'apps/mobile', include: ['src/api/**/*.test.ts', 'src/auth/**/*.test.ts', 'src/lib/**/*.test.ts'], environment: 'node' } },
     ],
     coverage: {
       provider: 'v8',

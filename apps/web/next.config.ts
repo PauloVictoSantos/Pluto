@@ -10,9 +10,6 @@ const localLogos = ['icon', 'logos'].flatMap((dir) => {
   return existsSync(full) ? readdirSync(full).filter((f) => /^[a-z0-9-]+\.(svg|png|webp|jpe?g)$/i.test(f)).map((f) => `${dir}/${f}`) : [];
 });
 
-// Secao 3.6: mobile usa build estatico exportado para o Capacitor.
-const isMobile = process.env.BUILD_TARGET === 'mobile';
-
 // Secao 6.7. O site so carrega recursos proprios (fontes via next/font, logos em /public, API em /v1).
 // 'unsafe-inline' em script-src: as paginas sao estaticas e o Next injeta scripts inline sem nonce;
 // ainda assim nenhum script de outro dominio roda. Em dev o Next precisa de eval (HMR).
@@ -38,25 +35,17 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
 ];
 
-// Web: o navegador chama /v1 no proprio site e o Next repassa para a API. Mesma origem,
-// entao o cookie do refresh (SameSite=Strict) funciona sem CORS. O app mobile chama a API direto.
+// O navegador chama /v1 no proprio site e o Next repassa para a API. Mesma origem,
+// entao o cookie do refresh (SameSite=Strict) funciona sem CORS.
 const API_TARGET = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:3333';
 
 const config: NextConfig = {
-  output: isMobile ? 'export' : undefined,
-  images: { unoptimized: isMobile },
-  trailingSlash: isMobile,
   reactStrictMode: true,
   poweredByHeader: false,
   env: { NEXT_PUBLIC_LOCAL_LOGOS: localLogos.join(',') },
   transpilePackages: ['@pluto/shared', '@pluto/finance-engine'],
-  // headers() nao se aplica ao export estatico.
-  ...(isMobile
-    ? {}
-    : {
-        headers: async () => [{ source: '/:path*', headers: securityHeaders }],
-        rewrites: async () => [{ source: '/v1/:path*', destination: `${API_TARGET}/v1/:path*` }],
-      }),
+  headers: async () => [{ source: '/:path*', headers: securityHeaders }],
+  rewrites: async () => [{ source: '/v1/:path*', destination: `${API_TARGET}/v1/:path*` }],
 };
 
 export default config;

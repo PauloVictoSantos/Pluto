@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startHarness, type Harness } from '../test/harness';
 
-// Cabecalhos de seguranca que o app mobile e o site dependem.
+// Cabecalhos de seguranca de que o site depende.
 
 let h: Harness;
 beforeAll(async () => {
