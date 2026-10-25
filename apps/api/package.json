@@ -24,7 +24,7 @@
     "@pluto/finance-engine": "workspace:^",
     "@pluto/shared": "workspace:^",
     "@sentry/node": "11.5.0",
-    "@simplewebauthn/server": "^13",
+    "@simplewebauthn/server": "^14",
     "fastify": "^5.12.7",
     "fastify-type-provider-zod": "^7.0.0",
     "jose": "^6.2.12",
