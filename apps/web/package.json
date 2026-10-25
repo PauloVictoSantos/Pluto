@@ -13,7 +13,7 @@
   "dependencies": {
     "@pluto/finance-engine": "workspace:^",
     "@pluto/shared": "workspace:^",
-    "@simplewebauthn/browser": "^13",
+    "@simplewebauthn/browser": "^14",
     "@tanstack/react-query": "^5.104.4",
     "motion": "^14.3.0",
     "next": "^16.4.2",
