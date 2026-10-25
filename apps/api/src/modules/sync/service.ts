@@ -5,9 +5,10 @@ import type { Llm } from '../../integrations/llm/gemini';
 import type { FieldCrypto } from '../../lib/crypto';
 import type { PluggyGateway } from '../../integrations/pluggy/gateway';
 import { USER_SOURCES, applyUserRules } from '../categories/rules';
-import { counterpartyRef, institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
+import { counterpartyKindOf, counterpartyRef, institutionFromAccounts, mapAccount, mapBill, mapInvestment, mapItem, mapTransaction } from '../../integrations/pluggy/mappers';
 import { autoCategorize } from '../analytics/categorizer';
 import { groupMerchants } from '../merchants/service';
+import { classifyUncertain } from '../categories/classify';
 import { dedupPending, refreshRecurrences } from '../analytics/service';
 
 export interface SyncDeps {
@@ -129,6 +130,11 @@ export async function syncConnection(deps: SyncDeps, connectionId: ObjectId, opt
     deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha no agrupamento de estabelecimentos'),
   );
 
+  // O que o Pix pagou (doc. Melhorias, passo 8): palavras do texto, IA so para empresa e com consentimento.
+  await classifyUncertain({ col, llm: deps.llm ?? null }, conn.userId, now).catch((e) =>
+    deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha na classificação em camadas'),
+  );
+
   // Series recorrentes do usuario: falha aqui nao invalida a sincronizacao.
   await refreshRecurrences(col, conn.userId, now).catch((e) =>
     deps.log?.warn({ connectionId: String(connectionId), err: errMsg(e) }, 'falha ao detectar recorrências'),
@@ -158,13 +164,14 @@ async function syncTransactions(deps: SyncDeps, conn: ConnectionDoc, acc: Accoun
       // RN-D02: so o hash do destinatario e guardado; o CPF/CNPJ e a conta nunca.
       const ref = counterpartyRef(t);
       const counterpartyKey = ref ? `cp:${crypto.hash(ref)}` : null;
+      const counterpartyKind = counterpartyKindOf(ref);
       return [
         {
           updateOne: {
             filter,
             update: {
               // Campos do Pluggy: sempre atualizados (RN-02).
-              $set: { ...owned, counterpartyKey, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
+              $set: { ...owned, counterpartyKey, counterpartyKind, userId: conn.userId, accountId: acc._id, deletedAt: null, updatedAt: now },
               // Campos derivados ou editaveis pelo usuario: so na criacao.
               $setOnInsert: {
                 type, categoryKey, categoryId: null, categorySource: null, categoryConfidence: null, invoiceId: null,
@@ -175,7 +182,8 @@ async function syncTransactions(deps: SyncDeps, conn: ConnectionDoc, acc: Accoun
           },
         },
         // Categoria derivada do Pluggy acompanha mudancas do provedor; a escolhida pelo usuario nunca (RN-12).
-        { updateOne: { filter: { ...filter, categorySource: { $nin: [...USER_SOURCES] } }, update: { $set: { categoryKey } } } },
+        // Classificacao em camadas (palavras/IA) tambem fica: so o que veio do Pluggy acompanha o provedor.
+        { updateOne: { filter: { ...filter, categorySource: { $nin: [...USER_SOURCES, 'KEYWORD', 'LLM'] } }, update: { $set: { categoryKey } } } },
       ];
     });
     // Sem ordem: se a 2a operacao rodar antes do insert, o $setOnInsert ja grava a categoria.

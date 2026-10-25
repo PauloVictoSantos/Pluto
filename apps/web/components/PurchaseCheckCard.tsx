@@ -173,7 +173,7 @@ export function PurchaseCheckCard() {
 
       {form && <PurchaseForm onClose={() => setForm(false)} onResult={(e) => (setForm(false), done(e))} />}
       {shown && !form && (
-        <Sheet onClose={() => setShown(null)} label="Veredito da compra" width={460}>
+        <Sheet onClose={() => setShown(null)} label="Veredito da compra" width={460} closeButton>
           {result(shown)}
           {error && <div className="text-[13px] text-danger-text">{error}</div>}
         </Sheet>
@@ -220,6 +220,7 @@ function PurchaseForm({ onClose, onResult }: { onClose: () => void; onResult: (e
     <Sheet
       onClose={onClose}
       label="Avaliar compra"
+      closeButton
       width={480}
       top="10vh"
       onSubmit={(e) => {

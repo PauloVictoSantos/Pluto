@@ -1,6 +1,6 @@
 'use client';
 
-import { categoryOf, type MerchantBrand, type Transaction } from '@pluto/shared';
+import { TX_PAYMENT_LABEL, TX_PAYMENT_METHODS, categoryOf, type MerchantBrand, type Transaction, type TxPaymentMethod } from '@pluto/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
@@ -363,12 +363,14 @@ export function LiveTransactionList({
   const q = useDebounced(query.trim());
   const [openId, setOpenId] = useState<string | null>(null);
   const [catId, setCatId] = useState<string | null>(null);
+  // Pix e filtro/detalhe, nunca categoria (doc. Melhorias, passo 8).
+  const [method, setMethod] = useState<TxPaymentMethod | null>(null);
 
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: api.accounts });
   const tx = useInfiniteQuery({
-    queryKey: ['transactions', { q, limit, accountId }],
+    queryKey: ['transactions', { q, limit, accountId, method }],
     queryFn: ({ pageParam }) =>
-      api.transactions({ q: q || undefined, cursor: pageParam, limit: limit || 50, accountId }),
+      api.transactions({ q: q || undefined, cursor: pageParam, limit: limit || 50, accountId, paymentMethod: method ?? undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => (limit ? undefined : (last.nextCursor ?? undefined)),
   });
@@ -397,7 +399,7 @@ export function LiveTransactionList({
       brand: m.brand,
       categoryKey: t.categoryKey,
       category: cat.label,
-      subline: [account, t.installment ? `Parcela ${t.installment.n}/${t.installment.total}` : null, cat.label].filter(Boolean).join(' · '),
+      subline: [account, t.paymentMethod ? TX_PAYMENT_LABEL[t.paymentMethod] : null, t.installment ? `Parcela ${t.installment.n}/${t.installment.total}` : null, cat.label].filter(Boolean).join(' · '),
       totalText: t.installment ? `de ${fmt(Math.abs(t.amountMinor * t.installment.total) / 100)}` : null,
       ...amount(t.amountMinor / 100, t.amountMinor > 0),
       // Pagamento de fatura em verde: dinheiro saindo para quitar, nao gasto novo.
@@ -410,6 +412,7 @@ export function LiveTransactionList({
         ...(t.recurring ? ['Recorrente'] : []),
         ...(t.outlier ? ['Fora do normal'] : []),
         ...(t.tags.includes('dividido') ? [t.categoryKey === 'pago-dividido' ? 'Dividido entre compras' : 'Parte de pagamento'] : []),
+        ...(t.needsReview ? ['Revisar categoria'] : []),
         ...(t.suggestion ? [`Sugestão: ${categoryOf(t.suggestion.categoryKey).label}`] : []),
       ],
       dayKey: day,
@@ -471,6 +474,21 @@ export function LiveTransactionList({
   const catTx = catId ? items.find((t) => t.id === catId) : undefined;
   return (
     <>
+      {controls && (
+        <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto" role="group" aria-label="Forma de pagamento">
+          {[null, ...TX_PAYMENT_METHODS].map((m) => (
+            <button
+              key={m ?? 'todas'}
+              onClick={() => setMethod(m)}
+              aria-pressed={method === m}
+              className="h-9 shrink-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium whitespace-nowrap"
+              style={method === m ? { background: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : { background: 'transparent', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+            >
+              {m ? TX_PAYMENT_LABEL[m] : 'Todas as formas'}
+            </button>
+          ))}
+        </div>
+      )}
       <TransactionListView
         mode={mode}
         onOpen={setOpenId}

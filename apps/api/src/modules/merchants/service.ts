@@ -15,7 +15,7 @@ import { categoryKeyForType } from '../../integrations/pluggy/mappers';
 
 const MAX_PER_CALL = 60;
 const SPEND = CATEGORIES.filter((c) => c.group === 'essential' || c.group === 'lifestyle');
-const NOT_MERCHANT = new Set(['pix-enviado', 'entre-contas', 'fatura', 'investimentos', 'pago-dividido']);
+const NOT_MERCHANT = new Set(['entre-contas', 'fatura', 'investimentos', 'pago-dividido']);
 
 /** Descricoes de estabelecimento do usuario (com quantas transacoes cada), sem Pix para pessoas. */
 async function merchantKeys(ctx: Pick<AppContext, 'col' | 'llm'>, userId: ObjectId): Promise<Map<string, number>> {

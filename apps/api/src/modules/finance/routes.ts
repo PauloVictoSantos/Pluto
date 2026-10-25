@@ -69,6 +69,8 @@ const toTransactionDTO = (t: TransactionDoc, recurring = new Set<string>(), outl
   hasCounterparty: !!t.counterpartyKey,
   outlier: outliers.get(t._id.toHexString()) ?? null,
   suggestion: t.aiSuggestion ?? null,
+  paymentMethod: t.paymentMethod ?? null,
+  needsReview: t.needsReview ?? false,
   merchantGroup: t.merchantGroupId ? (groups.get(t.merchantGroupId.toHexString())?.name ?? null) : null,
   nameOverride: t.merchantGroupId && groups.get(t.merchantGroupId.toHexString())?.user ? groups.get(t.merchantGroupId.toHexString())!.name : null,
 });
@@ -123,6 +125,9 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
     const filter: Filter<TransactionDoc> = { userId: userOf(req).id, deletedAt: null };
     if (q.accountId) filter.accountId = new ObjectId(q.accountId);
     if (q.categoryId) filter.categoryId = new ObjectId(q.categoryId);
+    // Pix como filtro, nunca como categoria (doc. Melhorias, passo 8).
+    if (q.paymentMethod) filter.paymentMethod = q.paymentMethod;
+    if (q.review) filter.needsReview = true;
     if (q.from || q.to) filter.date = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lte: q.to } : {}) };
     if (q.q) {
       const term = normalizeDescription(q.q);
@@ -202,7 +207,7 @@ export const financeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (
       const now = new Date();
       await ctx.col.transactions.updateOne(
         { _id: t._id, userId },
-        { $set: { categoryKey, categorySource: 'MANUAL', type: typeFor(categoryKey, t.amountMinor), aiSuggestion: null, updatedAt: now } },
+        { $set: { categoryKey, categorySource: 'MANUAL', type: typeFor(categoryKey, t.amountMinor), aiSuggestion: null, needsReview: false, updatedAt: now } },
       );
       let updated = 1, ruleId: string | null = null;
       if (applyToSimilar) {

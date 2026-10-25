@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CATEGORY_BY_KEY } from '../categories';
 import { CATEGORY_SOURCES, TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../constants';
+import { TX_PAYMENT_METHODS } from '../paymentMethods';
 
 // Secao 4.5 - schema compartilhado entre API e cliente.
 export const TransactionSchema = z.object({
@@ -39,6 +40,10 @@ export const TransactionSchema = z.object({
   nameOverride: z.string().nullable().default(null),
   /** Categoria sugerida pelo modelo (confianca 0,60-0,90): o usuario confirma (RN-D01). */
   suggestion: z.object({ categoryKey: z.string(), p: z.number() }).nullable().default(null),
+  /** Forma de pagamento (Pix, debito...): detalhe/filtro, nunca categoria (doc. Melhorias, passo 8). */
+  paymentMethod: z.enum(TX_PAYMENT_METHODS).nullable().default(null),
+  /** Categoria incerta (< 70%): aparece em "Revisar" para o usuario confirmar com um toque. */
+  needsReview: z.boolean().default(false),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
 
@@ -67,6 +72,9 @@ export const TransactionQuerySchema = z.object({
   accountId: z.string().regex(/^[a-f0-9]{24}$/).optional(),
   categoryId: z.string().regex(/^[a-f0-9]{24}$/).optional(),
   q: z.string().trim().min(1).max(80).optional(),
+  paymentMethod: z.enum(TX_PAYMENT_METHODS).optional(),
+  /** So as que precisam de revisao. */
+  review: z.enum(['1']).optional(),
   cursor: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });

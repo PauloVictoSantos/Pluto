@@ -342,7 +342,7 @@ export async function goalInsights(ctx: AppContext, userId: ObjectId, now = new 
       { $sort: { total: 1 } },
     ])
     .toArray();
-  const cut = spend.find((s) => CATEGORY_BY_KEY[s._id]?.group === 'lifestyle' && !['outros', 'pix-enviado'].includes(s._id))?._id ?? null;
+  const cut = spend.find((s) => CATEGORY_BY_KEY[s._id]?.group === 'lifestyle' && s._id !== 'outros')?._id ?? null;
 
   return {
     months: surpluses.length,

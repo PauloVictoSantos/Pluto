@@ -15,7 +15,8 @@ export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 export const TRANSACTION_STATUSES = ['PENDING', 'POSTED'] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
-export const CATEGORY_SOURCES = ['RULE', 'PLUGGY', 'AI', 'MANUAL'] as const;
+/** KEYWORD: palavras do texto; LLM: IA (Pix a empresa, com consentimento). */
+export const CATEGORY_SOURCES = ['RULE', 'PLUGGY', 'AI', 'MANUAL', 'KEYWORD', 'LLM'] as const;
 export type CategorySource = (typeof CATEGORY_SOURCES)[number];
 
 // Espelha ItemStatus do pluggy-sdk 0.92.

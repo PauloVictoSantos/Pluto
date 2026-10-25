@@ -28,9 +28,9 @@ describe('categoryKeyFor', () => {
     ['Housing', -1, 'moradia'],
     ['Water', -1, 'contas-casa'],
     ['Pharmacy', -1, 'saude'],
-    ['Transfer - PIX', -1, 'pix-enviado'],
+    ['Transfer - PIX', -1, 'outros'], // Pix e forma de pagamento, nao categoria
     ['Transfer - PIX', 1, 'entradas'],
-    ['Transfer - Bank Slip', -1, 'pix-enviado'],
+    ['Transfer - Bank Slip', -1, 'outros'],
     ['Salary', 1, 'salario'],
     ['Proceeds interests and dividends', 1, 'rendimentos'],
     ['Government aid', 1, 'entradas'],

@@ -50,7 +50,7 @@ export async function applyRule(col: Collections, rule: Pick<CategoryRuleDoc, 'u
       categorySource: { $nin: [...USER_SOURCES] },
       deletedAt: null,
     },
-    [{ $set: { categoryKey: rule.categoryKey, categorySource: 'RULE', type: typeExpr(rule.categoryKey), updatedAt: '$$NOW' } }],
+    [{ $set: { categoryKey: rule.categoryKey, categorySource: 'RULE', type: typeExpr(rule.categoryKey), needsReview: false, updatedAt: '$$NOW' } }],
   );
   return r.modifiedCount;
 }

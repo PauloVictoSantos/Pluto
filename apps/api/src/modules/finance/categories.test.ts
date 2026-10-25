@@ -43,15 +43,16 @@ describe('categoria escolhida pelo usuario', () => {
   it('muda so a transacao e sobrevive a nova sincronizacao (RN-12)', async () => {
     await seed();
     const p1 = await txOf('p1');
-    expect(p1!.categoryKey).toBe('pix-enviado');
+    // Pix e forma de pagamento: "FACULDADE" no texto ja classifica como Educacao (doc. Melhorias, passo 8).
+    expect(p1).toMatchObject({ categoryKey: 'educacao', categorySource: 'KEYWORD', paymentMethod: 'pix' });
 
-    const res = await req('PATCH', `/v1/transactions/${p1!._id.toHexString()}/category`, { categoryKey: 'educacao' });
+    const res = await req('PATCH', `/v1/transactions/${p1!._id.toHexString()}/category`, { categoryKey: 'saude' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ updated: 1, ruleId: null });
 
     await sync();
-    expect(await txOf('p1')).toMatchObject({ categoryKey: 'educacao', categorySource: 'MANUAL', type: 'EXPENSE' });
-    expect((await txOf('p2'))!.categoryKey).toBe('pix-enviado');
+    expect(await txOf('p1')).toMatchObject({ categoryKey: 'saude', categorySource: 'MANUAL', type: 'EXPENSE' });
+    expect((await txOf('p2'))!.categoryKey).toBe('educacao');
   });
 
   it('regra aplica ao mesmo destinatario no mesmo sentido, inclusive em transacoes novas', async () => {
@@ -64,7 +65,7 @@ describe('categoria escolhida pelo usuario', () => {
     expect(res.updated).toBe(2);
     expect(await txOf('p2')).toMatchObject({ categoryKey: 'educacao', categorySource: 'RULE' });
     expect((await txOf('p3'))!.categoryKey).toBe('entradas'); // Pix recebido nao e mensalidade
-    expect((await txOf('p4'))!.categoryKey).toBe('pix-enviado');
+    expect(await txOf('p4')).toMatchObject({ categoryKey: 'outros', needsReview: true }); // Pix para pessoa: Revisar
 
     h.pluggy.transactions.get('acc-checking')!.push(fakeTx({ id: 'p5', description: 'PIX ENVIADO FACULDADE NORTE', category: 'Transfer - PIX', amount: 450 }));
     await sync();
@@ -76,7 +77,7 @@ describe('categoria escolhida pelo usuario', () => {
 
     // Remover a regra devolve a categoria do Pluggy, mas mantem a escolha manual
     expect((await req('DELETE', `/v1/category-rules/${rules[0].id}`)).statusCode).toBe(204);
-    expect(await txOf('p2')).toMatchObject({ categoryKey: 'pix-enviado', categorySource: null, type: 'EXPENSE' });
+    expect(await txOf('p2')).toMatchObject({ categoryKey: 'outros', categorySource: null, type: 'EXPENSE' });
     expect((await txOf('p1'))!.categoryKey).toBe('educacao');
   });
 

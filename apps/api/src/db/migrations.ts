@@ -1,5 +1,6 @@
 import type { Db } from 'mongodb';
 import { categoryKeyForType } from '../integrations/pluggy/mappers';
+import { paymentMethodOf } from '@pluto/shared';
 import { matchKeyOf } from '../lib/text';
 
 /**
@@ -42,7 +43,7 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
   //    regras mudam. Categoria definida pelo usuario (categorySource MANUAL/RULE) nunca e tocada (RN-12).
   const groups = await tx
     .aggregate<{ _id: { type: string; cat: string | null; sign: number }; keys: (string | null)[] }>([
-      { $match: { categorySource: { $nin: ['MANUAL', 'RULE'] } } },
+      { $match: { categorySource: { $nin: ['MANUAL', 'RULE', 'KEYWORD', 'LLM'] } } },
       {
         $group: {
           _id: { type: '$type', cat: '$pluggyCategory', sign: { $cond: [{ $gt: ['$amountMinor', 0] }, 1, -1] } },
@@ -58,7 +59,7 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
     const r = await write((o) =>
       tx.updateMany(
         {
-          categorySource: { $nin: ['MANUAL', 'RULE'] },
+          categorySource: { $nin: ['MANUAL', 'RULE', 'KEYWORD', 'LLM'] },
           type: _id.type,
           pluggyCategory: _id.cat,
           amountMinor: _id.sign > 0 ? { $gt: 0 } : { $lte: 0 },
@@ -105,4 +106,40 @@ export async function runMigrations(db: Db, log: (msg: string) => void = () => {
       .updateMany({ analyticsBackfillAt: { $exists: false }, removedAt: null }, { $set: { lastTransactionsSyncAt: null, analyticsBackfillAt: new Date() } }, o),
   );
   if (backfill.modifiedCount) log(`${backfill.modifiedCount} conexões vão reimportar o histórico (destinatário e parcelas)`);
+
+  // 6. Pix deixou de ser categoria (doc. Melhorias, passo 8): o que estava em "Pix e transferencias"
+  //    vai para Outros e passa pela classificacao em camadas na proxima sincronizacao (ou Revisar).
+  //    Regras e orcamentos para "Pix" nao fazem mais sentido e saem.
+  const pix = await write((o) =>
+    tx.updateMany({ categoryKey: 'pix-enviado' }, { $set: { categoryKey: 'outros', categorySource: null, categoryConfidence: null, classifiedAt: null, updatedAt: new Date() } }, o),
+  );
+  if (pix.modifiedCount) log(`${pix.modifiedCount} transações saíram da categoria Pix`);
+  await db.collection('category_rules').deleteMany({ categoryKey: 'pix-enviado' });
+  await db.collection('budgets').deleteMany({ categoryKey: 'pix-enviado' });
+  for (const name of ['fixed_expenses', 'commitments', 'merchant_groups'])
+    await write((o) => db.collection(name).updateMany({ categoryKey: 'pix-enviado' }, { $set: { categoryKey: 'outros' } }, o));
+
+  // 7. Forma de pagamento nas transacoes importadas antes do campo (pela descricao e pelo tipo de conta).
+  const accType = new Map((await db.collection('accounts').find({}, { projection: { type: 1 } }).toArray()).map((a) => [String(a._id), String(a.type)]));
+  let methods = 0;
+  for (;;) {
+    const batch = await tx.find({ paymentMethod: { $exists: false } }, { projection: { description: 1, accountId: 1 } }).limit(1000).toArray();
+    if (!batch.length) break;
+    await write((o) =>
+      tx.bulkWrite(
+        batch.map((d) => ({
+          updateOne: { filter: { _id: d._id }, update: { $set: { paymentMethod: paymentMethodOf({ description: String(d.description ?? ''), accountType: accType.get(String(d.accountId)) ?? null }) } } },
+        })),
+        o,
+      ),
+    );
+    methods += batch.length;
+  }
+  if (methods) log(`forma de pagamento preenchida em ${methods} transações`);
+
+  // 8. Empresa ou pessoa (quem recebeu o Pix) so chega reimportando: uma vez por conexao.
+  const kinds = await write((o) =>
+    db.collection('connections').updateMany({ counterpartyKindAt: { $exists: false }, removedAt: null }, { $set: { lastTransactionsSyncAt: null, counterpartyKindAt: new Date() } }, o),
+  );
+  if (kinds.modifiedCount) log(`${kinds.modifiedCount} conexões vão reimportar o histórico (empresa ou pessoa no Pix)`);
 }

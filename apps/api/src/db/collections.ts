@@ -2,6 +2,7 @@ import type {
   ALERT_PAGES,
   YearObjective,
   IncomeType,
+  TxPaymentMethod,
   ProfileCover,
   FixedRecurrence,
   GoalAnswers,
@@ -188,6 +189,14 @@ export interface TransactionDoc {
   splitOf?: ObjectId | null;
   /** Sugestao do Naive Bayes com confianca entre 0,60 e 0,90: o usuario confirma (RN-D01). */
   aiSuggestion?: { categoryKey: string; p: number } | null;
+  /** Forma de pagamento (doc. Melhorias, passo 8): Pix e como se pagou, nao categoria. */
+  paymentMethod?: TxPaymentMethod | null;
+  /** Quem recebeu e empresa (CNPJ) ou pessoa (CPF). So empresa pode ir para a IA classificar. */
+  counterpartyKind?: 'pj' | 'pf' | null;
+  /** Categoria incerta: aparece em "Revisar". */
+  needsReview?: boolean;
+  /** Ja passou pela classificacao em camadas (palavras/IA); evita repetir a cada sincronizacao. */
+  classifiedAt?: Date | null;
   invoiceId: ObjectId | null;
   tags: string[];
   notes: string | null;

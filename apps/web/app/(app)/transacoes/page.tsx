@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useShell } from '@/components/shell/ShellContext';
 import { StatTiles, tileBrand, tilePlain } from '@/components/StatTiles';
+import { ReviewCard } from '@/components/ReviewCard';
 import { LiveTransactionList } from '@/components/TransactionList';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/lib/api';
@@ -58,6 +59,7 @@ export default function TransacoesPage() {
           { label: 'Resultado', value: s ? fmt((s.incomeMinor - s.expensesMinor) / 100) : '—', ...tilePlain },
         ]}
       />
+      <ReviewCard />
       <div data-anim="">
         <LiveTransactionList mode={mode} title="Todas as transações" onConnect={() => nav('settings')} />
       </div>

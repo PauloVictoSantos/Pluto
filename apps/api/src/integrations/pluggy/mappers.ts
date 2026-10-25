@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { PARC_RE, hasRealTime, parseInstallment } from '@pluto/finance-engine';
-import { NEEDS_USER_ACTION, categoryKeyFor, toMinor, type AccountType, type InvestmentType, type InvoiceStatus, type TransactionType } from '@pluto/shared';
+import { NEEDS_USER_ACTION, categoryKeyFor, paymentMethodOf, toMinor, type AccountType, type InvestmentType, type InvoiceStatus, type TransactionType } from '@pluto/shared';
 import { matchKeyOf, normalizeDescription } from '../../lib/text';
 import type { PluggyAccount, PluggyBill, PluggyInvestment, PluggyItem, PluggyTransaction } from './gateway';
 
@@ -144,8 +144,12 @@ export function mapTransaction(t: PluggyTransaction, accountType: AccountType) {
     installment,
     type,
     categoryKey: categoryKeyForType(type, t.category, amountMinor),
+    paymentMethod: paymentMethodOf({ description: t.description, accountType, providerMethod: t.paymentData?.paymentMethod }),
   };
 }
+
+/** Empresa (CNPJ) ou pessoa (CPF) pela referencia de quem recebeu/pagou; null sem documento. */
+export const counterpartyKindOf = (ref: string | null): 'pj' | 'pf' | null => (ref?.startsWith('doc:') ? (ref.length - 4 === 14 ? 'pj' : 'pf') : null);
 
 /** Categoria coerente com o tipo: fatura, transferencia propria e investimento nunca viram gasto. */
 export function categoryKeyForType(type: TransactionType, providerCategory: string | null | undefined, amountMinor: number): string {

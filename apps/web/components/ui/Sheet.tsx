@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useRef, type FormEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { EASE_DRAWER, EASE_OUT, reducedMotion } from '@/lib/motion';
 import { useMode } from '@/lib/viewport';
+import { Icon } from './Icon';
 
 interface Props {
   onClose: () => void;
@@ -16,6 +17,8 @@ interface Props {
   gap?: number;
   onSubmit?: (e: FormEvent<HTMLFormElement>) => void;
   role?: 'dialog' | 'alertdialog';
+  /** Botao X no canto (doc. Melhorias, passo 8). */
+  closeButton?: boolean;
 }
 
 // Celular: gaveta que sobe da borda (curva de gaveta do iOS). Desktop: modal centralizado
@@ -31,7 +34,7 @@ export const useSheetClose = () => useContext(CloseContext);
  * Dialogo do design: bottom sheet no celular, cartao centralizado no desktop.
  * Renderizado em portal para nao herdar transformacoes das animacoes de entrada.
  */
-export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap = 16, onSubmit, role = 'dialog' }: Props) {
+export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap = 16, onSubmit, role = 'dialog', closeButton = false }: Props) {
   const isMobile = useMode() === 'mobile';
   const ref = useRef<HTMLElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
@@ -49,9 +52,14 @@ export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap
     return { panel, duration, easing: reduce ? 'ease' : isMobile ? EASE_DRAWER : EASE_OUT };
   }, [isMobile]);
 
+  // Botao voltar (Android/navegador) fecha a Sheet: ela ocupa uma entrada no historico.
+  const historyId = useRef(`sheet-${useId()}`);
+  const popped = useRef(false);
+
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
+    if (!popped.current && window.history.state?.sheet === historyId.current) window.history.back();
     const { panel, duration, easing } = frames();
     const opts = { duration, easing, fill: 'forwards' as const, direction: 'reverse' as const };
     const anim = ref.current?.animate(panel, opts);
@@ -74,6 +82,67 @@ export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
+  // Uma unica entrada no historico por Sheet aberta (o close mais recente fica num ref).
+  const closeRef = useRef(close);
+  useEffect(() => void (closeRef.current = close), [close]);
+  useEffect(() => {
+    const id = historyId.current;
+    window.history.pushState({ ...window.history.state, sheet: id }, '');
+    const onPop = () => {
+      if (window.history.state?.sheet === id) return;
+      popped.current = true;
+      closeRef.current();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Celular: arrastar para baixo (a partir do topo da gaveta) fecha.
+  const drag = useRef<{ y: number; dy: number } | null>(null);
+  const onPointerDown = (e: PointerEvent<HTMLElement>) => {
+    if (!isMobile) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { y: e.clientY, dy: 0 };
+  };
+  const onPointerMove = (e: PointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d || !ref.current) return;
+    d.dy = Math.max(0, e.clientY - d.y);
+    ref.current.style.transform = `translateY(${d.dy}px)`;
+  };
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !ref.current) return;
+    if (d.dy > 110) close();
+    else {
+      ref.current.animate([{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' });
+      ref.current.style.transform = '';
+    }
+  };
+  const extras = (
+    <>
+      {isMobile && (
+        // Alca de arraste: touch-action none para o navegador nao transformar o gesto em rolagem.
+        <div
+          aria-hidden
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          className="sticky -top-6 z-2 -mx-5 -mt-6 -mb-3 flex h-9 shrink-0 cursor-grab touch-none items-center justify-center bg-card"
+        >
+          <span className="h-1.5 w-10 rounded-full bg-border" />
+        </div>
+      )}
+      {closeButton && (
+        <button type="button" onClick={close} aria-label="Fechar" className="icon-btn absolute top-3 right-3 z-2 size-10 bg-card">
+          <Icon icon="x" size={18} />
+        </button>
+      )}
+    </>
+  );
+
   const style = {
     position: 'fixed' as const,
     zIndex: 61,
@@ -95,10 +164,12 @@ export function Sheet({ onClose, children, label, width = 420, top = '20vh', gap
       <div ref={backdrop} onClick={close} className="fixed inset-0 z-60 bg-overlay" />
       {onSubmit ? (
         <form ref={(el) => void (ref.current = el)} role={role} aria-label={label} aria-modal="true" onSubmit={onSubmit} className={cls} style={style}>
+          {extras}
           {children}
         </form>
       ) : (
         <div ref={(el) => void (ref.current = el)} role={role} aria-label={label} aria-modal="true" className={cls} style={style}>
+          {extras}
           {children}
         </div>
       )}

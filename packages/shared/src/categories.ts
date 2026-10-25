@@ -31,7 +31,6 @@ export const CATEGORIES: CategoryDef[] = [
   { key: 'lazer', label: 'Lazer', icon: 'ticket', color: '#06B6D4', group: 'lifestyle' },
   { key: 'assinaturas', label: 'Assinaturas', icon: 'tv', color: '#64748B', group: 'lifestyle' },
   { key: 'viagem', label: 'Viagem', icon: 'plane', color: '#0EA5E9', group: 'lifestyle' },
-  { key: 'pix-enviado', label: 'Pix e transferências', icon: 'arrow-left-right', color: '#A1A1AA', group: 'lifestyle' },
   { key: 'outros', label: 'Outros', icon: 'receipt', color: '#D4D4D8', group: 'lifestyle' },
   { key: 'salario', label: 'Salário', icon: 'briefcase', color: '#7D39EB', group: 'income' },
   { key: 'rendimentos', label: 'Rendimentos', icon: 'trending-up', color: '#C6FF33', group: 'income' },
@@ -73,7 +72,8 @@ const RULES: [RegExp, string][] = [
   [/travel|airline|hotel|lodging/i, 'viagem'],
   [/tickets|cinema|theater|concert|leisure|entertainment|games/i, 'lazer'],
   [/shopping|clothing|electronics|online|services/i, 'compras'],
-  [/transfer|pix|bank slip|ted\b|doc\b|cash/i, 'pix-enviado'],
+  // Pix, TED, boleto e saque sao forma de pagamento, nao categoria (doc. Melhorias, passo 8): o que
+  // foi pago e classificado depois (regras, palavras, IA) e o resto vai para "Revisar".
 ];
 
 /** Categoria do Pluto para uma transacao. `amountMinor` decide entre entrada e saida. */

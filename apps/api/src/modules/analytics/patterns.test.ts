@@ -52,7 +52,7 @@ describe('categorizacao aprendida (RN-D01, RN-I04)', () => {
     expect(status.f1).toBeGreaterThanOrEqual(0.85);
 
     const { insertedId: newTx } = await h.ctx.col.transactions.insertOne(
-      tx(new Date(NOW.getTime() - DAY), -45_000, { matchKey: 'faculdade norte', descriptionNorm: 'pix enviado faculdade norte', pluggyCategory: 'Transfer - PIX', categoryKey: 'pix-enviado' }) as never,
+      tx(new Date(NOW.getTime() - DAY), -45_000, { matchKey: 'faculdade norte', descriptionNorm: 'pix enviado faculdade norte', pluggyCategory: 'Transfer - PIX', categoryKey: 'outros' }) as never,
     );
     const r = await autoCategorize(h.ctx.col, userId, NOW);
     expect(r.applied).toBeGreaterThan(0);
@@ -65,7 +65,7 @@ describe('categorizacao aprendida (RN-D01, RN-I04)', () => {
     // Sem exemplos (modelo desligado): volta para a categoria do Pluggy.
     await h.ctx.col.transactions.deleteMany({ userId, categorySource: 'MANUAL' });
     await autoCategorize(h.ctx.col, userId, NOW);
-    expect(await h.ctx.col.transactions.findOne({ _id: newTx })).toMatchObject({ categoryKey: 'pix-enviado', categorySource: null });
+    expect(await h.ctx.col.transactions.findOne({ _id: newTx })).toMatchObject({ categoryKey: 'outros', categorySource: null });
   });
 });
 

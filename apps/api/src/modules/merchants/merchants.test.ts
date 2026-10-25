@@ -45,7 +45,7 @@ beforeEach(async () => {
     tx('99 pop', -2200),
     tx('ifood restaurante', -5400, { categoryKey: 'outros', pluggyCategory: 'Food' }),
     // Pix para pessoa: nunca vai ao Gemini.
-    tx('joao da silva', -15_000, { accountId: new ObjectId(), categoryKey: 'pix-enviado', pluggyCategory: 'Transfer - PIX' }),
+    tx('joao da silva', -15_000, { accountId: new ObjectId(), categoryKey: 'outros', pluggyCategory: 'Transfer - PIX' }),
     // Escolha manual do usuario.
     tx('uber trip rj', -1000, { categoryKey: 'lazer', categorySource: 'MANUAL' }),
   ] as never);
@@ -77,7 +77,7 @@ describe('agrupamento de estabelecimentos', () => {
     expect(await groupOf('99 pop')).toEqual({ cat: 'transporte-app', src: 'AI', group: '99' });
     expect(await groupOf('ifood restaurante')).toMatchObject({ cat: 'delivery', group: 'iFood' });
     expect(await groupOf('uber trip rj')).toMatchObject({ cat: 'lazer', src: 'MANUAL' });
-    expect(await groupOf('joao da silva')).toMatchObject({ group: null, cat: 'pix-enviado' });
+    expect(await groupOf('joao da silva')).toMatchObject({ group: null, cat: 'outros' });
 
     // Descricao nova parecida entra pelo texto, sem chamar a IA.
     await h.ctx.col.transactions.insertOne(tx('uber br trip help', -1500) as never);
