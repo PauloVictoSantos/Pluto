@@ -14,11 +14,12 @@ export function StatTiles({ tiles }: { tiles: Tile[] }) {
         <div
           key={t.label}
           data-anim=""
-          className="flex min-w-0 flex-col gap-1.5 rounded-2xl p-[clamp(12px,3vw,20px)]"
+          className="@container flex min-w-0 flex-col gap-1.5 rounded-2xl p-[clamp(12px,3vw,20px)]"
           style={{ background: t.bg, color: t.fg, border: `1px solid ${t.border}` }}
         >
           <span className="text-[13px] font-medium">{t.label}</span>
-          <span className="truncate text-[clamp(15px,4vw,24px)] font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums">{t.value}</span>
+          {/* Encolhe com o bloco (cqi): valor longo aparece inteiro, sem reticencias. */}
+          <span className="text-[clamp(11px,11cqi,24px)] font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums">{t.value}</span>
         </div>
       ))}
     </div>

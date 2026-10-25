@@ -30,14 +30,20 @@ import { useHydrated, type Mode } from '@/lib/viewport';
 
 const pctText = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`);
 
-/** Areas da grade por largura: sem buraco nem card orfao, cards da mesma linha com a mesma altura. */
+/**
+ * Areas da grade por largura: sem buraco nem card orfao, cards da mesma linha com a mesma altura.
+ * Receitas e Despesas dividem o bloco "kpi" meio a meio (nunca abaixo de 280 px: com menos espaco,
+ * empilham). Investido fica na coluna lateral (doc. Melhorias, passo 3).
+ */
 const AREAS: Record<Mode, string> = {
-  desktop: `"saldo saldo saldo saldo saldo rec rec desp desp inv inv inv"
+  desktop: `"saldo saldo saldo saldo saldo saldo kpi kpi kpi kpi kpi kpi"
             "tx tx tx tx tx tx tx due due due due due"
-            "tx tx tx tx tx tx tx lim lim lim lim lim"`,
-  tablet: `"saldo saldo" "rec desp" "inv inv" "tx due" "tx lim"`,
+            "tx tx tx tx tx tx tx lim lim lim lim lim"
+            "tx tx tx tx tx tx tx inv inv inv inv inv"`,
+  tablet: `"saldo saldo" "kpi kpi" "inv inv" "tx due" "tx lim"`,
   mobile: '',
 };
+const KPI_GRID: CSSProperties = { gridArea: 'kpi', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 };
 
 interface Due {
   id: string;
@@ -104,8 +110,8 @@ export default function OverviewPage() {
 
   const blocks = {
     saldo: saldoCard(area('saldo')),
-    rec: <KpiCard k={kpis.rec} sub={sub} days={sr?.days} compact={isMobile} style={area('rec')} />,
-    desp: <KpiCard k={kpis.desp} sub={sub} days={sr?.days} compact={isMobile} style={area('desp')} />,
+    rec: <KpiCard k={kpis.rec} sub={sub} days={sr?.days} compact={isMobile} style={{}} />,
+    desp: <KpiCard k={kpis.desp} sub={sub} days={sr?.days} compact={isMobile} style={{}} />,
     inv: investedCard(area('inv')),
     tx: (
       <div data-anim="" className="min-w-0 [&>.card]:h-full [&>.card]:rounded-[24px]" style={area('tx')}>
@@ -150,8 +156,10 @@ export default function OverviewPage() {
       ) : (
         <div className="grid items-stretch gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'repeat(12, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))', gridTemplateAreas: AREAS[mode] }}>
           {blocks.saldo}
-          {blocks.rec}
-          {blocks.desp}
+          <div className="min-w-0" style={KPI_GRID}>
+            {blocks.rec}
+            {blocks.desp}
+          </div>
           {blocks.inv}
           {blocks.tx}
           {blocks.due}
@@ -224,9 +232,9 @@ export default function OverviewPage() {
             <Icon icon={hide ? 'eye-off' : 'eye'} size={17} />
           </button>
         </div>
-        <div>
+        <div className="@container">
           {s ? (
-            <CountUp key={s.balanceMinor} value={s.balanceMinor / 100} text={hide ? VALUE_MASK : undefined} className="block text-[clamp(36px,7vw,46px)] leading-[1.05] font-bold tracking-[-0.045em] tabular-nums" />
+            <CountUp key={s.balanceMinor} value={s.balanceMinor / 100} text={hide ? VALUE_MASK : undefined} className="block text-[clamp(22px,9cqi,46px)] leading-[1.05] font-bold tracking-[-0.045em] whitespace-nowrap tabular-nums" />
           ) : (
             <div className="h-[48px] w-56 animate-pulse rounded-xl bg-white/10" />
           )}
@@ -300,7 +308,9 @@ export default function OverviewPage() {
           <span className="card-title">Investido</span>
           {c !== null && <Badge up={c >= 0} good={c >= 0} text={pctText(c)} />}
         </div>
-        <div className="text-[28px] font-bold tracking-[-0.04em] tabular-nums">{total === undefined ? '—' : money(total)}</div>
+        <div className="@container">
+          <div className="text-[clamp(18px,9cqi,28px)] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums">{total === undefined ? '—' : money(total)}</div>
+        </div>
         <div className="h-10 text-muted-foreground">
           {line ? <Sparkline data={line} days={sr?.days} height={40} filled label="Patrimônio investido" color={c === null || c >= 0 ? '#c6f432' : '#F87171'} /> : <div className="h-full animate-pulse rounded-lg bg-muted" />}
         </div>
@@ -515,7 +525,7 @@ function KpiCard({ k, sub, days, compact, style }: { k: Kpi; sub: string; days?:
           <div className="h-full animate-pulse rounded-lg" style={{ background: k.featured ? 'rgba(255,255,255,.12)' : 'var(--muted)' }} />
         )}
       </div>
-      <div className="min-w-0">
+      <div className="@container min-w-0">
         <div className="text-sm font-semibold">{k.label}</div>
         <Value v={k.v} compact={compact} />
         <div className="mt-1 text-xs" style={{ color: k.featured ? 'rgba(255,255,255,.85)' : 'var(--muted-foreground)' }}>
@@ -528,7 +538,8 @@ function KpiCard({ k, sub, days, compact, style }: { k: Kpi; sub: string; days?:
 
 function Value({ v, compact }: { v: number | undefined; compact: boolean }): ReactNode {
   return (
-    <div className="mt-1 truncate leading-[1.1] font-bold tracking-[-0.04em] tabular-nums" style={{ fontSize: compact ? 20 : 28 }}>
+    // Encolhe com a largura do card (cqi) em vez de cortar com reticencias: o valor aparece inteiro.
+    <div className="mt-1 leading-[1.1] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums" style={{ fontSize: compact ? 'clamp(13px, 10cqi, 20px)' : 'clamp(16px, 10cqi, 28px)' }}>
       {v === undefined ? '—' : money(v)}
     </div>
   );
