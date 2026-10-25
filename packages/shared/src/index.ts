@@ -24,3 +24,4 @@ export * from './schemas/purchases';
 export * from './schemas/plutao';
 export * from './schemas/privacy';
 export * from './merchants';
+export * from './schemas/obligations';

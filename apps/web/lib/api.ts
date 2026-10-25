@@ -22,6 +22,7 @@ import {
   AgentChatStateSchema,
   ContestationsSchema,
   ExportFileSchema,
+  ObligationsSchema,
   type PurchaseRequest,
   type GoalAnswers,
   type GoalKindV2,
@@ -286,6 +287,8 @@ export const api = {
   updateFixedExpense: (id: string, body: UpdateFixedExpense) =>
     request(`/agent/fixed-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema),
   deleteFixedExpense: (id: string) => request(`/agent/fixed-expenses/${id}`, { method: 'DELETE' }, FixedExpensesSchema),
+  /** Dividas do mes (faturas, parcelamentos, fixos, emprestimos): a mesma lista do Plutao. */
+  obligations: () => request('/agent/obligations', {}, ObligationsSchema),
   financialProfile: () => request('/agent/profile', {}, FinancialProfileSchema),
   updateFinancialProfile: (body: UpdateFinancialProfile) => request('/agent/profile', { method: 'PUT', body: JSON.stringify(body) }, FinancialProfileSchema),
   merchantGroups: () => request('/merchant-groups', {}, MerchantGroupsSchema),

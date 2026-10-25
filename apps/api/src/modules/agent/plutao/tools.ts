@@ -21,6 +21,8 @@ import { createFixed, listFixed, removeFixed, updateFixed } from '../fixed';
 import { answerDraft, confirmDraft, createDraft, diagnoseDraft, goalsPlan, setGoalStatus } from '../goals';
 import { getLimit } from '../limit';
 import { listLoans } from '../loans';
+import { listObligations } from '../obligations';
+import { monthRange } from '../../../lib/time';
 import { readProfile } from '../profile';
 import { simulatePurchase } from '../purchases';
 
@@ -223,12 +225,27 @@ export const TOOLS: Tool[] = [
   {
     name: 'listar_dividas',
     kind: 'leitura',
-    description: 'Lista as dívidas com juros (referência D1, D2...), em ordem de quitação (maior juro primeiro).',
+    description:
+      'Todas as dívidas do mês: faturas de cartão em aberto, parcelamentos, gastos fixos e empréstimos (mesma lista das telas de Metas e Planejamento). Os empréstimos com juros vêm com referência D1, D2... em ordem de quitação (maior juro primeiro).',
     prepare: async () => ({}),
     async run(_a, { ctx, userId, refs }) {
-      const l = await listLoans(ctx, userId);
+      const [l, o] = await Promise.all([listLoans(ctx, userId), listObligations(ctx, userId)]);
       return {
-        dividas: l.items.map((d) => ({
+        mes: o.month,
+        totalDoMes: reais(o.monthTotalMinor),
+        porTipo: { faturas: reais(o.byKind.fatura), parcelamentos: reais(o.byKind.parcelamento), gastosFixos: reais(o.byKind.fixo), emprestimos: reais(o.byKind.emprestimo) },
+        saldoDevedorParcelasEEmprestimos: reais(o.remainingTotalMinor),
+        itens: o.items.map((i) => ({
+          tipo: i.kind,
+          nome: i.name,
+          valorNoMes: reais(i.monthMinor),
+          vencimento: i.dueDate ?? (i.dueDay ? `dia ${i.dueDay}` : null),
+          parcelasRestantes: i.remainingInstallments,
+          faltaPagar: reais(i.remainingMinor),
+          jaNaFatura: i.inInvoice,
+          vencida: i.overdue,
+        })),
+        emprestimos: l.items.map((d) => ({
           ref: refFor(refs, 'D', d.id),
           credor: d.creditor,
           saldo: reais(d.balanceMinor),
@@ -240,6 +257,57 @@ export const TOOLS: Tool[] = [
           jurosAltos: d.highInterest,
           ordemDeQuitacao: d.payoffRank,
         })),
+      };
+    },
+  },
+  {
+    name: 'consultar_gastos',
+    kind: 'leitura',
+    description:
+      'Quanto o usuário gastou num mês (AAAA-MM), no total ou numa categoria (ex.: mercado, educação, moradia). Use a data de hoje do contexto para converter "setembro", "mês passado" etc. Devolve o total, a quantidade e os estabelecimentos com mais gasto.',
+    parameters: S.obj({ mes: S.str('Mês no formato AAAA-MM'), categoria: S.str('Categoria (nome ou chave). Vazio = todas') }, ['mes']),
+    prepare: async (a) => parse(z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês no formato AAAA-MM'), category: z.string().trim().max(40).optional() }), { month: a.mes, category: a.categoria || undefined }),
+    async run(a, { ctx, userId }) {
+      const { month, category } = a as { month: string; category?: string };
+      const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+      const cat = category ? CATEGORIES.find((c) => norm(c.key) === norm(category) || norm(c.label) === norm(category)) : undefined;
+      if (category && !cat) throw new ToolError(`Categoria desconhecida. Use uma destas: ${SPEND.map((k) => categoryOf(k).label).join(', ')}.`);
+      const tz = (await ctx.col.users.findOne({ _id: userId }, { projection: { 'settings.timezone': 1 } }))?.settings.timezone ?? 'America/Manaus';
+      const { from, to } = monthRange(month, tz);
+      const match = { userId, deletedAt: null, type: 'EXPENSE' as const, date: { $gte: from, $lt: to }, ...(cat ? { categoryKey: cat.key } : {}) };
+      const [byCat, top] = await Promise.all([
+        ctx.col.transactions.aggregate<{ _id: string | null; total: number; n: number }>([{ $match: match }, { $group: { _id: '$categoryKey', total: { $sum: '$amountMinor' }, n: { $sum: 1 } } }]).toArray(),
+        ctx.col.transactions
+          .aggregate<{ _id: string; total: number }>([{ $match: match }, { $group: { _id: { $ifNull: ['$merchant', '$description'] }, total: { $sum: '$amountMinor' } } }, { $sort: { total: 1 } }, { $limit: 5 }])
+          .toArray(),
+      ]);
+      const total = -byCat.reduce((t, r) => t + r.total, 0);
+      return {
+        mes: month,
+        categoria: cat?.label ?? 'todas',
+        total: reais(total),
+        quantidade: byCat.reduce((t, r) => t + r.n, 0),
+        ...(cat ? {} : { porCategoria: byCat.map((r) => ({ categoria: categoryOf(r._id ?? 'outros').label, valor: reais(-r.total) })).sort((x, y) => (y.valor ?? 0) - (x.valor ?? 0)) }),
+        principaisEstabelecimentos: top.map((t) => ({ nome: t._id, valor: reais(-t.total) })),
+      };
+    },
+  },
+  {
+    name: 'consultar_planejamento',
+    kind: 'leitura',
+    description: 'Planejamento do mês: renda, dívidas do mês (faturas, parcelamentos, fixos, empréstimos), aportes das metas, limite de gastos variáveis e o que sobra. Use antes de sugerir valor mensal para uma meta.',
+    prepare: async () => ({}),
+    async run(_a, { ctx, userId }) {
+      const [o, limit, plan] = await Promise.all([listObligations(ctx, userId), getLimit(ctx, userId), goalsPlan(ctx, userId)]);
+      return {
+        mes: o.month,
+        renda: reais(limit.breakdown.incomeMinor),
+        dividasDoMes: reais(o.monthTotalMinor),
+        aportesMetas: reais(limit.breakdown.goalsMinor),
+        limiteGastosVariaveis: reais(limit.limitMinor),
+        gastoVariavelAteAgora: reais(limit.spentMinor),
+        sobraMensalParaMetas: reais(plan.capacityMinor),
+        livreParaNovaMeta: reais(plan.freeMinor),
       };
     },
   },

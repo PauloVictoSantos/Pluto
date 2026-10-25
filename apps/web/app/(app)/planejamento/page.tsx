@@ -3,6 +3,7 @@
 import { CATEGORIES, type Budget, type Goal } from '@pluto/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ReactNode } from 'react';
+import { ObligationsCard } from '@/components/ObligationsCard';
 import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
@@ -394,6 +395,7 @@ function PlanEditor({ base, monthPicker }: { base: Base; monthPicker: ReactNode 
           </div>
         </div>
       </div>
+      <ObligationsCard />
     </div>
   );
 }

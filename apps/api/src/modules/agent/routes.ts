@@ -25,6 +25,7 @@ import {
   UpdateFinancialProfileSchema,
   UpdateFixedExpenseSchema,
   UpdateLoanSchema,
+  ObligationsSchema,
 } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { ObjectId } from 'mongodb';
@@ -39,6 +40,7 @@ import { getLimit, overrideLimit } from './limit';
 import { chatState, resetChat, sendMessage } from './plutao/orchestrator';
 import { boughtPurchase, evaluateAndSave, giveUpPurchase, listPurchases, planPurchase, purchaseToGoal, simulatePurchase } from './purchases';
 import { createLoan, listLoans, loanExtra, removeLoan, updateLoan } from './loans';
+import { listObligations } from './obligations';
 import { getProfile, updateProfile } from './profile';
 
 const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
@@ -161,6 +163,9 @@ export const agentRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (ap
     await audit(ctx.col, 'goal.status_changed', userId, { goalId: req.params.id, ...change }, req.ip);
     return goalsPlan(ctx, userId);
   });
+
+  // Dividas do mes numa lista so: a mesma do chat, das Metas e do Planejamento (doc. Melhorias, passo 5).
+  app.get('/agent/obligations', { schema: { response: { 200: ObligationsSchema } } }, async (req) => listObligations(ctx, userOf(req).id));
 
   // Chat com o Plutao (doc. Pluton 7): substitui o "Perguntar a Pluto". Cada mensagem pode custar
   // algumas chamadas ao provedor.

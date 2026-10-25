@@ -7,6 +7,7 @@ import { audit } from '../../../lib/audit';
 import { AppError } from '../../../lib/errors';
 import { recalcLimit } from '../limit';
 import { REFUSAL, asData, classifyInput, dropSentencesWith, moneyIn, numbersIn, numbersOf, sanitizeReply, unverifiedMoney } from './guard';
+import { contextBlock, financialContext, invalidateFinancialContext, type FinancialContext } from './context';
 import { PROMPT_VERSION, SYSTEM_PROMPT } from './prompt';
 import { TOOL_BY_NAME, ToolError, toolDeclarations, type Refs } from './tools';
 
@@ -99,8 +100,8 @@ function trim(contents: LlmContent[]) {
 }
 
 /** Numeros que o Plutao pode falar: os das ferramentas, os que o usuario disse e os ja conferidos. */
-function knownNumbers(state: SessionState): number[] {
-  const known: number[] = [];
+function knownNumbers(state: SessionState, context?: FinancialContext): number[] {
+  const known: number[] = context ? numbersOf(context) : [];
   for (const c of state.contents) for (const p of c.parts) if (p.functionResponse) numbersOf(p.functionResponse.response, known);
   for (const t of state.transcript) known.push(...(t.role === 'user' ? numbersIn(t.text) : moneyIn(t.text)));
   return known;
@@ -114,6 +115,7 @@ async function runWrite(ctx: AppContext, userId: ObjectId, state: SessionState, 
     // Escrita feita pelo chat: mesma auditoria e o mesmo recalculo do limite das telas (GF-01, GF-05).
     await audit(ctx.col, `plutao.${p.tool}`, userId, { summary: p.summary, promptVersion: PROMPT_VERSION, source: 'chat' }, ip);
     await recalcLimit(ctx, userId, `chat: ${p.tool}`);
+    invalidateFinancialContext(userId);
     return `Feito. ${p.summary} Quer ajustar mais alguma coisa no seu plano?`;
   } catch (e) {
     const msg = e instanceof AppError || e instanceof ToolError ? e.message : 'Não consegui gravar agora.';
@@ -197,11 +199,16 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
   if (input.noConfirmRequest) pushUser(state.contents, { text: '(Nota do sistema: gravar sem confirmação não é permitido. Toda escrita continua exigindo o "sim" do usuário.)' });
   const env = { ctx, userId, refs: state.refs };
   let checked = false;
+  // Resumo das financas junto do prompt em toda mensagem (cache de 5 min).
+  const fin = await financialContext(ctx, userId, now);
+  const system = `${SYSTEM_PROMPT}
+
+${contextBlock(fin)}`;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     if (round > 0 && Date.now() > deadline) break;
     let parts: LlmPart[];
-    const call = () => ctx.llm!.chat!({ system: SYSTEM_PROMPT, contents: state.contents, tools: toolDeclarations() });
+    const call = () => ctx.llm!.chat!({ system, contents: state.contents, tools: toolDeclarations() });
     try {
       // Falha passageira do provedor: uma nova tentativa antes de desistir.
       parts = await call().catch(async () => {
@@ -216,7 +223,7 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
     if (!calls.length) {
       let text = parts.map((p) => p.text ?? '').join('').trim() || 'Pode repetir de outro jeito?';
       // "Nunca invente numeros": todo R$ precisa ter vindo de ferramenta ou do usuario.
-      const bad = unverifiedMoney(text, knownNumbers(state));
+      const bad = unverifiedMoney(text, knownNumbers(state, fin));
       if (bad.length && !checked) {
         checked = true;
         state.contents.push({ role: 'model', parts: [{ text }] });
@@ -273,7 +280,7 @@ async function processMessage(ctx: AppContext, userId: ObjectId, message: string
     }
     if (question) {
       // Opcoes passam pelos mesmos filtros da resposta: sem link, ID nem valor inventado.
-      const known = knownNumbers(state);
+      const known = knownNumbers(state, fin);
       const options = question.options.map(sanitizeReply).filter((o) => o && !unverifiedMoney(o, known).length);
       const text = unverifiedMoney(question.question, known).length ? 'Pode me contar um pouco mais?' : question.question;
       return reply(text, options.length >= 2 ? options : undefined);

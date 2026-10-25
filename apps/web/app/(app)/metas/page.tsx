@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { GoalInterview } from '@/components/GoalInterview';
 import { GoalsPlanCard } from '@/components/GoalsPlanCard';
+import { ObligationsCard } from '@/components/ObligationsCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { ProbabilityBadge, Why } from '@/components/Insight';
 import { Icon } from '@/components/ui/Icon';
@@ -213,6 +214,7 @@ export default function MetasPage() {
       </div>
 
       {list.length > 0 && <GoalsPlanCard />}
+      <ObligationsCard />
 
       {interview && (
         <GoalInterview
