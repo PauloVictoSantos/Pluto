@@ -29,3 +29,4 @@ export * from './schemas/incomeProfiles';
 export * from './fixedIcons';
 export * from './paymentMethods';
 export * from './textCategory';
+export * from './schemas/monthlyPlan';

@@ -13,3 +13,4 @@ export * from './finmath';
 export * from './limit';
 export * from './goals';
 export * from './purchase';
+export * from './allocate';

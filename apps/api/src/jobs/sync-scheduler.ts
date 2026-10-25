@@ -1,7 +1,8 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppContext } from '../context';
 import { processCharges } from '../modules/charges/service';
-import { tickAlerts } from '../modules/alerts/service';
+import { notifyPlanReady, tickAlerts } from '../modules/alerts/service';
+import { ensureMonthlyPlans, monthNamePt } from '../modules/planning/monthlyPlan';
 import { markOverdueBills } from '../modules/bills/routes';
 import { syncDebtBills } from '../modules/debts/service';
 import { rollShoppingLists } from '../modules/shopping/service';
@@ -88,6 +89,9 @@ export function startPlannerScheduler(ctx: AppContext, log: FastifyBaseLogger) {
       // LG-03: limite do mes novo calculado na virada.
       const limits = await ensureMonthLimits(ctx);
       if (limits) log.info({ limits }, 'limites do mês calculados');
+      // Passo 9 (doc. Melhorias): planejamento do mes no dia 1 as 06:00, com aviso por push/e-mail.
+      const plans = await ensureMonthlyPlans(ctx, new Date(), (userId, plan) => notifyPlanReady(ctx, userId, plan, monthNamePt(plan.month)).then(() => undefined));
+      if (plans) log.info({ plans }, 'planejamentos do mês gerados');
       const overdue = await markOverdueBills(ctx);
       if (overdue) log.info({ bills: overdue }, 'boletos marcados como vencidos');
     } catch (err) {

@@ -277,12 +277,14 @@ async function goalsMonthly(ctx: AppContext, userId: ObjectId, month: string) {
  * mediana depois das contas fixas, parcelas e metas. Fixas e parcelas saem do historico das
  * categorias para nao contar duas vezes.
  */
-export async function budgetSuggestion(ctx: AppContext, userId: ObjectId, now = new Date()): Promise<BudgetSuggestion> {
+/**
+ * Habito de gasto variavel por categoria nos ultimos meses fechados (sem parcelas e sem o que e
+ * recorrente/fixo). Base do orcamento sugerido e do planejamento automatico (passo 9).
+ */
+export async function spendingHabits(ctx: AppContext, userId: ObjectId, now = new Date(), maxMonths = 6) {
   const b = await base(ctx, userId, now);
-  const months = closedMonths(b, 6);
-  const empty: BudgetSuggestion = { month: b.month, status: 'learning', months: months.length, incomeMedianMinor: 0, fixedMinor: 0, goalsMinor: 0, availableMinor: 0, fits: true, lines: [] };
-  if (months.length < 2) return empty;
-
+  const months = closedMonths(b, maxMonths);
+  if (!months.length) return { b, months, habits: [] as { key: string; monthly: number[] }[] };
   const txs = await ctx.col.transactions
     .find(
       { userId, deletedAt: null, type: 'EXPENSE', installment: null, date: { $gte: monthStart(months[0]!, b.tz), $lt: monthStart(b.month, b.tz) } },
@@ -297,6 +299,13 @@ export async function budgetSuggestion(ctx: AppContext, userId: ObjectId, now = 
     byCat.set(t.categoryKey, c);
   }
   const habits = [...byCat].map(([key, m]) => ({ key, monthly: months.map((x) => Math.max(0, m.get(x) ?? 0)) })).filter((h) => h.monthly.some((x) => x > 0));
+  return { b, months, habits };
+}
+
+export async function budgetSuggestion(ctx: AppContext, userId: ObjectId, now = new Date()): Promise<BudgetSuggestion> {
+  const { b, months, habits } = await spendingHabits(ctx, userId, now, 6);
+  const empty: BudgetSuggestion = { month: b.month, status: 'learning', months: months.length, incomeMedianMinor: 0, fixedMinor: 0, goalsMinor: 0, availableMinor: 0, fits: true, lines: [] };
+  if (months.length < 2) return empty;
 
   const { income } = await monthlyTotals(ctx, userId, b, months);
   const incomeMedianMinor = round(median(months.map((m) => income.get(m) ?? 0)));

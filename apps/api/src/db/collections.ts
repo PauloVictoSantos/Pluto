@@ -2,6 +2,7 @@ import type {
   ALERT_PAGES,
   YearObjective,
   IncomeType,
+  MonthlyPlan,
   TxPaymentMethod,
   ProfileCover,
   FixedRecurrence,
@@ -481,6 +482,9 @@ export interface FinancialProfileDoc {
   updatedAt: Date;
 }
 
+/** Planejamento automatico do mes (doc. Melhorias, passo 9): um por usuario e mes. */
+export type MonthlyPlanDoc = Omit<MonthlyPlan, 'generatedAt'> & { _id: ObjectId; userId: ObjectId; generatedAt: Date };
+
 /** Sugestao de gasto fixo que o usuario removeu: nao e sugerida de novo (doc. Melhorias, passo 7). */
 export interface FixedDismissalDoc {
   _id: ObjectId;
@@ -751,6 +755,7 @@ export interface Collections {
   financialProfiles: Collection<FinancialProfileDoc>;
   incomeProfiles: Collection<IncomeProfileDoc>;
   fixedDismissals: Collection<FixedDismissalDoc>;
+  monthlyPlans: Collection<MonthlyPlanDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
@@ -791,6 +796,7 @@ export const collections = (db: Db): Collections => ({
   financialProfiles: db.collection<FinancialProfileDoc>('financial_profiles'),
   incomeProfiles: db.collection<IncomeProfileDoc>('income_profiles'),
   fixedDismissals: db.collection<FixedDismissalDoc>('fixed_dismissals'),
+  monthlyPlans: db.collection<MonthlyPlanDoc>('monthly_plans'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),

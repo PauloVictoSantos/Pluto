@@ -23,6 +23,8 @@ import {
   ContestationsSchema,
   ExportFileSchema,
   ObligationsSchema,
+  MonthlyPlanSchema,
+  type AdjustMonthlyPlan,
   IncomeProfilesSchema,
   type CreateIncomeProfile,
   type UpdateIncomeProfile,
@@ -292,6 +294,10 @@ export const api = {
     request(`/agent/fixed-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, FixedExpensesSchema),
   deleteFixedExpense: (id: string) => request(`/agent/fixed-expenses/${id}`, { method: 'DELETE' }, FixedExpensesSchema),
   dismissFixedSuggestion: (matchKey: string) => request('/agent/fixed-expenses/suggestions/dismiss', post({ matchKey }), FixedExpensesSchema),
+  /** Planejamento automatico do mes (dia 1): null antes de gerar. */
+  monthlyPlan: (month?: string) => request(`/planning/monthly${month ? `?month=${month}` : ''}`, {}, MonthlyPlanSchema.nullable()),
+  generateMonthlyPlan: () => request('/planning/monthly/generate', post(), MonthlyPlanSchema),
+  adjustMonthlyPlan: (month: string, b: AdjustMonthlyPlan) => request(`/planning/monthly/${month}`, { method: 'PATCH', body: JSON.stringify(b) }, MonthlyPlanSchema),
   /** Perfis financeiros (ate 2): a soma das rendas e a renda do plano. */
   incomeProfiles: () => request('/agent/income-profiles', {}, IncomeProfilesSchema),
   createIncomeProfile: (b: CreateIncomeProfile) => request('/agent/income-profiles', post(b), IncomeProfilesSchema),

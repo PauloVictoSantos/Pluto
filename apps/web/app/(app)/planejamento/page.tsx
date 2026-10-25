@@ -3,6 +3,7 @@
 import { CATEGORIES, type Budget, type Goal } from '@pluto/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ReactNode } from 'react';
+import { MonthlyPlanCard } from '@/components/MonthlyPlanCard';
 import { ObligationsCard } from '@/components/ObligationsCard';
 import { PlutoMascot, type Mood } from '@/components/brand/PlutoMascot';
 import { useShell } from '@/components/shell/ShellContext';
@@ -241,6 +242,7 @@ function PlanEditor({ base, monthPicker }: { base: Base; monthPicker: ReactNode 
           Orçamento de {monthLower(base.target)} montado a partir da sua média real dos últimos 3 meses. Ajuste o que quiser.
         </p>
       </div>
+      <MonthlyPlanCard />
 
       {monthPicker}
 

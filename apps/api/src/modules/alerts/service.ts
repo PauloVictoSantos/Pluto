@@ -26,6 +26,7 @@ const PAGE_URL: Record<NonNullable<AlertDoc['action']>['page'], string> = {
   budget: '/orcamento',
   goals: '/metas',
   reports: '/relatorios',
+  plan: '/planejamento',
 };
 
 const brl = (minor: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(minor / 100);
@@ -146,6 +147,112 @@ export async function limitUsage(ctx: AppContext, userId: ObjectId, now: Date): 
       group: 'limit',
     },
   ];
+}
+
+/**
+ * Limite de cada categoria do orcamento do mes (doc. Melhorias, passo 9): aviso em 80% e em 100%,
+ * uma vez por faixa e categoria no mes.
+ */
+export async function budgetUsage(ctx: AppContext, userId: ObjectId, tz: string, now: Date): Promise<AlertCandidate[]> {
+  const month = monthOf(now, tz);
+  const budgets = await ctx.col.budgets.find({ userId, month, limitMinor: { $gt: 0 } }).toArray();
+  if (!budgets.length) return [];
+  const spent = new Map(
+    (
+      await ctx.col.transactions
+        .aggregate<{ _id: string; total: number }>([
+          { $match: { userId, deletedAt: null, type: 'EXPENSE', categoryKey: { $in: budgets.map((b) => b.categoryKey) }, date: { $gte: monthStart(month, tz), $lt: monthStart(addMonth(month, 1), tz) } } },
+          { $group: { _id: '$categoryKey', total: { $sum: '$amountMinor' } } },
+        ])
+        .toArray()
+    ).map((r) => [r._id, -r.total]),
+  );
+  const out: AlertCandidate[] = [];
+  for (const b of budgets) {
+    const used = spent.get(b.categoryKey) ?? 0;
+    const t = used >= b.limitMinor ? 1 : used >= 0.8 * b.limitMinor ? 0.8 : null;
+    if (!t) continue;
+    const target = `budget:${month}:${b.categoryKey}:${t}`;
+    if (await ctx.col.alerts.findOne({ userId, type: 'budget_usage', target }, { projection: { _id: 1 } })) continue;
+    const cat = categoryOf(b.categoryKey).label;
+    out.push({
+      type: 'budget_usage',
+      target,
+      title: t === 1 ? `${cat}: limite do mês atingido` : `${cat}: 80% do limite usado`,
+      body: t === 1 ? `Você gastou ${brl(used)} de ${brl(b.limitMinor)} em ${cat}. O que passar daqui sai da sobra do mês.` : `Faltam ${brl(b.limitMinor - used)} em ${cat} até o fim do mês.`,
+      pushText: t === 1 ? `Você chegou ao limite de ${cat} do mês.` : `Você já usou 80% do limite de ${cat}.`,
+      action: { label: 'Ver planejamento', page: 'plan' },
+      why: [`Limite de ${cat}: ${brl(b.limitMinor)}`, `Gasto no mês: ${brl(used)}`, 'Regra: avisos em 80% e 100% do limite de cada categoria.'],
+      pEvent: 1,
+      impactMinor: Math.max(used - b.limitMinor, b.limitMinor - used, 0),
+      priorityWeight: t === 1 ? 0.8 : 0.5,
+      group: 'limit',
+    });
+  }
+  return out;
+}
+
+/** Entrou mais do que o plano previa: o Pluto sugere o destino do extra na hora (doc. Melhorias, passo 9). */
+export async function extraIncome(ctx: AppContext, userId: ObjectId, tz: string, now: Date): Promise<AlertCandidate[]> {
+  const month = monthOf(now, tz);
+  const plan = await ctx.col.monthlyPlans.findOne({ userId, month });
+  if (!plan) return [];
+  const [row] = await ctx.col.transactions
+    .aggregate<{ total: number }>([
+      { $match: { userId, deletedAt: null, type: 'INCOME', date: { $gte: monthStart(month, tz), $lt: monthStart(addMonth(month, 1), tz) } } },
+      { $group: { _id: null, total: { $sum: '$amountMinor' } } },
+    ])
+    .toArray();
+  const extra = (row?.total ?? 0) - plan.incomeMinor;
+  // Ruido de centavos ou rendimento pequeno nao conta: pelo menos R$ 100 e 5% da renda.
+  if (extra < Math.max(10_000, plan.incomeMinor * 0.05)) return [];
+  const target = `extra:${month}:${Math.floor(extra / 10_000)}`;
+  if (await ctx.col.alerts.findOne({ userId, type: 'extra_income', target }, { projection: { _id: 1 } })) return [];
+  const first = plan.destinations.find((d) => d.kind !== 'investimento') ?? plan.destinations[0];
+  const where = first ? (first.kind === 'meta' ? `a meta "${first.label}"` : first.kind === 'divida' ? `adiantar ${first.label}` : first.kind === 'reserva' ? 'a reserva de emergência' : 'investir') : 'investir';
+  return [
+    {
+      type: 'extra_income',
+      target,
+      title: `Entrou ${brl(extra)} a mais este mês`,
+      body: `A renda do mês passou do previsto no planejamento. Sugestão: mandar o extra para ${where}, na mesma ordem do plano (reserva, dívidas caras, metas, investimento).`,
+      pushText: `Entrou ${brl(extra)} a mais. Veja para onde mandar.`,
+      action: { label: 'Ver planejamento', page: 'plan' },
+      why: [`Renda prevista: ${brl(plan.incomeMinor)}`, `Entrou até agora: ${brl(row?.total ?? 0)}`, 'Regra: nenhum real parado; o extra segue a ordem do plano.'],
+      pEvent: 1,
+      impactMinor: extra,
+      priorityWeight: 0.6,
+      group: 'goals',
+    },
+  ];
+}
+
+/** Plano do mes pronto: fica no sino e vai por push/e-mail ("Seu planejamento de novembro esta pronto"). */
+export async function notifyPlanReady(ctx: AppContext, userId: ObjectId, plan: { month: string; summary: string }, monthName: string, now = new Date()) {
+  const doc: AlertDoc = {
+    _id: new ObjectId(),
+    userId,
+    type: 'plan_ready',
+    target: `plan:${plan.month}`,
+    title: `Seu planejamento de ${monthName} está pronto`,
+    body: plan.summary,
+    pushText: `Seu planejamento de ${monthName} está pronto.`,
+    action: { label: 'Ver planejamento', page: 'plan' },
+    why: ['Gerado automaticamente no dia 1 com os seus dados reais.', 'Você pode ajustar qualquer valor; o ajuste vale para este mês.'],
+    score: 1,
+    features: { type: 'plan_ready', hour: 6, group: 'goals', amountMinor: 0 },
+    dueToday: false,
+    createdAt: now,
+    readAt: null,
+    sentAt: null,
+    channels: [],
+    feedback: null,
+    feedbackAt: null,
+  };
+  await ctx.col.alerts.insertOne(doc);
+  const channels = await deliver(ctx, userId, { id: String(doc._id), pushText: doc.pushText, url: PAGE_URL.plan });
+  if (channels.length) await ctx.col.alerts.updateOne({ _id: doc._id }, { $set: { sentAt: now, channels } });
+  return channels;
 }
 
 /** Chance de fechar o mes no vermelho acima de 50% (modelo ligado, RN-I04). */
@@ -383,6 +490,8 @@ export async function candidatesFor(ctx: AppContext, userId: ObjectId, kind: Ale
     ...(await monthNegative(ctx, userId, now)),
     ...(await categoryAnomaly(ctx, userId, tz, now, shifted)),
     ...(await limitUsage(ctx, userId, now)),
+    ...(await budgetUsage(ctx, userId, tz, now)),
+    ...(await extraIncome(ctx, userId, tz, now)),
   ];
 }
 

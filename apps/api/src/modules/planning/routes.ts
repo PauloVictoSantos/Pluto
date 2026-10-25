@@ -1,4 +1,4 @@
-import { BudgetSchema, CreateGoalSchema, GoalSchema, MonthQuerySchema, PutBudgetSchema, UpdateGoalSchema, type Goal } from '@pluto/shared';
+import { AdjustMonthlyPlanSchema, BudgetSchema, CreateGoalSchema, MonthlyPlanSchema, GoalSchema, MonthQuerySchema, PutBudgetSchema, UpdateGoalSchema, type Goal } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
@@ -6,7 +6,10 @@ import type { AppContext } from '../../context';
 import type { GoalDoc } from '../../db/collections';
 import { notFound } from '../../lib/errors';
 import { monthOf } from '../../lib/time';
+import { audit } from '../../lib/audit';
 import { requireAuth, userOf } from '../../plugins/auth';
+import { perUser } from '../../plugins/security';
+import { adjustMonthlyPlan, buildMonthlyPlan, getMonthlyPlan } from './monthlyPlan';
 
 // Orcamentos mensais por categoria (RN-20..22) e metas (RN-23). Os valores guardados nas metas
 // sao registros do usuario: o Pluto nao movimenta dinheiro (secao 1.2).
@@ -48,6 +51,25 @@ export const planningRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async 
       await col.budgets.insertMany(unique.map((i) => ({ userId, month, categoryKey: i.categoryKey, limitMinor: i.limitMinor, createdAt: now, updatedAt: now })) as never);
     return { month, items: unique };
   });
+
+  // Planejamento automatico do mes (doc. Melhorias, passo 9).
+  app.get('/planning/monthly', { schema: { querystring: MonthQuerySchema, response: { 200: MonthlyPlanSchema.nullable() } } }, async (req) => getMonthlyPlan(ctx, userOf(req).id, req.query.month));
+  app.post('/planning/monthly/generate', { config: { rateLimit: perUser(5) }, schema: { response: { 200: MonthlyPlanSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    const plan = await buildMonthlyPlan(ctx, userId, new Date(), 'manual');
+    await audit(col, 'monthly_plan.generated', userId, { month: plan.month, trigger: 'manual' }, req.ip);
+    return plan;
+  });
+  app.patch(
+    '/planning/monthly/:month',
+    { config: { rateLimit: perUser(30) }, schema: { params: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }), body: AdjustMonthlyPlanSchema, response: { 200: MonthlyPlanSchema } } },
+    async (req) => {
+      const userId = userOf(req).id;
+      const plan = await adjustMonthlyPlan(ctx, userId, req.params.month, req.body);
+      await audit(col, 'monthly_plan.adjusted', userId, { month: plan.month }, req.ip);
+      return plan;
+    },
+  );
 
   app.get('/goals', { schema: { response: { 200: z.array(GoalSchema) } } }, async (req) =>
     (await col.goals.find({ userId: userOf(req).id }).sort({ priority: 1, deadline: 1 }).toArray()).map(toGoal),

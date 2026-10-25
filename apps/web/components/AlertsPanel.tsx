@@ -17,6 +17,9 @@ const ICON: Record<Alert['type'], string> = {
   weekly_summary: 'file-text',
   limit_usage: 'pie-chart',
   limit_override: 'pie-chart',
+  plan_ready: 'calendar-days',
+  budget_usage: 'pie-chart',
+  extra_income: 'arrow-down-left',
 };
 const PAGE: Record<NonNullable<Alert['action']>['page'], PageId> = {
   overview: 'overview',
@@ -25,6 +28,7 @@ const PAGE: Record<NonNullable<Alert['action']>['page'], PageId> = {
   budget: 'budget',
   goals: 'goals',
   reports: 'reports',
+  plan: 'plan',
 };
 
 /** AlertCard (doc. "Componentes"): fato, consequencia, acao, "por que" e util / nao util (RN-A04). */

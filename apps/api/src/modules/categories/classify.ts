@@ -44,7 +44,7 @@ async function askLlm(llm: Llm, items: Candidate[]) {
 }
 
 /** Gastos ainda sem categoria (Outros) que nao passaram pela classificacao: palavras, IA ou Revisar. */
-export async function classifyUncertain(ctx: { col: Collections; llm: Llm | null }, userId: ObjectId, now = new Date()) {
+export async function classifyUncertain(ctx: { col: Collections; llm?: Llm | null }, userId: ObjectId, now = new Date()) {
   const { col } = ctx;
   const txs = await col.transactions
     .find(
