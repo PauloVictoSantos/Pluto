@@ -1,7 +1,7 @@
-import { BOLETO_MAX_DAYS, type Charge, type CreateCharge, type InstallmentStatus } from '@pluto/shared';
+import { BOLETO_MAX_DAYS, type Charge, type CreateCharge, type InstallmentStatus, type Payer, type SavedPayer } from '@pluto/shared';
 import { ObjectId } from 'mongodb';
 import type { AppContext } from '../../context';
-import type { ChargeDoc, InstallmentDoc } from '../../db/collections';
+import type { ChargeDoc, InstallmentDoc, PayerDoc } from '../../db/collections';
 import type { BoletoStatus, StripeGateway } from '../../integrations/stripe/gateway';
 import { audit } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
@@ -66,7 +66,61 @@ export function toChargeDTO(c: ChargeDoc, goalName: string | null): Charge {
       error: i.error,
     })),
     createdAt: c.createdAt,
+    testMode: !!c.testMode,
+    clearable: isClearable(c),
   };
+}
+
+/** Pode sair da lista: boleto de teste, ou nenhuma parcela em aberto ou agendada. */
+export const isClearable = (c: Pick<ChargeDoc, 'testMode' | 'installments'>) => !!c.testMode || !c.installments.some((i) => i.status === 'OPEN' || i.status === 'SCHEDULED');
+
+/** A chave atual do Stripe e de teste (rk_test_/sk_test_): boletos emitidos com ela nao sao pagaveis. */
+export const stripeTestMode = (ctx: AppContext) => !!ctx.env.STRIPE_SECRET_KEY && /^(sk|rk)_test_/.test(ctx.env.STRIPE_SECRET_KEY);
+
+/** Lista visivel (sem os que o usuario limpou). Cobrancas antigas, de antes do campo, herdam o modo da chave atual. */
+export async function visibleCharges(ctx: AppContext, userId: ObjectId) {
+  if (stripeTestMode(ctx)) await ctx.col.charges.updateMany({ userId, testMode: { $exists: false } }, { $set: { testMode: true } });
+  const docs = await ctx.col.charges.find({ userId, hiddenAt: null }).sort({ createdAt: -1 }).limit(100).toArray();
+  return chargesWithGoals(ctx, docs);
+}
+
+/** "Limpar": tira da lista os boletos de teste e os encerrados (pagos, vencidos, cancelados). Os em aberto ficam. */
+export async function clearCharges(ctx: AppContext, userId: ObjectId, onlyId?: string) {
+  if (stripeTestMode(ctx)) await ctx.col.charges.updateMany({ userId, testMode: { $exists: false } }, { $set: { testMode: true } });
+  const filter = { userId, hiddenAt: null, ...(onlyId ? { _id: new ObjectId(onlyId) } : {}) };
+  const docs = await ctx.col.charges.find(filter).toArray();
+  if (onlyId && !docs.length) throw notFound('Cobrança');
+  const ids = docs.filter(isClearable).map((d) => d._id);
+  if (onlyId && !ids.length) throw new AppError(409, 'CHARGE_OPEN', 'Esta cobrança ainda tem boleto em aberto. Encerre a cobrança antes de tirar da lista.');
+  if (ids.length) await ctx.col.charges.updateMany({ _id: { $in: ids } }, { $set: { hiddenAt: new Date(), updatedAt: new Date() } });
+  return ids.length;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Contatos (pagadores salvos): o formulario ja vem preenchido na proxima cobranca.
+
+const toPayer = (ctx: AppContext, d: PayerDoc): SavedPayer => ({ ...(JSON.parse(ctx.crypto.decrypt(d.dataEnc)) as Payer), id: d._id.toHexString(), lastUsedAt: d.lastUsedAt });
+
+export async function listPayers(ctx: AppContext, userId: ObjectId): Promise<SavedPayer[]> {
+  const docs = await ctx.col.payers.find({ userId }).sort({ lastUsedAt: -1, updatedAt: -1 }).limit(100).toArray();
+  return docs.map((d) => toPayer(ctx, d)).sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0) || a.name.localeCompare(b.name));
+}
+
+/** Salva (ou atualiza, pelo CPF/CNPJ) um pagador. */
+export async function savePayer(ctx: AppContext, userId: ObjectId, payer: Payer, used = false) {
+  const now = new Date();
+  await ctx.col.payers.updateOne(
+    { userId, taxIdHash: ctx.crypto.hash(payer.taxId) },
+    { $set: { dataEnc: ctx.crypto.encrypt(JSON.stringify(payer)), updatedAt: now, ...(used ? { lastUsedAt: now } : {}) }, $setOnInsert: { userId, createdAt: now, ...(used ? {} : { lastUsedAt: null }) } },
+    { upsert: true },
+  );
+  return listPayers(ctx, userId);
+}
+
+export async function removePayer(ctx: AppContext, userId: ObjectId, id: string) {
+  const r = await ctx.col.payers.deleteOne({ _id: new ObjectId(id), userId });
+  if (!r.deletedCount) throw notFound('Contato');
+  return listPayers(ctx, userId);
 }
 
 export async function chargesWithGoals(ctx: AppContext, docs: ChargeDoc[]) {
@@ -148,6 +202,8 @@ export async function createCharge(ctx: AppContext, userId: ObjectId, input: Cre
       error: null,
     })),
     canceledAt: null,
+    testMode: stripeTestMode(ctx),
+    hiddenAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -155,6 +211,9 @@ export async function createCharge(ctx: AppContext, userId: ObjectId, input: Cre
   const created = { _id: insertedId, ...doc } as ChargeDoc;
   for (const inst of created.installments) await issueInstallment(ctx, created, inst, today);
   await audit(ctx.col, 'charge.created', userId, { chargeId: insertedId.toHexString(), installments: input.installments, destination: input.destination }, ip);
+  // Contato: salva quando pedido; se ja existe, so marca como usado agora (sobe na lista).
+  if (input.savePayer) await savePayer(ctx, userId, input.payer, true);
+  else await ctx.col.payers.updateOne({ userId, taxIdHash: ctx.crypto.hash(input.payer.taxId) }, { $set: { lastUsedAt: new Date() } });
   return (await ctx.col.charges.findOne({ _id: insertedId }))!;
 }
 

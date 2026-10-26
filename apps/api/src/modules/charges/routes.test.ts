@@ -237,3 +237,49 @@ describe('/v1/webhooks/stripe', () => {
     expect((await h.ctx.col.charges.findOne({}))!.installments[0]!.status).toBe('PAID');
   });
 });
+
+describe('limpar boletos e contatos', () => {
+  const del = async (u: User, url: string) => h.app.inject({ method: 'DELETE', url, headers: { authorization: `Bearer ${await h.token(u.id)}` } });
+
+  it('Limpar tira os de teste e os encerrados; o que esta em aberto (real) fica', async () => {
+    const u = await h.createUser();
+    // Chave de teste: tudo que for emitido agora e de teste e pode sair da lista.
+    Object.assign(h.ctx.env, { STRIPE_SECRET_KEY: 'rk_test_x' });
+    const teste = (await req(u, 'POST', '/v1/charges', body({ installments: 1 }))).json();
+    expect(teste).toMatchObject({ testMode: true, clearable: true });
+    // Chave de producao: boleto real em aberto nao sai sem encerrar antes.
+    Object.assign(h.ctx.env, { STRIPE_SECRET_KEY: 'rk_live_x' });
+    const real = (await req(u, 'POST', '/v1/charges', body({ installments: 1 }))).json();
+    expect(real).toMatchObject({ testMode: false, clearable: false });
+    expect((await del(u, `/v1/charges/${real.id}`)).json().error.code).toBe('CHARGE_OPEN');
+
+    const r = (await req(u, 'POST', '/v1/charges/clear')).json();
+    expect(r.hidden).toBe(1);
+    expect(r.charges.map((c: { id: string }) => c.id)).toEqual([real.id]);
+    expect((await req(u, 'GET', '/v1/charges')).json().map((c: { id: string }) => c.id)).toEqual([real.id]);
+    // Continua guardado (historico e LGPD), so fora da lista.
+    expect(await h.ctx.col.charges.countDocuments({ userId: u.id })).toBe(2);
+
+    // Encerrado: agora pode sair.
+    await req(u, 'POST', `/v1/charges/${real.id}/cancel`);
+    expect((await del(u, `/v1/charges/${real.id}`)).json().charges).toEqual([]);
+    Object.assign(h.ctx.env, { STRIPE_SECRET_KEY: undefined });
+  });
+
+  it('contatos: salva ao gerar, cifrado, sem duplicar pelo CPF; outro usuario nao ve', async () => {
+    const u = await h.createUser();
+    await req(u, 'POST', '/v1/charges', body({ installments: 1, savePayer: true }));
+    await req(u, 'POST', '/v1/charges/payers', { ...payer, email: 'carla.nova@exemplo.test' });
+    const list = (await req(u, 'GET', '/v1/charges/payers')).json();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ name: 'Carla Mendes', taxId: '52998224725', email: 'carla.nova@exemplo.test', address: { city: 'Manaus', state: 'AM' } });
+    const raw = JSON.stringify(await h.ctx.col.payers.find({}).toArray());
+    expect(raw).not.toContain('52998224725');
+    expect(raw).not.toContain('Carla');
+
+    const other = await h.createUser({ email: 'outro@pluto.test' });
+    expect((await req(other, 'GET', '/v1/charges/payers')).json()).toEqual([]);
+    expect((await del(other, `/v1/charges/payers/${list[0].id}`)).statusCode).toBe(404);
+    expect((await del(u, `/v1/charges/payers/${list[0].id}`)).json()).toEqual([]);
+  });
+});

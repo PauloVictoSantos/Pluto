@@ -330,6 +330,22 @@ export interface ChargeDoc {
   totalMinor: number;
   installments: InstallmentDoc[];
   canceledAt: Date | null;
+  /** Emitido com chave de teste do Stripe (boleto nao pagavel). */
+  testMode?: boolean;
+  /** "Limpar" da lista de boletos emitidos (o registro continua para o historico e a LGPD). */
+  hiddenAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Contato de cobranca (pagador salvo): CPF/CNPJ, e-mail, telefone e endereco cifrados juntos. */
+export interface PayerDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  /** HMAC do CPF/CNPJ: o mesmo pagador nao vira dois contatos. */
+  taxIdHash: string;
+  dataEnc: string;
+  lastUsedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -785,6 +801,7 @@ export interface Collections {
   fixedDismissals: Collection<FixedDismissalDoc>;
   monthlyPlans: Collection<MonthlyPlanDoc>;
   receipts: Collection<ReceiptDoc>;
+  payers: Collection<PayerDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
@@ -827,6 +844,7 @@ export const collections = (db: Db): Collections => ({
   fixedDismissals: db.collection<FixedDismissalDoc>('fixed_dismissals'),
   monthlyPlans: db.collection<MonthlyPlanDoc>('monthly_plans'),
   receipts: db.collection<ReceiptDoc>('receipts'),
+  payers: db.collection<PayerDoc>('payers'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),

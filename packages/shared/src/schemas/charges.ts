@@ -54,6 +54,8 @@ export const CreateChargeSchema = z
     totalMinor: z.number().int().min(500, 'Mínimo de R$ 5,00').max(100_000_000),
     installments: z.number().int().min(1).max(12),
     firstDueDate: Ymd,
+    /** Guarda os dados do pagador nos contatos (para a proxima cobranca). */
+    savePayer: z.boolean().default(false),
   })
   .refine((c) => c.destination !== 'GOAL' || !!c.goalId, { message: 'Escolha a meta', path: ['goalId'] })
   .refine((c) => Math.floor(c.totalMinor / c.installments) >= 500, { message: 'Cada parcela precisa ter pelo menos R$ 5,00', path: ['installments'] });
@@ -94,8 +96,26 @@ export const ChargeSchema = z.object({
   paidMinor: z.number().int(),
   installments: z.array(InstallmentSchema),
   createdAt: z.coerce.date(),
+  /** Emitido com a chave de teste do Stripe (nao pagavel). */
+  testMode: z.boolean().default(false),
+  /** Pode sair da lista ("Limpar"): de teste, ou sem parcela em aberto/agendada. */
+  clearable: z.boolean().default(false),
 });
 export type Charge = z.infer<typeof ChargeSchema>;
+
+/** Pagador salvo (contatos do Boleto): dados cifrados no banco, so o dono ve. */
+// Resposta sem transform (o serializador da API nao reverte transforms do PayerSchema).
+export const SavedPayerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  taxId: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+  address: z.object({ postalCode: z.string(), line1: z.string(), city: z.string(), state: z.string() }),
+  lastUsedAt: z.coerce.date().nullable(),
+});
+export type SavedPayer = z.infer<typeof SavedPayerSchema>;
+export const ClearChargesResultSchema = z.object({ hidden: z.number().int(), charges: z.array(ChargeSchema) });
 
 /**
  * Encerrar uma parcela antes do pagamento pelo banco:

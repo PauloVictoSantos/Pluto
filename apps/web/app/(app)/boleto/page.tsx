@@ -7,6 +7,7 @@ import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { PlutoMascot } from '@/components/brand/PlutoMascot';
 import { useShell } from '@/components/shell/ShellContext';
 import { Icon } from '@/components/ui/Icon';
+import { PayerPicker } from '@/components/PayerPicker';
 import { Segmented } from '@/components/ui/Segmented';
 import { ApiRequestError, api } from '@/lib/api';
 import { barcodeBars, chargeMessage } from '@/lib/boleto';
@@ -86,6 +87,8 @@ export default function BoletoPage() {
   const [rua, setRua] = useState('');
   const [cidade, setCidade] = useState('');
   const [uf, setUf] = useState('');
+  // Contatos: guarda os dados do pagador para a proxima cobranca.
+  const [savePayerToo, setSavePayerToo] = useState(true);
   const [step, setStep] = useState<Step>('form');
   const [result, setResult] = useState<Charge | null>(null);
   const [sel, setSel] = useState(0);
@@ -157,6 +160,7 @@ export default function BoletoPage() {
         totalMinor,
         installments: n,
         firstDueDate: venc,
+        savePayer: savePayerToo,
       }),
     onSuccess: (c) => {
       setResult(c);
@@ -169,6 +173,7 @@ export default function BoletoPage() {
       setStep('form');
     },
   });
+  const clear = useMutation({ mutationFn: api.clearCharges, onSuccess: (r) => qc.setQueryData(['charges'], r.charges) });
   const refresh = useMutation({
     mutationFn: api.refreshCharges,
     onSuccess: (list) => {
@@ -294,6 +299,24 @@ export default function BoletoPage() {
         <div className="flex min-w-0 flex-col gap-4">
           {(!isMobile || step === 'form') && (
             <form data-anim="" onSubmit={submit} className="card flex flex-col gap-5" noValidate>
+              <PayerPicker
+                name={nome}
+                email={email}
+                taxId={doc}
+                onPick={(p) => {
+                  setNome(p.name);
+                  setDoc(maskDoc(p.taxId));
+                  setEmail(p.email);
+                  setPhone(p.phone ? maskPhone(p.phone) : '');
+                  setCep(maskCep(p.address.postalCode));
+                  setRua(p.address.line1);
+                  setCidade(p.address.city);
+                  setUf(p.address.state);
+                }}
+                onNew={() => {
+                  for (const set of [setNome, setDoc, setEmail, setPhone, setCep, setRua, setCidade, setUf]) set('');
+                }}
+              />
               <div className="flex flex-col gap-2.5">
                 <span className="text-sm font-semibold">Para onde vai o dinheiro?</span>
                 <Segmented items={DESTINATIONS} value={destination} onChange={setDestination} height={40} className="self-start" itemClassName="px-3.5 text-[13px] font-semibold" />
@@ -432,6 +455,10 @@ export default function BoletoPage() {
                     <input value={uf} onChange={(e) => setUf(e.target.value.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase())} placeholder="AM" className="input uppercase" />
                   </label>
                 </div>
+                <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px]">
+                  <input type="checkbox" checked={savePayerToo} onChange={(e) => setSavePayerToo(e.target.checked)} className="size-4 accent-[var(--brand)]" />
+                  Salvar nos contatos (da próxima vez é só escolher)
+                </label>
                 <label className="field">
                   Descrição (aparece no boleto)
                   <input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={120} placeholder="Ex.: Aulas de inglês · novembro" className="input" />
@@ -715,9 +742,24 @@ export default function BoletoPage() {
           <div data-anim="" className="card flex flex-col gap-1.5">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="card-title">Boletos emitidos</div>
-              <button onClick={() => refresh.mutate()} disabled={refresh.isPending} aria-label="Atualizar situação dos boletos" className="icon-btn">
-                <Icon icon="refresh-cw" size={16} />
-              </button>
+              <span className="flex items-center gap-1.5">
+                {(charges.data ?? []).some((c) => c.clearable) && (
+                  <button
+                    onClick={() =>
+                      window.confirm('Tirar da lista os boletos de teste e os encerrados (pagos, vencidos e cancelados)? Os que estão em aberto continuam. O histórico fica guardado.') &&
+                      clear.mutate()
+                    }
+                    disabled={clear.isPending}
+                    className="btn btn-outline h-9 px-3 text-[13px]"
+                  >
+                    <Icon icon="trash-2" size={14} />
+                    {clear.isPending ? 'Limpando…' : 'Limpar'}
+                  </button>
+                )}
+                <button onClick={() => refresh.mutate()} disabled={refresh.isPending} aria-label="Atualizar situação dos boletos" className="icon-btn">
+                  <Icon icon="refresh-cw" size={16} />
+                </button>
+              </span>
             </div>
             {charges.isPending && <div className="py-3 text-sm text-muted-foreground">Carregando…</div>}
             {!charges.isPending && !charges.data?.length && <div className="border-t border-border py-4 text-sm text-muted-foreground">Nenhum boleto ainda.</div>}
@@ -747,8 +789,11 @@ export default function BoletoPage() {
                     <span className="text-[15px] font-semibold tabular-nums" style={{ textDecoration: allCanceled(c) ? 'line-through' : undefined, opacity: allCanceled(c) ? 0.6 : 1 }}>
                       {money(c.totalMinor)}
                     </span>
-                    <span className="badge" style={{ background: st.bg, color: st.fg, borderColor: st.border }}>
-                      {st.label}
+                    <span className="flex items-center gap-1">
+                      {c.testMode && <span className="badge border-border bg-accent text-black">Teste</span>}
+                      <span className="badge" style={{ background: st.bg, color: st.fg, borderColor: st.border }}>
+                        {st.label}
+                      </span>
                     </span>
                   </span>
                 </button>

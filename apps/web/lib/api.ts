@@ -23,6 +23,8 @@ import {
   ContestationsSchema,
   ExportFileSchema,
   ObligationsSchema,
+  ClearChargesResultSchema,
+  SavedPayerSchema,
   InvestmentBoxesSchema,
   ReceiptDraftSchema,
   ReceiptSchema,
@@ -236,6 +238,10 @@ export const api = {
   createCharge: (body: CreateChargeInput) => request('/charges', post(body), ChargeSchema),
   refreshCharges: () => request('/charges/refresh', post(), z.array(ChargeSchema)),
   cancelCharge: (id: string) => request(`/charges/${id}/cancel`, post(), ChargeSchema),
+  /** Limpar: tira da lista os de teste e os encerrados. */
+  clearCharges: () => request('/charges/clear', post(), ClearChargesResultSchema),
+  payers: () => request('/charges/payers', {}, z.array(SavedPayerSchema)),
+  removePayer: (id: string) => request(`/charges/payers/${id}`, { method: 'DELETE' }, z.array(SavedPayerSchema)),
   sendCharge: (id: string, n: number | null) => request(`/charges/${id}/send`, post({ n }), ChargeSchema),
   closeInstallment: (id: string, n: number, outcome: 'CANCEL' | 'RECEIVED') =>
     request(`/charges/${id}/installments/${n}/close`, post({ outcome }), ChargeSchema),

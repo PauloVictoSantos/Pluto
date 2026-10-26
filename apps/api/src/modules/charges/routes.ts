@@ -1,12 +1,13 @@
-import { ChargeSchema, CloseInstallmentSchema, CreateChargeSchema } from '@pluto/shared';
+import { ChargeSchema, ClearChargesResultSchema, CloseInstallmentSchema, CreateChargeSchema, PayerSchema, SavedPayerSchema } from '@pluto/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
+import { audit } from '../../lib/audit';
 import { AppError } from '../../lib/errors';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
-import { cancelCharge, chargesWithGoals, closeInstallment, sendChargeEmail, createCharge, handleStripeEvent, processCharges } from './service';
+import { cancelCharge, chargesWithGoals, clearCharges, listPayers, removePayer, savePayer, visibleCharges, closeInstallment, sendChargeEmail, createCharge, handleStripeEvent, processCharges } from './service';
 
 const IdParam = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/) });
 
@@ -20,10 +21,27 @@ export const chargeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (a
     emailEnabled: !!ctx.mailer,
   }));
 
-  app.get('/charges', { schema: { response: { 200: z.array(ChargeSchema) } } }, async (req) => {
-    const docs = await ctx.col.charges.find({ userId: userOf(req).id }).sort({ createdAt: -1 }).limit(100).toArray();
-    return chargesWithGoals(ctx, docs);
+  app.get('/charges', { schema: { response: { 200: z.array(ChargeSchema) } } }, async (req) => visibleCharges(ctx, userOf(req).id));
+
+  // "Limpar": tira da lista os boletos de teste e os encerrados; os em aberto ficam.
+  app.post('/charges/clear', { config: { rateLimit: perUser(10) }, schema: { response: { 200: ClearChargesResultSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    const hidden = await clearCharges(ctx, userId);
+    await audit(ctx.col, 'charges.cleared', userId, { hidden }, req.ip);
+    return { hidden, charges: await visibleCharges(ctx, userId) };
   });
+  app.delete('/charges/:id', { config: { rateLimit: perUser(30) }, schema: { params: IdParam, response: { 200: ClearChargesResultSchema } } }, async (req) => {
+    const userId = userOf(req).id;
+    const hidden = await clearCharges(ctx, userId, req.params.id);
+    return { hidden, charges: await visibleCharges(ctx, userId) };
+  });
+
+  // Contatos: pagadores salvos (dados cifrados), para gerar o proximo boleto sem digitar de novo.
+  app.get('/charges/payers', { schema: { response: { 200: z.array(SavedPayerSchema) } } }, async (req) => listPayers(ctx, userOf(req).id));
+  app.post('/charges/payers', { config: { rateLimit: perUser(20) }, schema: { body: PayerSchema, response: { 200: z.array(SavedPayerSchema) } } }, async (req) => savePayer(ctx, userOf(req).id, req.body));
+  app.delete('/charges/payers/:id', { config: { rateLimit: perUser(20) }, schema: { params: IdParam, response: { 200: z.array(SavedPayerSchema) } } }, async (req) =>
+    removePayer(ctx, userOf(req).id, req.params.id),
+  );
 
   app.post(
     '/charges',
@@ -38,7 +56,7 @@ export const chargeRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async (a
   app.post('/charges/refresh', { config: { rateLimit: perUser(6) }, schema: { response: { 200: z.array(ChargeSchema) } } }, async (req) => {
     const userId = userOf(req).id;
     await processCharges(ctx, { userId }, req.log);
-    return chargesWithGoals(ctx, await ctx.col.charges.find({ userId }).sort({ createdAt: -1 }).limit(100).toArray());
+    return visibleCharges(ctx, userId);
   });
 
   app.post(
