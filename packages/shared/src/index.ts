@@ -30,3 +30,5 @@ export * from './fixedIcons';
 export * from './paymentMethods';
 export * from './textCategory';
 export * from './schemas/monthlyPlan';
+export * from './receiptMatch';
+export * from './schemas/receipts';

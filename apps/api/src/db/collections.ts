@@ -198,6 +198,8 @@ export interface TransactionDoc {
   needsReview?: boolean;
   /** Ja passou pela classificacao em camadas (palavras/IA); evita repetir a cada sincronizacao. */
   classifiedAt?: Date | null;
+  /** Cupom fiscal escaneado que corresponde a esta compra (passo 10). */
+  receiptId?: ObjectId | null;
   invoiceId: ObjectId | null;
   tags: string[];
   notes: string | null;
@@ -360,6 +362,24 @@ export interface ShoppingSuggestionDoc {
   qty: number;
   reason: string;
   source: 'history' | 'explore';
+}
+
+/**
+ * Cupom fiscal escaneado (doc. Melhorias, passo 10): so os dados confirmados pelo usuario; a imagem
+ * nunca e guardada. A chave de acesso fica so como hash (evita importar o mesmo cupom duas vezes).
+ */
+export interface ReceiptDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  store: string | null;
+  date: string | null;
+  items: { name: string; itemId: ObjectId; qty: number; unitPriceMinor: number; totalMinor: number }[];
+  totalMinor: number;
+  source: 'sefaz' | 'ia';
+  accessKeyHash: string | null;
+  transactionId: ObjectId | null;
+  checkedOff: string[];
+  createdAt: Date;
 }
 
 /** Uma lista por mes (RN-L01). Fechada no dia 1, 00:05, e imutavel depois disso (RN-L06, RN-G07). */
@@ -756,6 +776,7 @@ export interface Collections {
   incomeProfiles: Collection<IncomeProfileDoc>;
   fixedDismissals: Collection<FixedDismissalDoc>;
   monthlyPlans: Collection<MonthlyPlanDoc>;
+  receipts: Collection<ReceiptDoc>;
   fixedExpenses: Collection<FixedExpenseDoc>;
   loans: Collection<LoanDoc>;
   spendingLimits: Collection<SpendingLimitDoc>;
@@ -797,6 +818,7 @@ export const collections = (db: Db): Collections => ({
   incomeProfiles: db.collection<IncomeProfileDoc>('income_profiles'),
   fixedDismissals: db.collection<FixedDismissalDoc>('fixed_dismissals'),
   monthlyPlans: db.collection<MonthlyPlanDoc>('monthly_plans'),
+  receipts: db.collection<ReceiptDoc>('receipts'),
   fixedExpenses: db.collection<FixedExpenseDoc>('fixed_expenses'),
   loans: db.collection<LoanDoc>('loans'),
   spendingLimits: db.collection<SpendingLimitDoc>('spending_limits'),

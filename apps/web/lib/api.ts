@@ -23,6 +23,10 @@ import {
   ContestationsSchema,
   ExportFileSchema,
   ObligationsSchema,
+  ReceiptDraftSchema,
+  ReceiptSchema,
+  ShoppingInsightsSchema,
+  type ReceiptDraft,
   MonthlyPlanSchema,
   type AdjustMonthlyPlan,
   IncomeProfilesSchema,
@@ -336,6 +340,11 @@ export const api = {
 
   // Lista de compras do mes.
   shoppingList: () => request('/shopping/list', {}, ShoppingListSchema),
+  /** Cupom: QR (SEFAZ) ou foto (IA, com consentimento). A foto vai so nesta chamada. */
+  scanReceipt: (body: { qr: string } | { image: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; base64: string } }) =>
+    request('/shopping/receipts/scan', post(body, { timeoutMs: 60_000 }), ReceiptDraftSchema),
+  saveReceipt: (d: ReceiptDraft) => request('/shopping/receipts', post(d), ReceiptSchema),
+  shoppingInsights: () => request('/shopping/insights', {}, ShoppingInsightsSchema),
   addShoppingEntry: (body: { raw?: string; itemId?: string; qty?: number; confirm?: { name: string; category: ShoppingCategory; unit: Unit } }) =>
     request('/shopping/list/entries', post(body), ShoppingListSchema),
   updateShoppingEntry: (itemId: string, patch: { bought?: boolean; priceMinor?: number | null; qty?: number; removed?: boolean }) =>

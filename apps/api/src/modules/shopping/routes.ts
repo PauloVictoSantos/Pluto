@@ -9,12 +9,18 @@ import {
   ResolveItemSchema,
   ShoppingListSchema,
   UpdateEntrySchema,
+  ReceiptDraftSchema,
+  ReceiptSchema,
+  ScanReceiptSchema,
+  ShoppingInsightsSchema,
 } from '@pluto/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { AppContext } from '../../context';
 import { requireAuth, userOf } from '../../plugins/auth';
 import { perUser } from '../../plugins/security';
+import { audit } from '../../lib/audit';
+import { listReceipts, saveReceipt, scanReceipt, shoppingInsights } from './receipts';
 import { addEntry, answerMarket, catalog, closedList, copyFrom, dismissSuggestion, ensureList, history, listDTO, resolveItem, updateEntry } from './service';
 
 const ItemParam = z.object({ itemId: z.string().regex(/^[a-f0-9]{24}$/) });
@@ -54,6 +60,21 @@ export const shoppingRoutes: FastifyPluginAsyncZod<{ ctx: AppContext }> = async 
     { config: { rateLimit: perUser(30) }, schema: { body: ResolveItemSchema, response: { 200: ResolveItemResultSchema } } },
     async (req) => resolveItem(ctx, userOf(req).id, req.body.raw),
   );
+
+  // Scanner de cupom (doc. Melhorias, passo 10). A foto vem so nesta requisicao (ate ~3 MB) e nao e
+  // gravada nem registrada em log: o corpo das requisicoes nunca vai para o log da API.
+  app.post(
+    '/shopping/receipts/scan',
+    { bodyLimit: 4_500_000, config: { rateLimit: perUser(15) }, schema: { body: ScanReceiptSchema, response: { 200: ReceiptDraftSchema } } },
+    async (req) => scanReceipt(ctx, userOf(req).id, req.body),
+  );
+  app.post('/shopping/receipts', { config: { rateLimit: perUser(20) }, schema: { body: ReceiptDraftSchema, response: { 200: ReceiptSchema } } }, async (req) => {
+    const r = await saveReceipt(ctx, userOf(req).id, req.body);
+    await audit(ctx.col, 'receipt.saved', userOf(req).id, { source: r.source, items: r.items.length, linked: !!r.transactionId }, req.ip);
+    return r;
+  });
+  app.get('/shopping/receipts', { schema: { response: { 200: z.array(ReceiptSchema) } } }, async (req) => listReceipts(ctx, userOf(req).id));
+  app.get('/shopping/insights', { schema: { response: { 200: ShoppingInsightsSchema } } }, async (req) => shoppingInsights(ctx, userOf(req).id));
 
   app.get('/shopping/items', { schema: { response: { 200: CatalogSchema } } }, async (req) => catalog(ctx, userOf(req).id));
   app.get('/shopping/lists', { schema: { response: { 200: ListHistorySchema } } }, async (req) => history(ctx, userOf(req).id));

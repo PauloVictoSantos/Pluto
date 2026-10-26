@@ -18,6 +18,8 @@ import { Sheet, useSheetClose } from '@/components/ui/Sheet';
 import { ApiRequestError, api } from '@/lib/api';
 import { ymdIn } from '@/lib/datetime';
 import { fmtDay, maskMoney, hidePct } from '@/lib/format';
+import { ReceiptScanner } from '@/components/ReceiptScanner';
+import { ShoppingInsightsCard } from '@/components/ShoppingInsightsCard';
 import { useEnter } from '@/lib/motion';
 import { monthLong, monthLower, money, useTz } from '@/lib/queries';
 
@@ -189,6 +191,7 @@ export default function ListaPage() {
           {list.closesInDays <= 1 ? 'Fecha amanhã' : `Fecha em ${list.closesInDays} dias`}
         </span>
       </div>
+      <ReceiptScanner />
       {total > 0 && (
         <>
           <div
@@ -343,6 +346,7 @@ export default function ListaPage() {
           </div>
           <div className="flex flex-col gap-4">
             {suggestions}
+            <ShoppingInsightsCard />
             {side}
           </div>
         </div>
@@ -350,6 +354,7 @@ export default function ListaPage() {
         <>
           {header}
           {suggestions}
+          <ShoppingInsightsCard />
           {items}
           {side}
           {/* Campo no rodape: ao alcance do polegar, acima da barra inferior e longe do botao da Pluto. */}

@@ -52,6 +52,7 @@ export const INDEXES: Record<string, IndexDescription[]> = {
   income_profiles: [{ key: { userId: 1, createdAt: 1 } }],
   fixed_dismissals: [{ key: { userId: 1, key: 1 }, unique: true }],
   monthly_plans: [{ key: { userId: 1, month: 1 }, unique: true }],
+  receipts: [{ key: { userId: 1, createdAt: -1 } }, { key: { userId: 1, accessKeyHash: 1 }, unique: true, partialFilterExpression: { accessKeyHash: { $type: 'string' } } }],
   fixed_expenses: [{ key: { userId: 1, deletedAt: 1 } }],
   loans: [{ key: { userId: 1, deletedAt: 1 } }],
   spending_limits: [{ key: { userId: 1, month: 1 }, unique: true }],

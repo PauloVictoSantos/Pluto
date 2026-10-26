@@ -23,7 +23,8 @@ export interface LlmTool {
 
 export interface Llm {
   /** json: resposta em JSON conforme responseSchema (o chamador ainda valida com zod, RN-I03). */
-  generate(input: { system: string; prompt: string; json?: { responseSchema: object } }): Promise<string>;
+  /** image: foto so em memoria (cupom fiscal, passo 10); vai junto da requisicao e nao e guardada. */
+  generate(input: { system: string; prompt: string; json?: { responseSchema: object }; image?: { mimeType: string; base64: string } }): Promise<string>;
   /** Conversa com ferramentas: devolve as partes da resposta do modelo (texto e/ou chamadas). */
   chat?(input: { system: string; contents: LlmContent[]; tools: LlmTool[] }): Promise<LlmPart[]>;
 }
@@ -61,10 +62,10 @@ export function createGemini(opts: { apiKey: string; model: string; fallbackMode
   const blocked = (data: GeminiResponse) => `Gemini sem resposta (${data.promptFeedback?.blockReason ?? data.candidates?.[0]?.finishReason ?? 'vazio'})`;
 
   return {
-    async generate({ system, prompt, json }) {
+    async generate({ system, prompt, json, image }) {
       const data = await post({
         systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [...(image ? [{ inlineData: { mimeType: image.mimeType, data: image.base64 } }] : []), { text: prompt }] }],
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 2048,
