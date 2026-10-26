@@ -23,6 +23,7 @@ import {
   ContestationsSchema,
   ExportFileSchema,
   ObligationsSchema,
+  InvestmentBoxesSchema,
   ReceiptDraftSchema,
   ReceiptSchema,
   ShoppingInsightsSchema,
@@ -339,6 +340,9 @@ export const api = {
   deleteBill: (id: string) => request<void>(`/bills/${id}`, { method: 'DELETE' }),
 
   // Lista de compras do mes.
+  /** Caixinhas: card por aplicacao com rendimento projetado e meta ligada. */
+  investmentBoxes: () => request('/investments/boxes', {}, InvestmentBoxesSchema),
+  linkBoxGoal: (id: string, goalId: string | null) => request(`/investments/boxes/${id}/goal`, { method: 'PUT', body: JSON.stringify({ goalId }) }, InvestmentBoxesSchema),
   shoppingList: () => request('/shopping/list', {}, ShoppingListSchema),
   /** Cupom: QR (SEFAZ) ou foto (IA, com consentimento). A foto vai so nesta chamada. */
   scanReceipt: (body: { qr: string } | { image: { mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; base64: string } }) =>

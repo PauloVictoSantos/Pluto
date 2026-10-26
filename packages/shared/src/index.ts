@@ -32,3 +32,4 @@ export * from './textCategory';
 export * from './schemas/monthlyPlan';
 export * from './receiptMatch';
 export * from './schemas/receipts';
+export * from './schemas/investmentBoxes';

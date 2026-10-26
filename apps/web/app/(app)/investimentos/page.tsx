@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
+import { InvestmentBoxesCard } from '@/components/InvestmentBoxesCard';
 import { PlutoLogo } from '@/components/brand/PlutoLogo';
 import { useShell } from '@/components/shell/ShellContext';
 import { CountUp } from '@/components/ui/CountUp';
@@ -70,6 +71,8 @@ export default function InvestimentosPage() {
           </button>
         </div>
       )}
+
+      <InvestmentBoxesCard />
 
       <div className="grid items-start gap-4" style={{ gridTemplateColumns: mode === 'desktop' ? 'minmax(0,7fr) minmax(0,5fr)' : 'minmax(0,1fr)' }}>
         <div className="flex min-w-0 flex-col gap-4">

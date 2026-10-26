@@ -18,6 +18,7 @@ import { recalcLimit } from './modules/agent/limit';
 import { agentRoutes } from './modules/agent/routes';
 import { invalidateFinancialContext } from './modules/agent/plutao/context';
 import { privacyRoutes } from './modules/privacy/routes';
+import { investmentRoutes } from './modules/investments/routes';
 
 /** Mudancas que alteram o plano (renda, fixos, dividas, metas). */
 const PLAN_ROUTES = /\/(agent\/(profile|income-profiles|fixed-expenses|loans|goal-drafts\/:id\/confirm|purchases\/:id\/(plan|bought))|goals|debts)(\/|$)/;
@@ -84,6 +85,7 @@ export async function buildApp(ctx: AppContext) {
       await v1.register(merchantRoutes, { ctx });
       await v1.register(agentRoutes, { ctx });
       await v1.register(privacyRoutes, { ctx });
+      await v1.register(investmentRoutes, { ctx });
       await v1.register(alertRoutes, { ctx });
       await v1.register(chargeRoutes, { ctx });
       await v1.register(stripeWebhookRoutes, { ctx });

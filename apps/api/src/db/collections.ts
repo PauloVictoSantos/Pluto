@@ -151,6 +151,8 @@ export interface AccountDoc {
   syncError: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Poupanca ligada a uma meta (Investimentos). */
+  goalId?: ObjectId | null;
 }
 
 export interface TransactionDoc {
@@ -236,6 +238,12 @@ export interface InvestmentDoc {
   currentValueMinor: number;
   dueDate: Date | null;
   rateInfo: string | null;
+  rate?: number | null;
+  rateType?: string | null;
+  fixedAnnualRate?: number | null;
+  lastTwelveMonthsRate?: number | null;
+  /** Meta/objetivo a que esta caixinha esta ligada (Investimentos). */
+  goalId?: ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }

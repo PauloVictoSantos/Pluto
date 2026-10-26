@@ -194,6 +194,11 @@ export function mapInvestment(i: PluggyInvestment) {
     currentValueMinor: toMinor(i.balance),
     dueDate: toDate(i.dueDate),
     rateInfo: rateInfo(i),
+    // Campos da taxa para projetar o rendimento (Investimentos).
+    rate: i.rate ?? null,
+    rateType: i.rateType ?? null,
+    fixedAnnualRate: i.fixedAnnualRate ?? null,
+    lastTwelveMonthsRate: i.lastTwelveMonthsRate ?? null,
   };
 }
 
